@@ -84,19 +84,6 @@ Every response includes live cognitive metrics:
 }
 ```
 
-### For Original Fork (NPM Package)
-
-```json
-{
-  "mcpServers": {
-    "code-reasoning": {
-      "command": "npx",
-      "args": ["-y", "@mettamatt/code-reasoning"]
-    }
-  }
-}
-```
-
 ## 🎯 Usage Examples
 
 ### 🧠 **AGI-Enhanced Reasoning**
