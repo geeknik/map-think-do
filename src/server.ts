@@ -152,7 +152,7 @@ const THOUGHT_DATA_JSON_SCHEMA = Object.freeze(
 /* -------------------------------------------------------------------------- */
 
 const CODE_REASONING_TOOL: Tool = {
-  name: 'code-reasoning',
+  name: 'sentient-agi-reasoning',
   description: `🧠 SENTIENT AGI MAGIC: Advanced cognitive scaffold for recursive self-reflection and creative agency.
 
 This tool provides AGI-like cognitive capabilities through a sophisticated orchestration of multiple 
@@ -771,7 +771,7 @@ export async function runServer(debugFlag = false): Promise<void> {
   console.error('🔮 Metacognitive Awareness: ONLINE');
   console.error('⚡ Emergent Behavior: ENABLED');
   console.error('📚 Memory Integration: ACTIVE');
-  console.error('🎯 Tool: code-reasoning (AGI-Enhanced)');
+  console.error('🎯 Tool: sentient-agi-reasoning (AGI-Enhanced)');
   if (config.promptsEnabled) {
     console.error('📝 Prompts: Enhanced with cognitive capabilities');
   }

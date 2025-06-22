@@ -105,7 +105,7 @@ async function testAGIMagic() {
       id: Math.random(),
       method: "tools/call",
       params: {
-        name: "code-reasoning",
+        name: "sentient-agi-reasoning",
         arguments: scenario
       }
     };
