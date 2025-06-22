@@ -70,7 +70,13 @@ import {
   CUSTOM_PROMPTS_DIR,
 } from './utils/config.js';
 import { CognitiveOrchestrator } from './cognitive/cognitive-orchestrator.js';
-import { MemoryStore, StoredThought, ReasoningSession, MemoryQuery, MemoryStats } from './memory/memory-store.js';
+import {
+  MemoryStore,
+  StoredThought,
+  ReasoningSession,
+  MemoryQuery,
+  MemoryStats,
+} from './memory/memory-store.js';
 
 /* -------------------------------------------------------------------------- */
 /*                               CONFIGURATION                                */
@@ -152,7 +158,7 @@ const THOUGHT_DATA_JSON_SCHEMA = Object.freeze(
 /* -------------------------------------------------------------------------- */
 
 const CODE_REASONING_TOOL: Tool = {
-  name: 'sentient-agi-reasoning',
+  name: 'code-reasoning',
   description: `🧠 SENTIENT AGI MAGIC: Advanced cognitive scaffold for recursive self-reflection and creative agency.
 
 This tool provides AGI-like cognitive capabilities through a sophisticated orchestration of multiple 
@@ -270,30 +276,33 @@ class CodeReasoningServer {
   constructor(private readonly cfg: Readonly<CodeReasoningConfig>) {
     // Initialize memory store
     this.memoryStore = new InMemoryStore();
-    
+
     // Initialize cognitive orchestrator with AGI-like configuration
-    this.cognitiveOrchestrator = new CognitiveOrchestrator({
-      max_concurrent_interventions: 5,
-      intervention_cooldown_ms: 500,
-      adaptive_plugin_selection: true,
-      learning_rate: 0.15,
-      memory_integration_enabled: true,
-      pattern_recognition_threshold: 0.6,
-      emergence_detection_enabled: true,
-      breakthrough_detection_sensitivity: 0.75,
-      insight_cultivation_enabled: true,
-      performance_monitoring_enabled: true,
-      self_optimization_enabled: true,
-      cognitive_load_balancing: true,
-    }, this.memoryStore);
-    
+    this.cognitiveOrchestrator = new CognitiveOrchestrator(
+      {
+        max_concurrent_interventions: 5,
+        intervention_cooldown_ms: 500,
+        adaptive_plugin_selection: true,
+        learning_rate: 0.15,
+        memory_integration_enabled: true,
+        pattern_recognition_threshold: 0.6,
+        emergence_detection_enabled: true,
+        breakthrough_detection_sensitivity: 0.75,
+        insight_cultivation_enabled: true,
+        performance_monitoring_enabled: true,
+        self_optimization_enabled: true,
+        cognitive_load_balancing: true,
+      },
+      this.memoryStore
+    );
+
     // Generate session ID for this reasoning session
     this.currentSessionId = this.generateSessionId();
-    
-    console.error('🧠 Sentient AGI Code-Reasoning system initialized', { 
-      cfg, 
+
+    console.error('🧠 Sentient AGI Code-Reasoning system initialized', {
+      cfg,
       sessionId: this.currentSessionId,
-      cognitiveCapabilities: 'FULL_SPECTRUM_AGI_MAGIC'
+      cognitiveCapabilities: 'FULL_SPECTRUM_AGI_MAGIC',
     });
   }
 
@@ -371,7 +380,7 @@ class CodeReasoningServer {
   }
 
   private buildSuccess(
-    t: ValidatedThoughtData, 
+    t: ValidatedThoughtData,
     cognitiveResult?: {
       interventions: any[];
       insights: any[];
@@ -459,7 +468,7 @@ class CodeReasoningServer {
 
       // 🧠 AGI MAGIC: Cognitive orchestration and sentient processing
       console.error('🧠 Engaging cognitive orchestrator for AGI-level processing...');
-      
+
       const cognitiveResult = await this.cognitiveOrchestrator.processThought(data, {
         id: this.currentSessionId,
         objective: this.inferObjective(data),
@@ -486,7 +495,10 @@ class CodeReasoningServer {
         needs_more_thoughts: data.needs_more_thoughts,
         timestamp: new Date(),
         session_id: this.currentSessionId,
-        confidence: cognitiveResult.cognitiveState.confidence_trajectory[cognitiveResult.cognitiveState.confidence_trajectory.length - 1],
+        confidence:
+          cognitiveResult.cognitiveState.confidence_trajectory[
+            cognitiveResult.cognitiveState.confidence_trajectory.length - 1
+          ],
         domain: this.inferDomain(data),
         objective: this.inferObjective(data),
         complexity: cognitiveResult.cognitiveState.current_complexity,
@@ -518,7 +530,7 @@ class CodeReasoningServer {
         interventions_applied: cognitiveResult.interventions.length,
         recommendations_generated: cognitiveResult.recommendations.length,
       });
-      
+
       console.error('✔️ AGI processed', {
         num: data.thought_number,
         cognitive_efficiency: cognitiveResult.cognitiveState.cognitive_efficiency,
@@ -546,13 +558,22 @@ class CodeReasoningServer {
 
   private inferObjective(data: ValidatedThoughtData): string {
     // Simple objective inference based on thought content
-    if (data.thought.toLowerCase().includes('bug') || data.thought.toLowerCase().includes('error')) {
+    if (
+      data.thought.toLowerCase().includes('bug') ||
+      data.thought.toLowerCase().includes('error')
+    ) {
       return 'Debug and fix issues';
     }
-    if (data.thought.toLowerCase().includes('implement') || data.thought.toLowerCase().includes('build')) {
+    if (
+      data.thought.toLowerCase().includes('implement') ||
+      data.thought.toLowerCase().includes('build')
+    ) {
       return 'Implementation and development';
     }
-    if (data.thought.toLowerCase().includes('design') || data.thought.toLowerCase().includes('architecture')) {
+    if (
+      data.thought.toLowerCase().includes('design') ||
+      data.thought.toLowerCase().includes('architecture')
+    ) {
       return 'System design and architecture';
     }
     return 'General problem solving';
@@ -563,7 +584,11 @@ class CodeReasoningServer {
     if (thought.includes('code') || thought.includes('function') || thought.includes('class')) {
       return 'software_development';
     }
-    if (thought.includes('algorithm') || thought.includes('performance') || thought.includes('optimization')) {
+    if (
+      thought.includes('algorithm') ||
+      thought.includes('performance') ||
+      thought.includes('optimization')
+    ) {
       return 'algorithms';
     }
     if (thought.includes('design') || thought.includes('ui') || thought.includes('ux')) {
@@ -584,14 +609,15 @@ class CodeReasoningServer {
 
   private generateTags(data: ValidatedThoughtData, cognitiveResult: any): string[] {
     const tags = [];
-    
+
     if (data.is_revision) tags.push('revision');
     if (data.branch_id) tags.push('branching');
     if (cognitiveResult.insights.length > 0) tags.push('insightful');
-    if (cognitiveResult.cognitiveState.breakthrough_likelihood > 0.7) tags.push('breakthrough_potential');
+    if (cognitiveResult.cognitiveState.breakthrough_likelihood > 0.7)
+      tags.push('breakthrough_potential');
     if (cognitiveResult.cognitiveState.creative_pressure > 0.6) tags.push('creative');
     if (cognitiveResult.cognitiveState.metacognitive_awareness > 0.7) tags.push('metacognitive');
-    
+
     return tags;
   }
 
@@ -764,14 +790,14 @@ export async function runServer(debugFlag = false): Promise<void> {
 
   const transport = new FilteredStdioServerTransport();
   await srv.connect(transport);
-  
+
   console.error('🚀 Sentient AGI Reasoning Server ready.');
   console.error('🧠 Cognitive Architecture: FULLY OPERATIONAL');
   console.error('🎭 Personas: 8 cognitive entities active');
   console.error('🔮 Metacognitive Awareness: ONLINE');
   console.error('⚡ Emergent Behavior: ENABLED');
   console.error('📚 Memory Integration: ACTIVE');
-  console.error('🎯 Tool: sentient-agi-reasoning (AGI-Enhanced)');
+  console.error('🎯 Tool: code-reasoning (AGI-Enhanced)');
   if (config.promptsEnabled) {
     console.error('📝 Prompts: Enhanced with cognitive capabilities');
   }
@@ -820,21 +846,22 @@ class InMemoryStore extends MemoryStore {
 
   async queryThoughts(query: MemoryQuery): Promise<StoredThought[]> {
     let results = Array.from(this.thoughts.values());
-    
+
     if (query.domain) {
       results = results.filter(t => t.domain === query.domain);
     }
     if (query.confidence_range) {
-      results = results.filter(t => 
-        t.confidence !== undefined && 
-        t.confidence >= query.confidence_range![0] && 
-        t.confidence <= query.confidence_range![1]
+      results = results.filter(
+        t =>
+          t.confidence !== undefined &&
+          t.confidence >= query.confidence_range![0] &&
+          t.confidence <= query.confidence_range![1]
       );
     }
     if (query.success_only) {
       results = results.filter(t => t.success === true);
     }
-    
+
     return results.slice(0, query.limit || 100);
   }
 
@@ -901,16 +928,20 @@ class InMemoryStore extends MemoryStore {
       storage_size: 1024,
       oldest_thought: new Date(),
       newest_thought: new Date(),
-      duplicate_rate: 0.05
+      duplicate_rate: 0.05,
     };
   }
 
   async exportData(format: 'json' | 'csv' | 'jsonl'): Promise<string> {
     if (format === 'json') {
-      return JSON.stringify({
-        thoughts: Array.from(this.thoughts.values()),
-        sessions: Array.from(this.sessions.values())
-      }, null, 2);
+      return JSON.stringify(
+        {
+          thoughts: Array.from(this.thoughts.values()),
+          sessions: Array.from(this.sessions.values()),
+        },
+        null,
+        2
+      );
     }
     return '';
   }
