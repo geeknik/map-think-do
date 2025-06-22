@@ -497,17 +497,17 @@ async function runTestScenario(
 
   log(`Tools response: ${JSON.stringify(toolsResponse)}`);
 
-  // Check for code-reasoning tool
+  // Check for sentient-agi-reasoning tool
   const tools = Array.isArray(toolsResponse?.result?.tools) ? toolsResponse.result.tools : [];
-  const codeReasoningTool = tools.find((tool: Tool) => tool.name === 'code-reasoning');
+  const codeReasoningTool = tools.find((tool: Tool) => tool.name === 'sentient-agi-reasoning');
 
   if (!codeReasoningTool) {
-    log('Error: code-reasoning tool not found!');
+    log('Error: sentient-agi-reasoning tool not found!');
     results.successful = false;
     return results;
   }
 
-  log('Found code-reasoning tool, running thoughts...');
+  log('Found sentient-agi-reasoning tool, running thoughts...');
 
   // Run each thought
   for (let index = 0; index < scenario.thoughts.length; index++) {
@@ -522,7 +522,7 @@ async function runTestScenario(
         id: index + 2, // Start from id 2 (after initialize and tools/list)
         method: 'tools/call',
         params: {
-          name: 'code-reasoning',
+          name: 'sentient-agi-reasoning',
           arguments: thought,
         },
       });
