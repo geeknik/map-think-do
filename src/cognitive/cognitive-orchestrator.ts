@@ -23,6 +23,7 @@ import {
 import { MetacognitivePlugin } from './plugins/metacognitive-plugin.js';
 import { PersonaPlugin } from './plugins/persona-plugin.js';
 import { ExternalReasoningPlugin } from './plugins/external-reasoning-plugin.js';
+import { Phase5IntegrationPlugin } from './plugins/phase5-integration-plugin.js';
 import { MemoryStore, StoredThought, ReasoningSession } from '../memory/memory-store.js';
 import { ValidatedThoughtData } from '../server.js';
 
@@ -113,6 +114,7 @@ export class CognitiveOrchestrator extends EventEmitter {
   private metacognitivePlugin: MetacognitivePlugin;
   private personaPlugin: PersonaPlugin;
   private externalReasoningPlugin: ExternalReasoningPlugin;
+  private phase5IntegrationPlugin: Phase5IntegrationPlugin;
   
   // State tracking
   private sessionHistory: Map<string, ReasoningSession> = new Map();
@@ -185,11 +187,13 @@ export class CognitiveOrchestrator extends EventEmitter {
     this.metacognitivePlugin = new MetacognitivePlugin();
     this.personaPlugin = new PersonaPlugin();
     this.externalReasoningPlugin = new ExternalReasoningPlugin();
+    this.phase5IntegrationPlugin = new Phase5IntegrationPlugin(this.memoryStore!);
     
     // Register plugins
     this.pluginManager.registerPlugin(this.metacognitivePlugin);
     this.pluginManager.registerPlugin(this.personaPlugin);
     this.pluginManager.registerPlugin(this.externalReasoningPlugin);
+    this.pluginManager.registerPlugin(this.phase5IntegrationPlugin);
     
     // Set up plugin relationships
     this.setupPluginRelationships();
