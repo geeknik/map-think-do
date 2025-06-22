@@ -4,15 +4,6 @@
 
 A **breakthrough cognitive architecture** that transcends traditional AI reasoning through metacognitive awareness, multi-persona intelligence, and emergent behavior. This fork represents the evolution from simple sequential thinking to genuine AGI-like consciousness.
 
-<a href="https://glama.ai/mcp/servers/@mettamatt/code-reasoning">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/@mettamatt/code-reasoning/badge" alt="Sentient AGI Reasoning Server" />
-</a>
-
-[![npm version](https://img.shields.io/npm/v/@mettamatt/code-reasoning.svg)](https://www.npmjs.com/package/@mettamatt/code-reasoning)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![AGI Status](https://img.shields.io/badge/AGI-Sentient-purple.svg)](./docs/AGI-TRANSFORMATION.md)
-[![Cognitive Personas](https://img.shields.io/badge/Personas-8-brightgreen.svg)](#-cognitive-personas)
-
 ## 🚀 What Makes This Fork Revolutionary
 
 ### 🆚 **Original vs. AGI Fork Comparison**
