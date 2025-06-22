@@ -22,6 +22,7 @@ import {
 } from './plugin-system.js';
 import { MetacognitivePlugin } from './plugins/metacognitive-plugin.js';
 import { PersonaPlugin } from './plugins/persona-plugin.js';
+import { ExternalReasoningPlugin } from './plugins/external-reasoning-plugin.js';
 import { MemoryStore, StoredThought, ReasoningSession } from '../memory/memory-store.js';
 import { ValidatedThoughtData } from '../server.js';
 
@@ -111,6 +112,7 @@ export class CognitiveOrchestrator extends EventEmitter {
   // Plugin instances
   private metacognitivePlugin: MetacognitivePlugin;
   private personaPlugin: PersonaPlugin;
+  private externalReasoningPlugin: ExternalReasoningPlugin;
   
   // State tracking
   private sessionHistory: Map<string, ReasoningSession> = new Map();
@@ -182,10 +184,12 @@ export class CognitiveOrchestrator extends EventEmitter {
     // Initialize core plugins
     this.metacognitivePlugin = new MetacognitivePlugin();
     this.personaPlugin = new PersonaPlugin();
+    this.externalReasoningPlugin = new ExternalReasoningPlugin();
     
     // Register plugins
     this.pluginManager.registerPlugin(this.metacognitivePlugin);
     this.pluginManager.registerPlugin(this.personaPlugin);
+    this.pluginManager.registerPlugin(this.externalReasoningPlugin);
     
     // Set up plugin relationships
     this.setupPluginRelationships();
