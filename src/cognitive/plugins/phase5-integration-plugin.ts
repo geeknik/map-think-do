@@ -832,24 +832,22 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    */
   async adapt(learningData: any): Promise<void> {
     if (learningData.consciousness_insights) {
-      // TODO: Adapt consciousness simulation parameters
-      // Note: adaptParameters method needs to be implemented in ConsciousnessSimulator
-      this.state.consciousness_level = Math.max(0.1, 
-        Math.min(1.0, this.state.consciousness_level + 0.05));
+      this.consciousnessSimulator.adaptParameters(learningData.consciousness_insights);
+      this.state.consciousness_level = this.consciousnessSimulator.getConsciousnessSnapshot().awareness_level;
     }
-    
+
     if (learningData.architectural_feedback) {
-      // TODO: Adapt self-modifying architecture
-      // Note: incorporateFeedback method needs to be implemented in SelfModifyingArchitecture
-      this.state.architectural_evolution.stability_score = Math.max(0.1,
-        Math.min(1.0, this.state.architectural_evolution.stability_score + 0.05));
+      this.selfModifyingArchitecture.incorporateFeedback(learningData.architectural_feedback);
+      const archStatus = this.selfModifyingArchitecture.getArchitecturalStatus();
+      this.state.architectural_evolution.stability_score = archStatus.performance.system_stability;
     }
-    
+
     if (learningData.mcp_performance) {
-      // TODO: Adapt MCP integration based on performance
-      // Note: optimizeIntegration method needs to be implemented in MCPIntegrationSystem
-      this.state.mcp_status.integration_health = Math.max(0.1,
-        Math.min(1.0, this.state.mcp_status.integration_health + 0.05));
+      if (learningData.mcp_performance.serverId) {
+        this.mcpSystem.optimizeIntegration(learningData.mcp_performance);
+      }
+      const status = this.mcpSystem.getSystemStatus();
+      this.state.mcp_status.integration_health = status.performance.success_rate;
     }
     
     // Update internal parameters

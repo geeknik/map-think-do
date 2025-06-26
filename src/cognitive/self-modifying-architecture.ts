@@ -648,6 +648,57 @@ export class SelfModifyingArchitecture extends EventEmitter {
   }
 
   /**
+   * Incorporate external feedback to tune architectural components
+   */
+  incorporateFeedback(feedback: {
+    component_updates?: Array<{
+      id: string;
+      success_rate?: number;
+      efficiency?: number;
+      stability_score?: number;
+    }>;
+    innovation_pressure?: number;
+  }): void {
+    if (feedback.component_updates) {
+      for (const update of feedback.component_updates) {
+        const component = this.components.get(update.id);
+        if (!component) continue;
+
+        if (typeof update.success_rate === 'number') {
+          component.performance_metrics.success_rate = this.clamp(update.success_rate);
+        }
+        if (typeof update.efficiency === 'number') {
+          component.performance_metrics.efficiency = this.clamp(update.efficiency);
+        }
+        if (typeof update.stability_score === 'number') {
+          component.stability_score = this.clamp(update.stability_score);
+        }
+
+        component.last_modified = new Date();
+        component.adaptation_history.push({
+          timestamp: new Date(),
+          type: 'modification',
+          description: 'Feedback integration',
+          trigger: 'feedback',
+          impact_score: 0.5,
+          success: true,
+          rollback_available: false
+        });
+      }
+    }
+
+    if (typeof feedback.innovation_pressure === 'number') {
+      this.innovationPressure = this.clamp(feedback.innovation_pressure);
+    }
+
+    this.emit('feedback_incorporated', feedback);
+  }
+
+  private clamp(value: number, min = 0, max = 1): number {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  /**
    * Get architectural status
    */
   getArchitecturalStatus(): any {
