@@ -53,6 +53,10 @@ export interface StoredThought {
   patterns_detected?: string[];
   similar_thoughts?: string[]; // IDs of similar thoughts
   outcome_quality?: 'excellent' | 'good' | 'fair' | 'poor';
+
+  // Output for reflection
+  output?: string;
+  context_trace?: string[];
 }
 
 /**

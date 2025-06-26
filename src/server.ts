@@ -506,6 +506,7 @@ class CodeReasoningServer {
           cognitive_load: cognitiveResult.cognitiveState.current_complexity,
           problem_type: this.inferProblemType(data),
         },
+        output: cognitiveResult.interventions.map(i => i.content).join('\n'),
         tags: this.generateTags(data, cognitiveResult),
         outcome_quality: this.assessOutcomeQuality(cognitiveResult),
       };

@@ -121,6 +121,7 @@ export class CognitiveOrchestrator extends EventEmitter {
   private interventionHistory: PluginIntervention[] = [];
   private insightHistory: CognitiveInsight[] = [];
   private lastInterventionTime: number = 0;
+  private thoughtOutputHistory: string[] = [];
   
   // Learning and adaptation
   private learningData: Map<string, any> = new Map();
@@ -240,10 +241,16 @@ export class CognitiveOrchestrator extends EventEmitter {
       
       // Detect insights and emergent patterns
       const insights = await this.detectInsights(context, interventions);
-      
+
       // Generate recommendations
       const recommendations = await this.generateRecommendations(context, interventions, insights);
-      
+
+      // Record output for reflection
+      this.thoughtOutputHistory.push(interventions.map(i => i.content).join('\n'));
+      if (this.thoughtOutputHistory.length > 20) {
+        this.thoughtOutputHistory = this.thoughtOutputHistory.slice(-20);
+      }
+
       // Update memory if available
       if (this.memoryStore) {
         await this.updateMemory(thoughtData, context, interventions, insights);
@@ -472,7 +479,9 @@ export class CognitiveOrchestrator extends EventEmitter {
       engagement_level: this.cognitiveState.engagement_level,
       metacognitive_awareness: this.cognitiveState.metacognitive_awareness,
       self_doubt_level: this.cognitiveState.self_doubt_level,
-      creative_pressure: this.cognitiveState.creative_pressure
+      creative_pressure: this.cognitiveState.creative_pressure,
+      last_thought_output: this.thoughtOutputHistory.slice(-1)[0],
+      context_trace: this.thoughtOutputHistory.slice(-5)
     };
     
     return context;
@@ -604,19 +613,21 @@ export class CognitiveOrchestrator extends EventEmitter {
         confidence: context.confidence_level,
         domain: context.domain,
         complexity: context.complexity,
-        context: {
-          available_tools: context.available_tools,
-          time_constraints: context.time_constraints ? {
-            urgency: 'medium' as const,
-            deadline: context.time_constraints.deadline
-          } : undefined,
-          problem_type: context.domain,
-          cognitive_load: this.calculateCognitiveLoad(interventions)
-        },
-        tags: this.generateTags(thoughtData, context, interventions, insights),
-        patterns_detected: insights.map(insight => insight.type),
-        outcome_quality: this.assessOutcomeQuality(context, interventions, insights)
-      };
+      context: {
+        available_tools: context.available_tools,
+        time_constraints: context.time_constraints ? {
+          urgency: 'medium' as const,
+          deadline: context.time_constraints.deadline
+        } : undefined,
+        problem_type: context.domain,
+        cognitive_load: this.calculateCognitiveLoad(interventions)
+      },
+      output: interventions.map(i => i.content).join('\n'),
+      context_trace: this.thoughtOutputHistory.slice(-5),
+      tags: this.generateTags(thoughtData, context, interventions, insights),
+      patterns_detected: insights.map(insight => insight.type),
+      outcome_quality: this.assessOutcomeQuality(context, interventions, insights)
+    };
 
       await this.memoryStore.storeThought(storedThought);
       

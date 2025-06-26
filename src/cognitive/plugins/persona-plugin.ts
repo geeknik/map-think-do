@@ -633,9 +633,17 @@ ${this.generatePersonaQuestions(persona, context)}`;
 
     const synthesis = this.generatePerspectiveSynthesis(selectedPersonas, context);
 
+    const ids = selectedPersonas.map(p => p.persona.id);
+    let feedbackLoop = '';
+    if (ids.includes('engineer') && ids.includes('philosopher') && ids.includes('synthesizer')) {
+      feedbackLoop = '\n\n**Feedback Loop:**\n1. Engineer proposes a technical path.' +
+        '\n2. Philosopher examines principles and ethics.' +
+        '\n3. Synthesizer integrates both views into a coherent solution.';
+    }
+
     return `🎭 **Multi-Perspective Analysis**
 
-${perspectives}
+${perspectives}${feedbackLoop}
 
 **Synthesis & Integration:**
 ${synthesis}
@@ -794,6 +802,14 @@ ${this.generateBalancedApproach(selectedPersonas, context)}`;
     
     if (personaNames.includes('The Analyst') && personaNames.includes('The Philosopher')) {
       return "Data-driven decisions should be guided by clear values and principles. Ensure that quantitative analysis serves meaningful purposes aligned with core values.";
+    }
+
+    if (
+      personaNames.includes('The Engineer') &&
+      personaNames.includes('The Philosopher') &&
+      personaNames.includes('The Synthesizer')
+    ) {
+      return 'Technical practicality should be questioned through philosophical reflection and then merged into an integrated approach.';
     }
 
     return "Each perspective offers valuable insights. The key is finding an approach that leverages the strengths of each viewpoint while mitigating their respective blind spots.";
