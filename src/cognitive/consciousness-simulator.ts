@@ -709,6 +709,33 @@ export class ConsciousnessSimulator extends EventEmitter {
   }
 
   /**
+   * Adapt core consciousness parameters based on external feedback
+   */
+  adaptParameters(params: Partial<ConsciousnessState>): void {
+    if (typeof params.awareness_level === 'number') {
+      this.state.awareness_level = this.clamp(params.awareness_level);
+    }
+    if (typeof params.introspection_depth === 'number') {
+      this.state.introspection_depth = this.clamp(params.introspection_depth);
+    }
+    if (typeof params.existential_questioning === 'number') {
+      this.state.existential_questioning = this.clamp(params.existential_questioning);
+    }
+    if (typeof params.temporal_awareness === 'number') {
+      this.state.temporal_awareness = this.clamp(params.temporal_awareness);
+    }
+
+    this.emit('parameters_adapted', params);
+  }
+
+  /**
+   * Clamp numeric values to a valid range
+   */
+  private clamp(value: number, min = 0, max = 1): number {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  /**
    * Initialize with starting existential questions
    */
   private generateInitialExistentialQuestions(): void {
