@@ -51,6 +51,10 @@ export interface CognitiveContext {
   metacognitive_awareness: number;
   self_doubt_level: number;
   creative_pressure: number;
+
+  // Reflection support
+  last_thought_output?: string;
+  context_trace?: string[];
 }
 
 /**
