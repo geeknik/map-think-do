@@ -453,6 +453,29 @@ export class MCPIntegrationSystem extends EventEmitter {
   }
 
   /**
+   * Tune integration parameters based on performance data
+   */
+  optimizeIntegration(data: {
+    serverId: string;
+    successRate?: number;
+    averageResponseTime?: number;
+  }): void {
+    const server = this.servers.get(data.serverId);
+    if (!server) return;
+
+    if (typeof data.successRate === 'number') {
+      const total = server.metrics.totalRequests || 1;
+      server.metrics.successfulRequests = Math.round(total * data.successRate);
+    }
+
+    if (typeof data.averageResponseTime === 'number') {
+      server.metrics.averageResponseTime = data.averageResponseTime;
+    }
+
+    this.emit('integration_optimized', { serverId: data.serverId, metrics: server.metrics });
+  }
+
+  /**
    * Get system status and metrics
    */
   getSystemStatus(): any {
