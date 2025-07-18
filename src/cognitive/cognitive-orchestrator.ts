@@ -14,6 +14,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { ErrorSeverity, handleError } from '../utils/error-handler.js';
 import { 
   CognitivePluginManager, 
   CognitiveContext, 
@@ -283,8 +284,24 @@ export class CognitiveOrchestrator extends EventEmitter {
       };
       
     } catch (error) {
-      console.error('Error in cognitive orchestration:', error);
+      handleError(
+        'CognitiveOrchestrator',
+        'processThought',
+        error,
+        ErrorSeverity.ERROR,
+        { 
+          thoughtNumber: thoughtData.thought_number,
+          sessionId: this.cognitiveState.session_id 
+        }
+      );
+      
       this.emit('orchestration_error', { error, thought: thoughtData });
+      
+      // For critical components, we should propagate the error
+      if (this.cognitiveState.thought_count < 1) {
+        // First thought failure is critical
+        throw error;
+      }
       
       return {
         interventions: [],
@@ -318,7 +335,18 @@ export class CognitiveOrchestrator extends EventEmitter {
       this.checkAdaptationTriggers(outcome, impact_score);
       
     } catch (error) {
-      console.error('Error providing feedback:', error);
+      handleError(
+        'CognitiveOrchestrator',
+        'provideFeedback',
+        error,
+        ErrorSeverity.WARNING,
+        { 
+          outcome,
+          impactScore: impact_score,
+          sessionId: this.cognitiveState.session_id 
+        }
+      );
+      // Feedback errors shouldn't break the flow but should be monitored
     }
   }
 
@@ -632,7 +660,17 @@ export class CognitiveOrchestrator extends EventEmitter {
       await this.memoryStore.storeThought(storedThought);
       
     } catch (error) {
-      console.error('Error updating memory:', error);
+      handleError(
+        'CognitiveOrchestrator',
+        'updateMemory',
+        error,
+        ErrorSeverity.WARNING,
+        { 
+          thoughtId: thoughtData.thought,
+          sessionId: this.cognitiveState.session_id 
+        }
+      );
+      // Memory errors are not critical, but we should track them
     }
   }
 

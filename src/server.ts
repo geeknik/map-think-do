@@ -636,6 +636,18 @@ class CodeReasoningServer {
     if (score > 0.4) return 'fair';
     return 'poor';
   }
+
+  /**
+   * Cleanup resources
+   */
+  async destroy(): Promise<void> {
+    // Clear data structures
+    this.thoughtHistory.length = 0;
+    this.branches.clear();
+    
+    // The cognitive orchestrator cleanup is handled separately
+    // Memory store doesn't need explicit cleanup for in-memory implementation
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -818,9 +830,15 @@ export async function runServer(debugFlag = false): Promise<void> {
     try {
       console.error('🧠 Cleaning up cognitive systems...');
       await logic.getCognitiveOrchestrator().destroy();
+      await logic.destroy();
       console.error('✅ Cognitive systems cleaned up');
     } catch (err) {
       console.error('⚠️ Error cleaning up cognitive systems:', err);
+    }
+    
+    // Cleanup transport
+    if (transport instanceof FilteredStdioServerTransport) {
+      transport.close();
     }
     
     await srv.close();

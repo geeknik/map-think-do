@@ -13,6 +13,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { ErrorSeverity, handleError } from '../utils/error-handler.js';
 import { StoredThought, ReasoningSession } from '../memory/memory-store.js';
 
 /**
@@ -414,7 +415,13 @@ export class CognitivePluginManager extends EventEmitter {
           const activation = await plugin.shouldActivate(context);
           return { plugin, activation };
         } catch (error) {
-          console.error(`Error in plugin ${plugin.id} activation check:`, error);
+          handleError(
+            'CognitivePluginManager',
+            'orchestrate',
+            error,
+            ErrorSeverity.WARNING,
+            { pluginId: plugin.id, phase: 'activation_check' }
+          );
           return null;
         }
       });
@@ -448,7 +455,13 @@ export class CognitivePluginManager extends EventEmitter {
           this.activeInterventions.set(plugin.id, intervention);
           return intervention;
         } catch (error) {
-          console.error(`Error in plugin ${plugin.id} intervention:`, error);
+          handleError(
+            'CognitivePluginManager',
+            'orchestrate',
+            error,
+            ErrorSeverity.ERROR,
+            { pluginId: plugin.id, phase: 'intervention' }
+          );
           return null;
         }
       });
@@ -469,9 +482,15 @@ export class CognitivePluginManager extends EventEmitter {
       return interventions;
       
     } catch (error) {
-      console.error('Error in cognitive orchestration:', error);
+      handleError(
+        'CognitivePluginManager',
+        'orchestrate',
+        error,
+        ErrorSeverity.CRITICAL,
+        { contextDomain: context.domain }
+      );
       this.emit('orchestration_error', { context, error });
-      return [];
+      throw error; // Critical errors should propagate
     }
   }
   
@@ -490,7 +509,13 @@ export class CognitivePluginManager extends EventEmitter {
         try {
           await plugin.receiveFeedback(intervention, outcome, impact_score, context);
         } catch (error) {
-          console.error(`Error providing feedback to plugin ${plugin.id}:`, error);
+          handleError(
+            'CognitivePluginManager',
+            'provideFeedback',
+            error,
+            ErrorSeverity.WARNING,
+            { pluginId: plugin.id, outcome }
+          );
         }
       }
     });

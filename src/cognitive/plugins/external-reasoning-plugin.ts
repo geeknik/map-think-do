@@ -270,4 +270,14 @@ export class ExternalReasoningPlugin extends CognitivePlugin {
   public getToolMetrics(): any[] {
     return this.toolRegistry.getToolMetrics();
   }
+
+  /**
+   * Cleanup resources
+   */
+  async destroy(): Promise<void> {
+    await super.destroy();
+    // The tool registry doesn't have persistent connections
+    // but we should clear any references
+    this.toolRegistry = null as any;
+  }
 } 
