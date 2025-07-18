@@ -15,6 +15,7 @@
 
 import { EventEmitter } from 'events';
 import { ErrorSeverity, handleError } from '../utils/error-handler.js';
+import { Mutex } from '../utils/mutex.js';
 import { 
   CognitivePluginManager, 
   CognitiveContext, 
@@ -128,6 +129,15 @@ export class CognitiveOrchestrator extends EventEmitter {
   private learningData: Map<string, any> = new Map();
   private performanceMetrics: Map<string, number> = new Map();
   private adaptationTriggers: Set<string> = new Set();
+  
+  // Memory management limits
+  private readonly MAX_SESSION_HISTORY = 100;
+  private readonly MAX_INTERVENTION_HISTORY = 500;
+  private readonly MAX_INSIGHT_HISTORY = 200;
+  private readonly MAX_THOUGHT_OUTPUT_HISTORY = 50;
+  
+  // Synchronization
+  private readonly stateMutex = new Mutex();
 
   constructor(
     config: Partial<OrchestratorConfig> = {},
@@ -248,8 +258,10 @@ export class CognitiveOrchestrator extends EventEmitter {
 
       // Record output for reflection
       this.thoughtOutputHistory.push(interventions.map(i => i.content).join('\n'));
-      if (this.thoughtOutputHistory.length > 20) {
-        this.thoughtOutputHistory = this.thoughtOutputHistory.slice(-20);
+      
+      // Enforce memory limits periodically
+      if (this.cognitiveState.thought_count % 10 === 0) {
+        this.enforceMemoryLimits();
       }
 
       // Update memory if available
@@ -438,30 +450,33 @@ export class CognitiveOrchestrator extends EventEmitter {
     thoughtData: ValidatedThoughtData,
     sessionContext?: Partial<ReasoningSession>
   ): Promise<void> {
-    // Update basic state
-    this.cognitiveState.thought_count++;
-    this.cognitiveState.current_complexity = this.estimateComplexity(thoughtData);
-    
-    // Update confidence trajectory
-    const confidence = this.estimateConfidence(thoughtData);
-    this.cognitiveState.confidence_trajectory.push(confidence);
-    if (this.cognitiveState.confidence_trajectory.length > 10) {
-      this.cognitiveState.confidence_trajectory.shift();
-    }
-    
-    // Update metacognitive awareness
-    this.cognitiveState.metacognitive_awareness = this.calculateMetacognitiveAwareness(thoughtData);
-    
-    // Update emotional/motivational state
-    this.updateEmotionalState(thoughtData);
-    
-    // Update emergent properties
-    this.updateEmergentProperties(thoughtData);
-    
-    // Update session ID if needed
-    if (sessionContext?.id && this.cognitiveState.session_id !== sessionContext.id) {
-      this.cognitiveState.session_id = sessionContext.id;
-    }
+    // Use mutex to prevent race conditions during state updates
+    await this.stateMutex.withLock(async () => {
+      // Update basic state
+      this.cognitiveState.thought_count++;
+      this.cognitiveState.current_complexity = this.estimateComplexity(thoughtData);
+      
+      // Update confidence trajectory
+      const confidence = this.estimateConfidence(thoughtData);
+      this.cognitiveState.confidence_trajectory.push(confidence);
+      if (this.cognitiveState.confidence_trajectory.length > 10) {
+        this.cognitiveState.confidence_trajectory.shift();
+      }
+      
+      // Update metacognitive awareness
+      this.cognitiveState.metacognitive_awareness = this.calculateMetacognitiveAwareness(thoughtData);
+      
+      // Update emotional/motivational state
+      this.updateEmotionalState(thoughtData);
+      
+      // Update emergent properties
+      this.updateEmergentProperties(thoughtData);
+      
+      // Update session ID if needed
+      if (sessionContext?.id && this.cognitiveState.session_id !== sessionContext.id) {
+        this.cognitiveState.session_id = sessionContext.id;
+      }
+    });
   }
 
   /**
@@ -1048,6 +1063,35 @@ export class CognitiveOrchestrator extends EventEmitter {
     this.personaPlugin.on('metrics_updated', (metrics) => {
       this.emit('persona_metrics_updated', metrics);
     });
+  }
+
+  /**
+   * Enforce array size limits to prevent memory leaks
+   */
+  private enforceMemoryLimits(): void {
+    // Trim intervention history
+    if (this.interventionHistory.length > this.MAX_INTERVENTION_HISTORY) {
+      this.interventionHistory = this.interventionHistory.slice(-this.MAX_INTERVENTION_HISTORY);
+    }
+    
+    // Trim insight history
+    if (this.insightHistory.length > this.MAX_INSIGHT_HISTORY) {
+      this.insightHistory = this.insightHistory.slice(-this.MAX_INSIGHT_HISTORY);
+    }
+    
+    // Trim thought output history
+    if (this.thoughtOutputHistory.length > this.MAX_THOUGHT_OUTPUT_HISTORY) {
+      this.thoughtOutputHistory = this.thoughtOutputHistory.slice(-this.MAX_THOUGHT_OUTPUT_HISTORY);
+    }
+    
+    // Cleanup old sessions
+    if (this.sessionHistory.size > this.MAX_SESSION_HISTORY) {
+      const sortedSessions = Array.from(this.sessionHistory.entries())
+        .sort((a, b) => a[1].start_time.getTime() - b[1].start_time.getTime());
+      
+      const toRemove = sortedSessions.slice(0, sortedSessions.length - this.MAX_SESSION_HISTORY);
+      toRemove.forEach(([id]) => this.sessionHistory.delete(id));
+    }
   }
 
   /**

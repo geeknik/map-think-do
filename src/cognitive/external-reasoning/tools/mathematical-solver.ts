@@ -6,6 +6,7 @@
  */
 
 import { ExternalTool, ToolInput, ToolOutput, ValidationResult, ToolSchema } from '../tool-registry.js';
+import { evaluate, round } from 'mathjs';
 
 export class MathematicalSolver implements ExternalTool {
   id = 'mathematical-solver';
@@ -206,21 +207,18 @@ export class MathematicalSolver implements ExternalTool {
 
   private calculate(expression: string, precision: number): any {
     try {
-      // Simple expression evaluator (in production, use a proper math library)
-      const sanitized = expression.replace(/[^0-9+\-*/().\s]/g, '');
+      // Use mathjs for safe expression evaluation
+      // mathjs supports all common mathematical functions and operators safely
+      const result = evaluate(expression);
       
-      // Handle basic functions
-      let processedExpression = sanitized
-        .replace(/sqrt\(([^)]+)\)/g, 'Math.sqrt($1)')
-        .replace(/log\(([^)]+)\)/g, 'Math.log10($1)')
-        .replace(/ln\(([^)]+)\)/g, 'Math.log($1)')
-        .replace(/sin\(([^)]+)\)/g, 'Math.sin($1)')
-        .replace(/cos\(([^)]+)\)/g, 'Math.cos($1)')
-        .replace(/tan\(([^)]+)\)/g, 'Math.tan($1)')
-        .replace(/\^/g, '**');
-
-      const result = eval(processedExpression);
-      const roundedResult = Math.round(result * Math.pow(10, precision)) / Math.pow(10, precision);
+      // Convert to number if needed (mathjs can return complex numbers, matrices, etc.)
+      const numericResult = typeof result === 'number' ? result : Number(result);
+      
+      if (isNaN(numericResult)) {
+        throw new Error('Expression did not evaluate to a numeric value');
+      }
+      
+      const roundedResult = round(numericResult, precision);
 
       return {
         result: roundedResult,
@@ -228,9 +226,9 @@ export class MathematicalSolver implements ExternalTool {
         confidence: 0.95,
         steps: [
           `Original expression: ${expression}`,
-          `Processed expression: ${processedExpression}`,
-          `Calculated result: ${result}`,
-          `Rounded to ${precision} decimal places: ${roundedResult}`
+          `Evaluated result: ${numericResult}`,
+          `Rounded to ${precision} decimal places: ${roundedResult}`,
+          `Using mathjs for safe evaluation`
         ]
       };
     } catch (error) {

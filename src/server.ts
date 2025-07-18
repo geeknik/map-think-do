@@ -70,6 +70,7 @@ import {
   CUSTOM_PROMPTS_DIR,
 } from './utils/config.js';
 import { CognitiveOrchestrator } from './cognitive/cognitive-orchestrator.js';
+import { Mutex } from './utils/mutex.js';
 import {
   MemoryStore,
   StoredThought,
@@ -272,6 +273,7 @@ class CodeReasoningServer {
   private readonly cognitiveOrchestrator: CognitiveOrchestrator;
   private readonly memoryStore: MemoryStore;
   private currentSessionId: string;
+  private readonly thoughtMutex = new Mutex();
 
   /**
    * Get the cognitive orchestrator instance for cleanup
@@ -521,12 +523,15 @@ class CodeReasoningServer {
       await this.memoryStore.storeThought(storedThought);
 
       // Stats & storage -----------------------------------------------------
-      this.thoughtHistory.push(data);
-      if (data.branch_id) {
-        const arr = this.branches.get(data.branch_id) ?? [];
-        arr.push(data);
-        this.branches.set(data.branch_id, arr);
-      }
+      // Use mutex to prevent race conditions in shared state mutations
+      await this.thoughtMutex.withLock(async () => {
+        this.thoughtHistory.push(data);
+        if (data.branch_id) {
+          const arr = this.branches.get(data.branch_id) ?? [];
+          arr.push(data);
+          this.branches.set(data.branch_id, arr);
+        }
+      });
 
       // Enhanced logging with cognitive insights
       console.error(this.formatThought(data));
@@ -871,13 +876,50 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 class InMemoryStore extends MemoryStore {
   private thoughts: Map<string, StoredThought> = new Map();
   private sessions: Map<string, ReasoningSession> = new Map();
+  
+  // Memory management constants
+  private readonly MAX_THOUGHTS = 10000;
+  private readonly MAX_SESSIONS = 1000;
+  private readonly CLEANUP_THRESHOLD = 0.9; // Cleanup when 90% full
 
   async storeThought(thought: StoredThought): Promise<void> {
+    // Check if we need to cleanup old entries
+    if (this.thoughts.size >= this.MAX_THOUGHTS * this.CLEANUP_THRESHOLD) {
+      this.performThoughtCleanup();
+    }
+    
     this.thoughts.set(thought.id, thought);
+  }
+  
+  private performThoughtCleanup(): void {
+    // Remove oldest thoughts (LRU-style cleanup)
+    const thoughtsToRemove = Math.floor(this.MAX_THOUGHTS * 0.2); // Remove 20%
+    const sortedThoughts = Array.from(this.thoughts.entries())
+      .sort((a, b) => a[1].timestamp.getTime() - b[1].timestamp.getTime());
+    
+    for (let i = 0; i < thoughtsToRemove && i < sortedThoughts.length; i++) {
+      this.thoughts.delete(sortedThoughts[i][0]);
+    }
   }
 
   async storeSession(session: ReasoningSession): Promise<void> {
+    // Check if we need to cleanup old entries
+    if (this.sessions.size >= this.MAX_SESSIONS * this.CLEANUP_THRESHOLD) {
+      this.performSessionCleanup();
+    }
+    
     this.sessions.set(session.id, session);
+  }
+  
+  private performSessionCleanup(): void {
+    // Remove oldest sessions (LRU-style cleanup)
+    const sessionsToRemove = Math.floor(this.MAX_SESSIONS * 0.2); // Remove 20%
+    const sortedSessions = Array.from(this.sessions.entries())
+      .sort((a, b) => a[1].start_time.getTime() - b[1].start_time.getTime());
+    
+    for (let i = 0; i < sessionsToRemove && i < sortedSessions.length; i++) {
+      this.sessions.delete(sortedSessions[i][0]);
+    }
   }
 
   async queryThoughts(query: MemoryQuery): Promise<StoredThought[]> {
