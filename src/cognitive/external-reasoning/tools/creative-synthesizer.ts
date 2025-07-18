@@ -1,11 +1,17 @@
 /**
  * @fileoverview Creative Synthesizer Tool
- * 
+ *
  * Advanced creative reasoning tool that generates novel ideas, combines concepts,
  * provides creative problem-solving approaches, and facilitates innovative thinking.
  */
 
-import { ExternalTool, ToolInput, ToolOutput, ValidationResult, ToolSchema } from '../tool-registry.js';
+import {
+  ExternalTool,
+  ToolInput,
+  ToolOutput,
+  ValidationResult,
+  ToolSchema,
+} from '../tool-registry.js';
 
 export class CreativeSynthesizer implements ExternalTool {
   id = 'creative-synthesizer';
@@ -21,7 +27,7 @@ export class CreativeSynthesizer implements ExternalTool {
     'brainstorming',
     'innovation_techniques',
     'lateral_thinking',
-    'creative_constraints'
+    'creative_constraints',
   ];
 
   config = {
@@ -30,16 +36,16 @@ export class CreativeSynthesizer implements ExternalTool {
     requires_auth: false,
     rate_limit: {
       requests_per_minute: 60,
-      burst_limit: 8
-    }
+      burst_limit: 8,
+    },
   };
 
   async execute(input: ToolInput): Promise<ToolOutput> {
     const startTime = Date.now();
-    
+
     try {
       const result = await this.performCreativeOperation(input);
-      
+
       return {
         success: true,
         result,
@@ -47,8 +53,8 @@ export class CreativeSynthesizer implements ExternalTool {
           execution_time_ms: Date.now() - startTime,
           tool_version: this.version,
           confidence: result.confidence,
-          reasoning_trace: result.creative_process
-        }
+          reasoning_trace: result.creative_process,
+        },
       };
     } catch (error) {
       return {
@@ -56,13 +62,13 @@ export class CreativeSynthesizer implements ExternalTool {
         result: null,
         metadata: {
           execution_time_ms: Date.now() - startTime,
-          tool_version: this.version
+          tool_version: this.version,
         },
         error: {
           code: 'CREATIVE_ERROR',
           message: (error as Error).message,
-          details: error
-        }
+          details: error,
+        },
       };
     }
   }
@@ -83,91 +89,127 @@ export class CreativeSynthesizer implements ExternalTool {
       errors.push('Topic parameter is required for generate_ideas operation');
     }
 
-    if (input.operation === 'combine_concepts' && (!input.parameters.concept1 || !input.parameters.concept2)) {
-      errors.push('Both concept1 and concept2 parameters are required for combine_concepts operation');
+    if (
+      input.operation === 'combine_concepts' &&
+      (!input.parameters.concept1 || !input.parameters.concept2)
+    ) {
+      errors.push(
+        'Both concept1 and concept2 parameters are required for combine_concepts operation'
+      );
     }
 
     return {
       valid: errors.length === 0,
       errors,
       warnings,
-      suggestions
+      suggestions,
     };
   }
 
   getSchema(): ToolSchema {
     return {
       operations: {
-        'generate_ideas': {
+        generate_ideas: {
           description: 'Generate creative ideas for a given topic or problem',
           parameters: {
             topic: { type: 'string', description: 'Topic or problem to generate ideas for' },
             quantity: { type: 'number', description: 'Number of ideas to generate', default: 10 },
-            creativity_level: { type: 'string', description: 'Level of creativity (conservative, moderate, radical)', default: 'moderate' }
+            creativity_level: {
+              type: 'string',
+              description: 'Level of creativity (conservative, moderate, radical)',
+              default: 'moderate',
+            },
           },
           returns: {
             ideas: { type: 'array', description: 'Generated creative ideas' },
-            techniques_used: { type: 'array', description: 'Creative techniques applied' }
+            techniques_used: { type: 'array', description: 'Creative techniques applied' },
           },
-          examples: []
+          examples: [],
         },
-        'combine_concepts': {
+        combine_concepts: {
           description: 'Creatively combine two different concepts',
           parameters: {
             concept1: { type: 'string', description: 'First concept to combine' },
             concept2: { type: 'string', description: 'Second concept to combine' },
-            combination_style: { type: 'string', description: 'Style of combination', default: 'hybrid' }
+            combination_style: {
+              type: 'string',
+              description: 'Style of combination',
+              default: 'hybrid',
+            },
           },
           returns: {
             combinations: { type: 'array', description: 'Creative combinations of the concepts' },
-            synergies: { type: 'array', description: 'Identified synergies between concepts' }
+            synergies: { type: 'array', description: 'Identified synergies between concepts' },
           },
-          examples: []
+          examples: [],
         },
-        'solve_creatively': {
+        solve_creatively: {
           description: 'Apply creative problem-solving techniques',
           parameters: {
             problem: { type: 'string', description: 'Problem to solve creatively' },
             constraints: { type: 'array', description: 'Constraints to work within', default: [] },
-            techniques: { type: 'array', description: 'Specific techniques to use', default: ['all'] }
+            techniques: {
+              type: 'array',
+              description: 'Specific techniques to use',
+              default: ['all'],
+            },
           },
           returns: {
             solutions: { type: 'array', description: 'Creative solutions' },
-            approach: { type: 'string', description: 'Creative approach taken' }
+            approach: { type: 'string', description: 'Creative approach taken' },
           },
-          examples: []
+          examples: [],
         },
-        'create_metaphors': {
+        create_metaphors: {
           description: 'Create metaphors and analogies for complex concepts',
           parameters: {
             concept: { type: 'string', description: 'Concept to create metaphors for' },
             domain: { type: 'string', description: 'Domain for metaphor source', default: 'any' },
-            quantity: { type: 'number', description: 'Number of metaphors to create', default: 5 }
+            quantity: { type: 'number', description: 'Number of metaphors to create', default: 5 },
           },
           returns: {
             metaphors: { type: 'array', description: 'Created metaphors with explanations' },
-            effectiveness_scores: { type: 'array', description: 'Effectiveness ratings for each metaphor' }
+            effectiveness_scores: {
+              type: 'array',
+              description: 'Effectiveness ratings for each metaphor',
+            },
           },
-          examples: []
-        }
-      }
+          examples: [],
+        },
+      },
     };
   }
 
   private async performCreativeOperation(input: ToolInput): Promise<any> {
     switch (input.operation) {
       case 'generate_ideas':
-        return this.generateIdeas(input.parameters.topic, input.parameters.quantity || 10, input.parameters.creativity_level || 'moderate');
-      
+        return this.generateIdeas(
+          input.parameters.topic,
+          input.parameters.quantity || 10,
+          input.parameters.creativity_level || 'moderate'
+        );
+
       case 'combine_concepts':
-        return this.combineConcepts(input.parameters.concept1, input.parameters.concept2, input.parameters.combination_style || 'hybrid');
-      
+        return this.combineConcepts(
+          input.parameters.concept1,
+          input.parameters.concept2,
+          input.parameters.combination_style || 'hybrid'
+        );
+
       case 'solve_creatively':
-        return this.solveCreatively(input.parameters.problem, input.parameters.constraints || [], input.parameters.techniques || ['all']);
-      
+        return this.solveCreatively(
+          input.parameters.problem,
+          input.parameters.constraints || [],
+          input.parameters.techniques || ['all']
+        );
+
       case 'create_metaphors':
-        return this.createMetaphors(input.parameters.concept, input.parameters.domain || 'any', input.parameters.quantity || 5);
-      
+        return this.createMetaphors(
+          input.parameters.concept,
+          input.parameters.domain || 'any',
+          input.parameters.quantity || 5
+        );
+
       default:
         throw new Error(`Unsupported operation: ${input.operation}`);
     }
@@ -193,7 +235,9 @@ export class CreativeSynthesizer implements ExternalTool {
     const randomWordIdeas = this.applyRandomWordAssociation(topic, Math.ceil(quantity / 3));
     ideas.push(...randomWordIdeas);
     techniquesUsed.push('Random Word Association');
-    creativeProcess.push(`Applied random word association: ${randomWordIdeas.length} ideas generated`);
+    creativeProcess.push(
+      `Applied random word association: ${randomWordIdeas.length} ideas generated`
+    );
 
     // Six thinking hats
     if (creativityLevel === 'radical') {
@@ -207,11 +251,15 @@ export class CreativeSynthesizer implements ExternalTool {
     const morphologyIdeas = this.applyMorphologicalAnalysis(topic, quantity);
     ideas.push(...morphologyIdeas);
     techniquesUsed.push('Morphological Analysis');
-    creativeProcess.push(`Applied morphological analysis: ${morphologyIdeas.length} ideas generated`);
+    creativeProcess.push(
+      `Applied morphological analysis: ${morphologyIdeas.length} ideas generated`
+    );
 
     // Select best ideas
     const selectedIdeas = this.selectBestIdeas(ideas, quantity);
-    creativeProcess.push(`Selected top ${selectedIdeas.length} ideas from ${ideas.length} generated`);
+    creativeProcess.push(
+      `Selected top ${selectedIdeas.length} ideas from ${ideas.length} generated`
+    );
 
     return {
       ideas: selectedIdeas,
@@ -221,8 +269,8 @@ export class CreativeSynthesizer implements ExternalTool {
       creativity_metrics: {
         novelty_score: this.calculateNoveltyScore(selectedIdeas),
         feasibility_score: this.calculateFeasibilityScore(selectedIdeas),
-        diversity_score: this.calculateDiversityScore(selectedIdeas)
-      }
+        diversity_score: this.calculateDiversityScore(selectedIdeas),
+      },
     };
   }
 
@@ -264,8 +312,8 @@ export class CreativeSynthesizer implements ExternalTool {
       combination_analysis: {
         compatibility_score: this.calculateCompatibilityScore(concept1, concept2),
         innovation_potential: this.calculateInnovationPotential(combinations),
-        market_potential: this.calculateMarketPotential(combinations)
-      }
+        market_potential: this.calculateMarketPotential(combinations),
+      },
     };
   }
 
@@ -289,7 +337,9 @@ export class CreativeSynthesizer implements ExternalTool {
     if (techniques.includes('all') || techniques.includes('constraint_relaxation')) {
       const relaxationSolutions = this.applyConstraintRelaxation(problem, constraints);
       solutions.push(...relaxationSolutions);
-      creativeProcess.push(`Constraint relaxation generated ${relaxationSolutions.length} solutions`);
+      creativeProcess.push(
+        `Constraint relaxation generated ${relaxationSolutions.length} solutions`
+      );
     }
 
     // Analogical reasoning
@@ -313,8 +363,8 @@ export class CreativeSynthesizer implements ExternalTool {
       solution_analysis: {
         originality_scores: solutions.map(() => Math.random() * 0.4 + 0.6),
         feasibility_scores: solutions.map(() => Math.random() * 0.3 + 0.5),
-        impact_potential: solutions.map(() => Math.random() * 0.5 + 0.5)
-      }
+        impact_potential: solutions.map(() => Math.random() * 0.5 + 0.5),
+      },
     };
   }
 
@@ -362,8 +412,8 @@ export class CreativeSynthesizer implements ExternalTool {
       metaphor_analysis: {
         clarity_average: selectedScores.reduce((a, b) => a + b, 0) / selectedScores.length,
         domain_diversity: new Set(selectedMetaphors.map(m => m.domain)).size,
-        conceptual_distance: this.calculateConceptualDistance(concept, selectedMetaphors)
-      }
+        conceptual_distance: this.calculateConceptualDistance(concept, selectedMetaphors),
+      },
     };
   }
 
@@ -376,19 +426,30 @@ export class CreativeSynthesizer implements ExternalTool {
       { action: 'Modify', idea: `How can we modify the scale or attributes of ${topic}?` },
       { action: 'Put to other uses', idea: `What are alternative uses for ${topic}?` },
       { action: 'Eliminate', idea: `What happens if we remove constraints from ${topic}?` },
-      { action: 'Reverse', idea: `What if we reverse the process or approach to ${topic}?` }
+      { action: 'Reverse', idea: `What if we reverse the process or approach to ${topic}?` },
     ];
 
     return scamperPrompts.map(prompt => ({
       technique: 'SCAMPER',
       action: prompt.action,
       idea: prompt.idea,
-      novelty_score: Math.random() * 0.4 + 0.6
+      novelty_score: Math.random() * 0.4 + 0.6,
     }));
   }
 
   private applyRandomWordAssociation(topic: string, count: number): any[] {
-    const randomWords = ['ocean', 'mirror', 'symphony', 'bridge', 'garden', 'storm', 'diamond', 'journey', 'flame', 'puzzle'];
+    const randomWords = [
+      'ocean',
+      'mirror',
+      'symphony',
+      'bridge',
+      'garden',
+      'storm',
+      'diamond',
+      'journey',
+      'flame',
+      'puzzle',
+    ];
     const ideas: any[] = [];
 
     for (let i = 0; i < count && i < randomWords.length; i++) {
@@ -397,7 +458,7 @@ export class CreativeSynthesizer implements ExternalTool {
         technique: 'Random Word Association',
         trigger_word: randomWord,
         idea: `Combine ${topic} with the concept of ${randomWord} - what emerges?`,
-        association_strength: Math.random() * 0.5 + 0.5
+        association_strength: Math.random() * 0.5 + 0.5,
       });
     }
 
@@ -408,10 +469,22 @@ export class CreativeSynthesizer implements ExternalTool {
     const hats = [
       { color: 'White', focus: 'Facts', idea: `What are the objective facts about ${topic}?` },
       { color: 'Red', focus: 'Emotions', idea: `What emotional responses does ${topic} evoke?` },
-      { color: 'Black', focus: 'Caution', idea: `What are the potential risks or downsides of ${topic}?` },
-      { color: 'Yellow', focus: 'Optimism', idea: `What are the most optimistic possibilities for ${topic}?` },
-      { color: 'Green', focus: 'Creativity', idea: `What are the most creative approaches to ${topic}?` },
-      { color: 'Blue', focus: 'Process', idea: `How can we systematically approach ${topic}?` }
+      {
+        color: 'Black',
+        focus: 'Caution',
+        idea: `What are the potential risks or downsides of ${topic}?`,
+      },
+      {
+        color: 'Yellow',
+        focus: 'Optimism',
+        idea: `What are the most optimistic possibilities for ${topic}?`,
+      },
+      {
+        color: 'Green',
+        focus: 'Creativity',
+        idea: `What are the most creative approaches to ${topic}?`,
+      },
+      { color: 'Blue', focus: 'Process', idea: `How can we systematically approach ${topic}?` },
     ];
 
     return hats.map(hat => ({
@@ -419,7 +492,7 @@ export class CreativeSynthesizer implements ExternalTool {
       hat_color: hat.color,
       focus: hat.focus,
       idea: hat.idea,
-      perspective_value: Math.random() * 0.3 + 0.7
+      perspective_value: Math.random() * 0.3 + 0.7,
     }));
   }
 
@@ -434,7 +507,7 @@ export class CreativeSynthesizer implements ExternalTool {
         technique: 'Morphological Analysis',
         dimensions: selectedDimensions,
         idea: `Explore ${topic} by varying ${selectedDimensions.join(', ')}`,
-        systematic_score: Math.random() * 0.3 + 0.6
+        systematic_score: Math.random() * 0.3 + 0.6,
       });
     }
 
@@ -447,14 +520,14 @@ export class CreativeSynthesizer implements ExternalTool {
         type: 'hybrid',
         combination: `${concept1}-${concept2} fusion`,
         description: `A direct fusion combining the core features of both ${concept1} and ${concept2}`,
-        innovation_level: Math.random() * 0.4 + 0.6
+        innovation_level: Math.random() * 0.4 + 0.6,
       },
       {
         type: 'hybrid',
         combination: `${concept2}-enhanced ${concept1}`,
         description: `${concept1} enhanced with key capabilities from ${concept2}`,
-        innovation_level: Math.random() * 0.3 + 0.5
-      }
+        innovation_level: Math.random() * 0.3 + 0.5,
+      },
     ];
   }
 
@@ -464,8 +537,8 @@ export class CreativeSynthesizer implements ExternalTool {
         type: 'metaphorical',
         combination: `${concept1} as ${concept2}`,
         description: `Understanding ${concept1} through the lens of ${concept2}`,
-        conceptual_depth: Math.random() * 0.4 + 0.6
-      }
+        conceptual_depth: Math.random() * 0.4 + 0.6,
+      },
     ];
   }
 
@@ -475,8 +548,8 @@ export class CreativeSynthesizer implements ExternalTool {
         type: 'functional',
         combination: `${concept1} + ${concept2} workflow`,
         description: `A workflow that leverages the functions of both ${concept1} and ${concept2}`,
-        practical_value: Math.random() * 0.3 + 0.6
-      }
+        practical_value: Math.random() * 0.3 + 0.6,
+      },
     ];
   }
 
@@ -485,13 +558,13 @@ export class CreativeSynthesizer implements ExternalTool {
       {
         synergy_type: 'complementary',
         description: `${concept1} and ${concept2} complement each other's weaknesses`,
-        strength: Math.random() * 0.4 + 0.6
+        strength: Math.random() * 0.4 + 0.6,
       },
       {
         synergy_type: 'amplifying',
         description: `${concept2} amplifies the impact of ${concept1}`,
-        strength: Math.random() * 0.3 + 0.5
-      }
+        strength: Math.random() * 0.3 + 0.5,
+      },
     ];
   }
 
@@ -501,14 +574,14 @@ export class CreativeSynthesizer implements ExternalTool {
         technique: 'Lateral Thinking',
         approach: 'Random Entry',
         solution: `Approach ${problem} from a completely unrelated starting point`,
-        unconventionality: Math.random() * 0.5 + 0.5
+        unconventionality: Math.random() * 0.5 + 0.5,
       },
       {
         technique: 'Lateral Thinking',
         approach: 'Provocation',
         solution: `What if the opposite of ${problem} was the goal?`,
-        unconventionality: Math.random() * 0.4 + 0.6
-      }
+        unconventionality: Math.random() * 0.4 + 0.6,
+      },
     ];
   }
 
@@ -517,75 +590,79 @@ export class CreativeSynthesizer implements ExternalTool {
       technique: 'Constraint Relaxation',
       relaxed_constraint: constraint,
       solution: `Solve ${problem} by temporarily ignoring the constraint: ${constraint}`,
-      freedom_gained: Math.random() * 0.4 + 0.5
+      freedom_gained: Math.random() * 0.4 + 0.5,
     }));
   }
 
   private applyAnalogicalReasoning(problem: string): any[] {
     const analogyDomains = ['nature', 'sports', 'cooking', 'music', 'architecture'];
-    
+
     return analogyDomains.slice(0, 3).map(domain => ({
       technique: 'Analogical Reasoning',
       analogy_domain: domain,
       solution: `How would ${domain} approach a problem similar to ${problem}?`,
-      analogy_strength: Math.random() * 0.4 + 0.5
+      analogy_strength: Math.random() * 0.4 + 0.5,
     }));
   }
 
   private applyTRIZ(problem: string, constraints: string[]): any[] {
-    const trizPrinciples = [
-      'Segmentation',
-      'Taking out',
-      'Local quality',
-      'Asymmetry',
-      'Merging'
-    ];
+    const trizPrinciples = ['Segmentation', 'Taking out', 'Local quality', 'Asymmetry', 'Merging'];
 
     return trizPrinciples.slice(0, 3).map(principle => ({
       technique: 'TRIZ',
       principle,
       solution: `Apply ${principle} principle to solve ${problem}`,
-      systematic_confidence: Math.random() * 0.3 + 0.7
+      systematic_confidence: Math.random() * 0.3 + 0.7,
     }));
   }
 
   private createNatureMetaphors(concept: string, count: number): any[] {
     const natureElements = ['river', 'tree', 'ecosystem', 'mountain', 'ocean'];
-    
+
     return natureElements.slice(0, count).map(element => ({
       metaphor: `${concept} is like a ${element}`,
       domain: 'nature',
       explanation: `Both ${concept} and ${element} share characteristics of growth and adaptation`,
-      vividness: Math.random() * 0.3 + 0.7
+      vividness: Math.random() * 0.3 + 0.7,
     }));
   }
 
   private createTechnologyMetaphors(concept: string, count: number): any[] {
     const techElements = ['network', 'algorithm', 'interface', 'database', 'circuit'];
-    
+
     return techElements.slice(0, count).map(element => ({
       metaphor: `${concept} functions like a ${element}`,
       domain: 'technology',
       explanation: `${concept} processes and connects information similar to a ${element}`,
-      precision: Math.random() * 0.3 + 0.6
+      precision: Math.random() * 0.3 + 0.6,
     }));
   }
 
   private createBodyMetaphors(concept: string, count: number): any[] {
-    const bodyElements = ['brain', 'heart', 'immune system', 'nervous system', 'circulatory system'];
-    
+    const bodyElements = [
+      'brain',
+      'heart',
+      'immune system',
+      'nervous system',
+      'circulatory system',
+    ];
+
     return bodyElements.slice(0, count).map(element => ({
       metaphor: `${concept} works like the ${element}`,
       domain: 'body',
       explanation: `${concept} has vital functions similar to the ${element}`,
-      relatability: Math.random() * 0.4 + 0.6
+      relatability: Math.random() * 0.4 + 0.6,
     }));
   }
 
   // Utility methods for scoring and analysis
   private selectBestIdeas(ideas: any[], quantity: number): any[] {
     return ideas
-      .sort((a, b) => (b.novelty_score || b.innovation_level || 0.5) - (a.novelty_score || a.innovation_level || 0.5))
+      .sort(
+        (a, b) =>
+          (b.novelty_score || b.innovation_level || 0.5) -
+          (a.novelty_score || a.innovation_level || 0.5)
+      )
       .slice(0, quantity);
   }
 
@@ -621,11 +698,6 @@ export class CreativeSynthesizer implements ExternalTool {
   }
 
   private getSupportedOperations(): string[] {
-    return [
-      'generate_ideas',
-      'combine_concepts',
-      'solve_creatively',
-      'create_metaphors'
-    ];
+    return ['generate_ideas', 'combine_concepts', 'solve_creatively', 'create_metaphors'];
   }
-} 
+}

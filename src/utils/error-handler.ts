@@ -7,7 +7,7 @@ export enum ErrorSeverity {
   INFO = 'info',
   WARNING = 'warning',
   ERROR = 'error',
-  CRITICAL = 'critical'
+  CRITICAL = 'critical',
 }
 
 export interface ErrorContext {
@@ -58,8 +58,8 @@ export class ErrorHandler {
       ...context,
       metadata: {
         ...context.metadata,
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
 
     // Rotate log if too large
@@ -69,7 +69,7 @@ export class ErrorHandler {
 
     // Console output based on severity
     const errorMessage = this.formatErrorMessage(context);
-    
+
     switch (context.severity) {
       case ErrorSeverity.DEBUG:
         console.debug(errorMessage);
@@ -96,7 +96,7 @@ export class ErrorHandler {
     const error = context.error instanceof Error ? context.error : new Error(String(context.error));
     const prefix = `[${context.component}::${context.method}]`;
     const metadata = context.metadata ? ` | ${JSON.stringify(context.metadata)}` : '';
-    
+
     return `${prefix} ${error.message}${metadata}`;
   }
 
@@ -113,11 +113,11 @@ export class ErrorHandler {
    */
   getRecentErrors(count: number = 10, severity?: ErrorSeverity): ErrorContext[] {
     let errors = this.errorLog;
-    
+
     if (severity) {
       errors = errors.filter(e => e.severity === severity);
     }
-    
+
     return errors.slice(-count);
   }
 
@@ -132,15 +132,11 @@ export class ErrorHandler {
    * Check if we should fail fast based on error patterns
    */
   shouldFailFast(component: string): boolean {
-    const recentErrors = this.errorLog
-      .filter(e => e.component === component)
-      .slice(-10);
-    
+    const recentErrors = this.errorLog.filter(e => e.component === component).slice(-10);
+
     // Fail fast if too many critical errors in component
-    const criticalCount = recentErrors.filter(
-      e => e.severity === ErrorSeverity.CRITICAL
-    ).length;
-    
+    const criticalCount = recentErrors.filter(e => e.severity === ErrorSeverity.CRITICAL).length;
+
     return criticalCount >= 3;
   }
 }
@@ -162,16 +158,14 @@ export function handleError(
     severity,
     error,
     metadata,
-    shouldPropagate
+    shouldPropagate,
   });
 }
 
 /**
  * Result type for operations that can fail
  */
-export type Result<T, E = Error> = 
-  | { success: true; value: T }
-  | { success: false; error: E };
+export type Result<T, E = Error> = { success: true; value: T } | { success: false; error: E };
 
 /**
  * Create a successful result

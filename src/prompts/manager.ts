@@ -16,6 +16,13 @@ import { Prompt, PromptResult } from './types.js';
 import { CODE_REASONING_PROMPTS, PROMPT_TEMPLATES } from './templates.js';
 import { PromptValueManager } from './valueManager.js';
 import { CONFIG_DIR } from '../utils/config.js';
+import {
+  isPathSafe,
+  safeJoin,
+  safeCreateDirectory,
+  safeReadDir,
+  safeReadFile,
+} from '../utils/path-validator.js';
 
 // Constants for validation and sanitization
 const MAX_STRING_LENGTH = 5000;
@@ -134,6 +141,7 @@ export class PromptManager {
     // Create main config directory if it doesn't exist
     if (!fs.existsSync(resolvedConfigDir)) {
       try {
+        // For the main config dir, we can't validate against itself
         fs.mkdirSync(resolvedConfigDir, { recursive: true });
         console.error(`Created main config directory: ${resolvedConfigDir}`);
       } catch (err) {
@@ -142,7 +150,7 @@ export class PromptManager {
     }
 
     // Create prompts subdirectory if it doesn't exist
-    const promptsDir = path.join(resolvedConfigDir, 'prompts');
+    const promptsDir = safeJoin(resolvedConfigDir, 'prompts');
     if (!fs.existsSync(promptsDir)) {
       try {
         fs.mkdirSync(promptsDir, { recursive: true });
@@ -284,9 +292,17 @@ export class PromptManager {
    */
   async loadCustomPrompts(directory: string): Promise<void> {
     try {
+      // Validate directory is safe
+      const baseDir = path.resolve(CONFIG_DIR);
+      if (!isPathSafe(directory, baseDir)) {
+        console.error(`Path validation failed: directory must be within ${baseDir}`);
+        return;
+      }
+
+      // Create directory safely if it doesn't exist
       if (!fs.existsSync(directory)) {
         try {
-          fs.mkdirSync(directory, { recursive: true });
+          await safeCreateDirectory(directory, baseDir);
           console.error(`Created custom prompts directory: ${directory}`);
         } catch (err) {
           console.error(`Failed to create custom prompts directory: ${directory}`, err);
@@ -294,14 +310,14 @@ export class PromptManager {
         }
       }
 
-      const files = fs.readdirSync(directory);
+      const files = await safeReadDir(directory, baseDir);
       console.error(`Found ${files.length} files in custom prompts directory`);
 
       for (const file of files) {
         if (file.endsWith('.json')) {
           try {
-            const filePath = path.join(directory, file);
-            const content = fs.readFileSync(filePath, 'utf8');
+            const filePath = safeJoin(directory, file);
+            const content = await safeReadFile(filePath, baseDir);
 
             // Parse JSON and validate with Zod schema
             const promptDataResult = this.PromptDataSchema.safeParse(JSON.parse(content));

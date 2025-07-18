@@ -649,7 +649,7 @@ class CodeReasoningServer {
     // Clear data structures
     this.thoughtHistory.length = 0;
     this.branches.clear();
-    
+
     // The cognitive orchestrator cleanup is handled separately
     // Memory store doesn't need explicit cleanup for in-memory implementation
   }
@@ -830,7 +830,7 @@ export async function runServer(debugFlag = false): Promise<void> {
 
   const shutdown = async (sig: string) => {
     console.error(`↩︎ shutdown on ${sig}`);
-    
+
     // Cleanup cognitive components
     try {
       console.error('🧠 Cleaning up cognitive systems...');
@@ -840,12 +840,12 @@ export async function runServer(debugFlag = false): Promise<void> {
     } catch (err) {
       console.error('⚠️ Error cleaning up cognitive systems:', err);
     }
-    
+
     // Cleanup transport
     if (transport instanceof FilteredStdioServerTransport) {
       transport.close();
     }
-    
+
     await srv.close();
     await transport.close();
     process.exit(0);
@@ -876,7 +876,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 class InMemoryStore extends MemoryStore {
   private thoughts: Map<string, StoredThought> = new Map();
   private sessions: Map<string, ReasoningSession> = new Map();
-  
+
   // Memory management constants
   private readonly MAX_THOUGHTS = 10000;
   private readonly MAX_SESSIONS = 1000;
@@ -887,16 +887,17 @@ class InMemoryStore extends MemoryStore {
     if (this.thoughts.size >= this.MAX_THOUGHTS * this.CLEANUP_THRESHOLD) {
       this.performThoughtCleanup();
     }
-    
+
     this.thoughts.set(thought.id, thought);
   }
-  
+
   private performThoughtCleanup(): void {
     // Remove oldest thoughts (LRU-style cleanup)
     const thoughtsToRemove = Math.floor(this.MAX_THOUGHTS * 0.2); // Remove 20%
-    const sortedThoughts = Array.from(this.thoughts.entries())
-      .sort((a, b) => a[1].timestamp.getTime() - b[1].timestamp.getTime());
-    
+    const sortedThoughts = Array.from(this.thoughts.entries()).sort(
+      (a, b) => a[1].timestamp.getTime() - b[1].timestamp.getTime()
+    );
+
     for (let i = 0; i < thoughtsToRemove && i < sortedThoughts.length; i++) {
       this.thoughts.delete(sortedThoughts[i][0]);
     }
@@ -907,16 +908,17 @@ class InMemoryStore extends MemoryStore {
     if (this.sessions.size >= this.MAX_SESSIONS * this.CLEANUP_THRESHOLD) {
       this.performSessionCleanup();
     }
-    
+
     this.sessions.set(session.id, session);
   }
-  
+
   private performSessionCleanup(): void {
     // Remove oldest sessions (LRU-style cleanup)
     const sessionsToRemove = Math.floor(this.MAX_SESSIONS * 0.2); // Remove 20%
-    const sortedSessions = Array.from(this.sessions.entries())
-      .sort((a, b) => a[1].start_time.getTime() - b[1].start_time.getTime());
-    
+    const sortedSessions = Array.from(this.sessions.entries()).sort(
+      (a, b) => a[1].start_time.getTime() - b[1].start_time.getTime()
+    );
+
     for (let i = 0; i < sessionsToRemove && i < sortedSessions.length; i++) {
       this.sessions.delete(sortedSessions[i][0]);
     }

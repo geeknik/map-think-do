@@ -1,6 +1,6 @@
 /**
  * @fileoverview External Tool Registry for AGI System
- * 
+ *
  * This module manages external reasoning tools that the AGI can use to extend
  * its cognitive capabilities. Tools can include mathematical solvers, code
  * analyzers, web search, database queries, and other specialized reasoning modules.
@@ -15,10 +15,17 @@ export interface ExternalTool {
   id: string;
   name: string;
   description: string;
-  category: 'mathematical' | 'analytical' | 'creative' | 'research' | 'computational' | 'communication' | 'storage';
+  category:
+    | 'mathematical'
+    | 'analytical'
+    | 'creative'
+    | 'research'
+    | 'computational'
+    | 'communication'
+    | 'storage';
   version: string;
   capabilities: string[];
-  
+
   // Tool configuration
   config: {
     timeout_ms: number;
@@ -29,7 +36,7 @@ export interface ExternalTool {
       burst_limit: number;
     };
   };
-  
+
   // Tool interface
   execute(input: ToolInput): Promise<ToolOutput>;
   validate(input: ToolInput): Promise<ValidationResult>;
@@ -108,7 +115,7 @@ export class ExternalToolRegistry extends EventEmitter {
   private tools: Map<string, ExternalTool> = new Map();
   private usageMetrics: Map<string, ToolUsageMetrics> = new Map();
   private toolCategories: Map<string, Set<string>> = new Map();
-  
+
   constructor() {
     super();
     this.initializeCategories();
@@ -120,10 +127,10 @@ export class ExternalToolRegistry extends EventEmitter {
   registerTool(tool: ExternalTool): void {
     // Validate tool
     this.validateTool(tool);
-    
+
     // Register tool
     this.tools.set(tool.id, tool);
-    
+
     // Initialize metrics
     this.usageMetrics.set(tool.id, {
       tool_id: tool.id,
@@ -131,15 +138,15 @@ export class ExternalToolRegistry extends EventEmitter {
       success_rate: 1.0,
       average_execution_time: 0,
       error_patterns: {},
-      performance_trend: []
+      performance_trend: [],
     });
-    
+
     // Add to category
     if (!this.toolCategories.has(tool.category)) {
       this.toolCategories.set(tool.category, new Set());
     }
     this.toolCategories.get(tool.category)!.add(tool.id);
-    
+
     this.emit('tool_registered', { tool_id: tool.id, category: tool.category });
     console.error(`🔧 External tool registered: ${tool.name} (${tool.id})`);
   }
@@ -150,16 +157,16 @@ export class ExternalToolRegistry extends EventEmitter {
   unregisterTool(toolId: string): boolean {
     const tool = this.tools.get(toolId);
     if (!tool) return false;
-    
+
     this.tools.delete(toolId);
     this.usageMetrics.delete(toolId);
-    
+
     // Remove from category
     const category = this.toolCategories.get(tool.category);
     if (category) {
       category.delete(toolId);
     }
-    
+
     this.emit('tool_unregistered', { tool_id: toolId });
     console.error(`🔧 External tool unregistered: ${toolId}`);
     return true;
@@ -175,7 +182,7 @@ export class ExternalToolRegistry extends EventEmitter {
     }
 
     const startTime = Date.now();
-    
+
     try {
       // Validate input
       const validation = await tool.validate(input);
@@ -194,17 +201,16 @@ export class ExternalToolRegistry extends EventEmitter {
         tool_id: toolId,
         success: true,
         execution_time: executionTime,
-        input: input.operation
+        input: input.operation,
       });
 
       return {
         ...result,
         metadata: {
           ...result.metadata,
-          execution_time_ms: executionTime
-        }
+          execution_time_ms: executionTime,
+        },
       };
-
     } catch (error) {
       const executionTime = Date.now() - startTime;
       this.updateMetrics(toolId, false, executionTime, error as Error);
@@ -213,7 +219,7 @@ export class ExternalToolRegistry extends EventEmitter {
         tool_id: toolId,
         success: false,
         execution_time: executionTime,
-        error: (error as Error).message
+        error: (error as Error).message,
       });
 
       return {
@@ -221,13 +227,13 @@ export class ExternalToolRegistry extends EventEmitter {
         result: null,
         metadata: {
           execution_time_ms: executionTime,
-          tool_version: tool.version
+          tool_version: tool.version,
         },
         error: {
           code: 'EXECUTION_ERROR',
           message: (error as Error).message,
-          details: error
-        }
+          details: error,
+        },
       };
     }
   }
@@ -246,10 +252,9 @@ export class ExternalToolRegistry extends EventEmitter {
    * Search tools by capability
    */
   searchToolsByCapability(capability: string): ExternalTool[] {
-    return Array.from(this.tools.values())
-      .filter(tool => tool.capabilities.some(cap => 
-        cap.toLowerCase().includes(capability.toLowerCase())
-      ));
+    return Array.from(this.tools.values()).filter(tool =>
+      tool.capabilities.some(cap => cap.toLowerCase().includes(capability.toLowerCase()))
+    );
   }
 
   /**
@@ -288,9 +293,10 @@ export class ExternalToolRegistry extends EventEmitter {
 
       // Required capabilities
       if (context.required_capabilities) {
-        const capabilityMatch = context.required_capabilities.filter(req =>
-          tool.capabilities.some(cap => cap.includes(req))
-        ).length / context.required_capabilities.length;
+        const capabilityMatch =
+          context.required_capabilities.filter(req =>
+            tool.capabilities.some(cap => cap.includes(req))
+          ).length / context.required_capabilities.length;
         score += capabilityMatch * 4;
       }
 
@@ -342,32 +348,46 @@ export class ExternalToolRegistry extends EventEmitter {
     if (!tool.id || !tool.name || !tool.execute) {
       throw new Error('Invalid tool: missing required fields');
     }
-    
+
     if (this.tools.has(tool.id)) {
       throw new Error(`Tool already registered: ${tool.id}`);
     }
   }
 
   private initializeCategories(): void {
-    const categories = ['mathematical', 'analytical', 'creative', 'research', 'computational', 'communication', 'storage'];
+    const categories = [
+      'mathematical',
+      'analytical',
+      'creative',
+      'research',
+      'computational',
+      'communication',
+      'storage',
+    ];
     categories.forEach(cat => this.toolCategories.set(cat, new Set()));
   }
 
-  private updateMetrics(toolId: string, success: boolean, executionTime: number, error?: Error): void {
+  private updateMetrics(
+    toolId: string,
+    success: boolean,
+    executionTime: number,
+    error?: Error
+  ): void {
     const metrics = this.usageMetrics.get(toolId);
     if (!metrics) return;
 
     metrics.total_calls++;
-    
+
     // Update success rate (exponential moving average)
     const alpha = 0.1;
-    metrics.success_rate = success 
+    metrics.success_rate = success
       ? metrics.success_rate * (1 - alpha) + alpha
       : metrics.success_rate * (1 - alpha);
 
     // Update average execution time
-    metrics.average_execution_time = 
-      (metrics.average_execution_time * (metrics.total_calls - 1) + executionTime) / metrics.total_calls;
+    metrics.average_execution_time =
+      (metrics.average_execution_time * (metrics.total_calls - 1) + executionTime) /
+      metrics.total_calls;
 
     // Track error patterns
     if (error) {
@@ -379,7 +399,7 @@ export class ExternalToolRegistry extends EventEmitter {
     metrics.performance_trend.push({
       timestamp: new Date(),
       success_rate: metrics.success_rate,
-      avg_time: metrics.average_execution_time
+      avg_time: metrics.average_execution_time,
     });
 
     // Keep only last 100 trend points
@@ -391,43 +411,43 @@ export class ExternalToolRegistry extends EventEmitter {
   private estimateToolComplexity(tool: ExternalTool): number {
     // Simple heuristic based on capabilities and configuration
     let complexity = tool.capabilities.length * 0.5;
-    
+
     if (tool.config.requires_auth) complexity += 1;
     if (tool.config.rate_limit) complexity += 1;
     if (tool.config.timeout_ms > 5000) complexity += 1;
-    
+
     return Math.min(10, complexity);
   }
 
   private getPersonaToolAffinity(persona: string, tool: ExternalTool): number {
     const affinities: Record<string, Record<string, number>> = {
-      'strategist': {
-        'analytical': 3,
-        'research': 3,
-        'computational': 2
+      strategist: {
+        analytical: 3,
+        research: 3,
+        computational: 2,
       },
-      'engineer': {
-        'computational': 3,
-        'analytical': 2,
-        'mathematical': 3
+      engineer: {
+        computational: 3,
+        analytical: 2,
+        mathematical: 3,
       },
-      'creative': {
-        'creative': 3,
-        'research': 2,
-        'communication': 2
+      creative: {
+        creative: 3,
+        research: 2,
+        communication: 2,
       },
-      'analyst': {
-        'analytical': 3,
-        'mathematical': 3,
-        'computational': 2
+      analyst: {
+        analytical: 3,
+        mathematical: 3,
+        computational: 2,
       },
-      'philosopher': {
-        'research': 3,
-        'analytical': 2,
-        'communication': 2
-      }
+      philosopher: {
+        research: 3,
+        analytical: 2,
+        communication: 2,
+      },
     };
 
     return affinities[persona]?.[tool.category] || 1;
   }
-} 
+}

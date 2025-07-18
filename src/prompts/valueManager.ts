@@ -8,6 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { PROMPT_VALUES_FILE } from '../utils/config.js';
+import { safeJoin, safeReadFile, safeWriteFile } from '../utils/path-validator.js';
 
 // Structure for stored prompt values
 interface StoredPromptValues {
@@ -27,13 +28,13 @@ export class PromptValueManager {
    *
    * @param configDir The directory where configuration files are stored
    */
-  constructor(configDir: string) {
+  constructor(private configDir: string) {
     // Use the specified config directory
     // Use the centralized PROMPT_VALUES_FILE if no specific configDir is provided
     this.valuesFilePath =
       configDir === path.dirname(PROMPT_VALUES_FILE)
         ? PROMPT_VALUES_FILE
-        : path.join(configDir, 'prompt_values.json');
+        : safeJoin(configDir, 'prompt_values.json');
 
     console.error(`PromptValueManager using file path: ${this.valuesFilePath}`);
     this.values = this.loadValues();
@@ -53,11 +54,19 @@ export class PromptValueManager {
           prompts: {},
         };
 
-        // Write default file - the directory should already exist
-        // from the constructor call to expandTildePath with createDir=true
+        // Write default file using synchronous operation for constructor
         try {
-          fs.writeFileSync(this.valuesFilePath, JSON.stringify(defaultValues, null, 2));
-          console.error(`Created default prompt values file at: ${this.valuesFilePath}`);
+          // Ensure directory exists
+          const dir = path.dirname(this.valuesFilePath);
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+          }
+
+          // Only write if within config directory
+          if (this.valuesFilePath.startsWith(path.resolve(this.configDir))) {
+            fs.writeFileSync(this.valuesFilePath, JSON.stringify(defaultValues, null, 2));
+            console.error(`Created default prompt values file at: ${this.valuesFilePath}`);
+          }
         } catch (writeErr) {
           console.error(`Could not create prompt values file: ${writeErr}`);
         }
@@ -65,7 +74,12 @@ export class PromptValueManager {
         return defaultValues;
       }
 
-      // Read and parse the file
+      // Read and parse the file - validate path first
+      if (!this.valuesFilePath.startsWith(path.resolve(this.configDir))) {
+        console.error('Path validation failed for prompt values file');
+        return { global: {}, prompts: {} };
+      }
+
       const fileContent = fs.readFileSync(this.valuesFilePath, 'utf8');
       return JSON.parse(fileContent) as StoredPromptValues;
     } catch (err) {
@@ -78,10 +92,20 @@ export class PromptValueManager {
   /**
    * Saves the current values to the JSON file.
    */
-  private saveValues(): void {
+  private async saveValues(): Promise<void> {
     try {
-      // The directory should already exist from the constructor
-      fs.writeFileSync(this.valuesFilePath, JSON.stringify(this.values, null, 2));
+      // Validate path is within config directory
+      if (!this.valuesFilePath.startsWith(path.resolve(this.configDir))) {
+        console.error('Path validation failed: cannot save outside config directory');
+        return;
+      }
+
+      // Use safe write operation
+      await safeWriteFile(
+        this.valuesFilePath,
+        JSON.stringify(this.values, null, 2),
+        this.configDir
+      );
     } catch (err) {
       console.error('Error saving prompt values:', err);
     }
@@ -111,7 +135,7 @@ export class PromptValueManager {
    * @param promptName The name of the prompt
    * @param args The argument values to store
    */
-  updateStoredValues(promptName: string, args: Record<string, string>): void {
+  async updateStoredValues(promptName: string, args: Record<string, string>): Promise<void> {
     // Extract global values (like working_directory)
     if (args.working_directory) {
       this.values.global.working_directory = args.working_directory;
@@ -135,7 +159,7 @@ export class PromptValueManager {
       });
 
       // Save updated values
-      this.saveValues();
+      await this.saveValues();
     } catch (err) {
       console.error('Error saving prompt values:', err);
       // Don't throw, just log the error

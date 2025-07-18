@@ -6,7 +6,7 @@ export class Mutex {
   private locked = false;
 
   async lock(): Promise<() => void> {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       const tryLock = () => {
         if (!this.locked) {
           this.locked = true;
@@ -24,7 +24,7 @@ export class Mutex {
   private unlock(): void {
     this.locked = false;
     this.queue.shift();
-    
+
     if (this.queue.length > 0) {
       const next = this.queue[0];
       next();

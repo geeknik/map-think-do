@@ -1,10 +1,10 @@
 /**
  * @fileoverview Metacognitive Plugin - Self-Reflection and Meta-Reasoning
- * 
+ *
  * This plugin provides the system with metacognitive awareness - the ability
  * to think about its own thinking. It monitors reasoning patterns, identifies
  * cognitive biases, suggests alternative approaches, and provides self-reflection.
- * 
+ *
  * Key capabilities:
  * - Confidence calibration and uncertainty quantification
  * - Assumption detection and questioning
@@ -14,19 +14,19 @@
  * - Self-doubt and overconfidence regulation
  */
 
-import { 
-  CognitivePlugin, 
-  CognitiveContext, 
-  PluginActivation, 
-  PluginIntervention 
+import {
+  CognitivePlugin,
+  CognitiveContext,
+  PluginActivation,
+  PluginIntervention,
 } from '../plugin-system.js';
 
 /**
  * Metacognitive intervention types
  */
-type MetacognitiveInterventionType = 
+type MetacognitiveInterventionType =
   | 'confidence_calibration'
-  | 'assumption_questioning' 
+  | 'assumption_questioning'
   | 'alternative_generation'
   | 'bias_detection'
   | 'reasoning_evaluation'
@@ -55,45 +55,50 @@ export class MetacognitivePlugin extends CognitivePlugin {
       description: 'Detected high confidence without sufficient evidence',
       triggers: ['definitely', 'certainly', 'obviously', 'clearly', 'without doubt'],
       intervention_type: 'confidence_calibration',
-      confidence_threshold: 0.9
+      confidence_threshold: 0.9,
     },
     {
       pattern_name: 'assumption_heavy',
       description: 'Multiple assumptions made without validation',
       triggers: ['assume', 'probably', 'likely', 'should be', 'must be'],
-      intervention_type: 'assumption_questioning'
+      intervention_type: 'assumption_questioning',
     },
     {
       pattern_name: 'tunnel_vision',
       description: 'Single approach focus without considering alternatives',
       triggers: ['only way', 'best approach', 'single solution', 'no other'],
-      intervention_type: 'alternative_generation'
+      intervention_type: 'alternative_generation',
     },
     {
       pattern_name: 'confirmation_bias',
       description: 'Seeking information that confirms existing beliefs',
       triggers: ['confirms', 'proves', 'validates', 'supports my view'],
-      intervention_type: 'bias_detection'
+      intervention_type: 'bias_detection',
     },
     {
       pattern_name: 'complexity_underestimation',
       description: 'Treating complex problems as simple',
       triggers: ['simple', 'easy', 'straightforward', 'just need to'],
       intervention_type: 'reasoning_evaluation',
-      complexity_threshold: 7
+      complexity_threshold: 7,
     },
     {
       pattern_name: 'uncertainty_avoidance',
       description: 'Not acknowledging uncertainty when present',
       triggers: ['will work', 'is correct', 'final answer', 'solved'],
       intervention_type: 'uncertainty_acknowledgment',
-      confidence_threshold: 0.7
-    }
+      confidence_threshold: 0.7,
+    },
   ];
 
   private readonly biasDetectors = [
-    'anchoring', 'availability', 'confirmation', 'overconfidence', 
-    'planning_fallacy', 'sunk_cost', 'representativeness'
+    'anchoring',
+    'availability',
+    'confirmation',
+    'overconfidence',
+    'planning_fallacy',
+    'sunk_cost',
+    'representativeness',
   ];
 
   constructor() {
@@ -107,32 +112,31 @@ export class MetacognitivePlugin extends CognitivePlugin {
         max_interventions_per_session: 5,
         confidence_calibration_enabled: true,
         bias_detection_enabled: true,
-        alternative_generation_enabled: true
+        alternative_generation_enabled: true,
       }
     );
   }
 
   async shouldActivate(context: CognitiveContext): Promise<PluginActivation> {
     const startTime = Date.now();
-    
+
     try {
       // Calculate activation factors
       const metacognitiveNeed = this.assessMetacognitiveNeed(context);
       const complexityFactor = context.complexity / 10; // Normalize to 0-1
       const uncertaintyFactor = 1 - context.confidence_level;
       const historyFactor = this.analyzeThoughtHistory(context);
-      
+
       // Determine if intervention is needed
-      const activationScore = (
+      const activationScore =
         metacognitiveNeed * 0.4 +
         complexityFactor * 0.2 +
         uncertaintyFactor * 0.2 +
-        historyFactor * 0.2
-      );
-      
+        historyFactor * 0.2;
+
       const shouldActivate = activationScore > this.config.sensitivity;
       const priority = Math.min(95, activationScore * 100); // Cap at 95 to allow other plugins
-      
+
       const activation: PluginActivation = {
         should_activate: shouldActivate,
         priority,
@@ -143,12 +147,11 @@ export class MetacognitivePlugin extends CognitivePlugin {
           cognitive_load: 0.3, // Metacognition is moderately resource intensive
           time_cost: 1, // Usually adds 1 additional thought
           creativity_required: false,
-          analysis_required: true
-        }
+          analysis_required: true,
+        },
       };
 
       return activation;
-
     } catch (error) {
       console.error('Error in MetacognitivePlugin shouldActivate:', error);
       return {
@@ -161,20 +164,20 @@ export class MetacognitivePlugin extends CognitivePlugin {
           cognitive_load: 0,
           time_cost: 0,
           creativity_required: false,
-          analysis_required: false
-        }
+          analysis_required: false,
+        },
       };
     }
   }
 
   async intervene(context: CognitiveContext): Promise<PluginIntervention> {
     const startTime = Date.now();
-    
+
     try {
       // Identify the most relevant metacognitive intervention
       const interventionType = this.selectInterventionType(context);
       const content = await this.generateIntervention(interventionType, context);
-      
+
       const intervention: PluginIntervention = {
         type: 'meta_guidance',
         content,
@@ -182,19 +185,18 @@ export class MetacognitivePlugin extends CognitivePlugin {
           plugin_id: this.id,
           confidence: this.calculateInterventionConfidence(interventionType, context),
           expected_benefit: this.getExpectedBenefit(interventionType),
-          side_effects: this.getPotentialSideEffects(interventionType)
+          side_effects: this.getPotentialSideEffects(interventionType),
         },
         follow_up_needed: this.needsFollowUp(interventionType),
         next_check_after: interventionType === 'confidence_calibration' ? 2 : 3,
         success_metrics: ['improved_accuracy', 'better_uncertainty_handling', 'reduced_bias'],
-        failure_indicators: ['increased_confusion', 'analysis_paralysis', 'reduced_confidence']
+        failure_indicators: ['increased_confusion', 'analysis_paralysis', 'reduced_confidence'],
       };
 
       const responseTime = Date.now() - startTime;
       this.updateMetrics(intervention, 'partial', 0.7, responseTime, context);
 
       return intervention;
-
     } catch (error) {
       console.error('Error in MetacognitivePlugin intervene:', error);
       throw error;
@@ -213,7 +215,7 @@ export class MetacognitivePlugin extends CognitivePlugin {
       // Update intervention success rates by type
       const interventionContent = intervention.content;
       const interventionType = this.extractInterventionType(interventionContent);
-      
+
       if (interventionType) {
         this.updateInterventionTypeMetrics(interventionType, outcome, impact_score);
       }
@@ -227,7 +229,6 @@ export class MetacognitivePlugin extends CognitivePlugin {
 
       // Learn from context patterns
       this.learnFromContext(context, outcome, impact_score);
-
     } catch (error) {
       console.error('Error in MetacognitivePlugin receiveFeedback:', error);
     }
@@ -251,7 +252,6 @@ export class MetacognitivePlugin extends CognitivePlugin {
       if (learningData.detected_biases) {
         this.updateBiasDetection(learningData.detected_biases);
       }
-
     } catch (error) {
       console.error('Error in MetacognitivePlugin adapt:', error);
     }
@@ -317,7 +317,7 @@ export class MetacognitivePlugin extends CognitivePlugin {
     const thoughtLower = thought.toLowerCase();
 
     for (const pattern of this.patterns) {
-      const triggerCount = pattern.triggers.filter(trigger => 
+      const triggerCount = pattern.triggers.filter(trigger =>
         thoughtLower.includes(trigger.toLowerCase())
       ).length;
 
@@ -334,13 +334,13 @@ export class MetacognitivePlugin extends CognitivePlugin {
    */
   private selectInterventionType(context: CognitiveContext): MetacognitiveInterventionType {
     const scores: Record<MetacognitiveInterventionType, number> = {
-      'confidence_calibration': 0,
-      'assumption_questioning': 0,
-      'alternative_generation': 0,
-      'bias_detection': 0,
-      'reasoning_evaluation': 0,
-      'uncertainty_acknowledgment': 0,
-      'perspective_shift': 0
+      confidence_calibration: 0,
+      assumption_questioning: 0,
+      alternative_generation: 0,
+      bias_detection: 0,
+      reasoning_evaluation: 0,
+      uncertainty_acknowledgment: 0,
+      perspective_shift: 0,
     };
 
     // Score each intervention type based on context
@@ -374,38 +374,38 @@ export class MetacognitivePlugin extends CognitivePlugin {
 
     // Return the intervention type with the highest score
     const entries = Object.entries(scores) as [MetacognitiveInterventionType, number][];
-    return entries.reduce((a, b) => a[1] > b[1] ? a : b)[0];
+    return entries.reduce((a, b) => (a[1] > b[1] ? a : b))[0];
   }
 
   /**
    * Generate metacognitive intervention content
    */
   private async generateIntervention(
-    type: MetacognitiveInterventionType, 
+    type: MetacognitiveInterventionType,
     context: CognitiveContext
   ): Promise<string> {
     switch (type) {
       case 'confidence_calibration':
         return this.generateConfidenceCalibration(context);
-      
+
       case 'assumption_questioning':
         return this.generateAssumptionQuestioning(context);
-      
+
       case 'alternative_generation':
         return this.generateAlternativeGeneration(context);
-      
+
       case 'bias_detection':
         return this.generateBiasDetection(context);
-      
+
       case 'reasoning_evaluation':
         return this.generateReasoningEvaluation(context);
-      
+
       case 'uncertainty_acknowledgment':
         return this.generateUncertaintyAcknowledgment(context);
-      
+
       case 'perspective_shift':
         return this.generatePerspectiveShift(context);
-      
+
       default:
         return 'Consider taking a step back and reflecting on your reasoning process.';
     }
@@ -435,7 +435,7 @@ export class MetacognitivePlugin extends CognitivePlugin {
 • Strength of evidence: Is it direct or circumstantial?
 • Completeness: What information might be missing?
 • Alternative explanations: Could other factors explain the same observations?
-• Base rates: How often do solutions like this actually work?`
+• Base rates: How often do solutions like this actually work?`,
     ];
 
     return interventions[Math.floor(Math.random() * interventions.length)];
@@ -446,7 +446,7 @@ export class MetacognitivePlugin extends CognitivePlugin {
    */
   private generateAssumptionQuestioning(context: CognitiveContext): string {
     const assumptions = this.extractAssumptions(context.current_thought || '');
-    
+
     return `🤔 **Assumption Check**: I notice several assumptions in your reasoning. Let's examine them:
 
 ${assumptions.map((assumption, i) => `${i + 1}. "${assumption}"`).join('\n')}
@@ -488,7 +488,7 @@ For each assumption, consider:
    */
   private generateBiasDetection(context: CognitiveContext): string {
     const detectedBias = this.identifyLikelyBias(context);
-    
+
     return `⚠️ **Bias Alert**: Potential ${detectedBias} detected. Let's counteract:
 
 **${detectedBias} Characteristics:**
@@ -607,19 +607,30 @@ Pick one perspective that's most different from your current approach and explor
   }
 
   private containsAssumptions(thought: string): boolean {
-    const assumptionIndicators = ['assume', 'probably', 'likely', 'should be', 'must be', 'obviously'];
+    const assumptionIndicators = [
+      'assume',
+      'probably',
+      'likely',
+      'should be',
+      'must be',
+      'obviously',
+    ];
     return assumptionIndicators.some(indicator => thought.toLowerCase().includes(indicator));
   }
 
   private lacksAlternatives(context: CognitiveContext): boolean {
     // Simple heuristic: check if recent thoughts mention alternatives
     const recentThoughts = context.thought_history.slice(-3);
-    const alternativeIndicators = ['alternative', 'another way', 'different approach', 'option', 'instead'];
-    
-    return !recentThoughts.some(thought => 
-      alternativeIndicators.some(indicator => 
-        thought.thought.toLowerCase().includes(indicator)
-      )
+    const alternativeIndicators = [
+      'alternative',
+      'another way',
+      'different approach',
+      'option',
+      'instead',
+    ];
+
+    return !recentThoughts.some(thought =>
+      alternativeIndicators.some(indicator => thought.thought.toLowerCase().includes(indicator))
     );
   }
 
@@ -636,11 +647,14 @@ Pick one perspective that's most different from your current approach and explor
   private extractAssumptions(thought: string): string[] {
     // Simple assumption extraction (could be made more sophisticated)
     const sentences = thought.split(/[.!?]+/);
-    return sentences.filter(sentence => 
-      ['assume', 'probably', 'likely', 'should be', 'must be'].some(indicator =>
-        sentence.toLowerCase().includes(indicator)
+    return sentences
+      .filter(sentence =>
+        ['assume', 'probably', 'likely', 'should be', 'must be'].some(indicator =>
+          sentence.toLowerCase().includes(indicator)
+        )
       )
-    ).map(s => s.trim()).filter(s => s.length > 0);
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
   }
 
   private identifyLikelyBias(context: CognitiveContext): string {
@@ -652,9 +666,12 @@ Pick one perspective that's most different from your current approach and explor
 
   private getBiasDescription(bias: string): string {
     const descriptions: Record<string, string> = {
-      'overconfidence bias': '• Tendency to overestimate accuracy of beliefs\n• Underestimating risks and uncertainties\n• Insufficient consideration of alternatives',
-      'confirmation bias': '• Seeking information that confirms existing beliefs\n• Ignoring contradictory evidence\n• Interpreting ambiguous evidence as confirmatory',
-      'availability bias': '• Overweighting easily recalled information\n• Recent/memorable events seem more likely\n• Ignoring base rates and statistical evidence'
+      'overconfidence bias':
+        '• Tendency to overestimate accuracy of beliefs\n• Underestimating risks and uncertainties\n• Insufficient consideration of alternatives',
+      'confirmation bias':
+        '• Seeking information that confirms existing beliefs\n• Ignoring contradictory evidence\n• Interpreting ambiguous evidence as confirmatory',
+      'availability bias':
+        '• Overweighting easily recalled information\n• Recent/memorable events seem more likely\n• Ignoring base rates and statistical evidence',
     };
     return descriptions[bias] || 'General cognitive bias affecting judgment';
   }
@@ -672,8 +689,8 @@ Pick one perspective that's most different from your current approach and explor
   }
 
   private updateInterventionTypeMetrics(
-    type: MetacognitiveInterventionType, 
-    outcome: string, 
+    type: MetacognitiveInterventionType,
+    outcome: string,
     impact: number
   ): void {
     // Update intervention-specific metrics (implementation would store this data)
@@ -698,20 +715,28 @@ Pick one perspective that's most different from your current approach and explor
   }
 
   private generateActivationReason(need: number, context: CognitiveContext): string {
-    if (need > 0.8) return 'High metacognitive need detected - confidence/complexity mismatch or bias indicators';
-    if (need > 0.6) return 'Moderate metacognitive need - potential reasoning patterns requiring reflection';
+    if (need > 0.8)
+      return 'High metacognitive need detected - confidence/complexity mismatch or bias indicators';
+    if (need > 0.6)
+      return 'Moderate metacognitive need - potential reasoning patterns requiring reflection';
     if (need > 0.4) return 'Low metacognitive need - preventive self-reflection recommended';
     return 'Minimal metacognitive intervention needed';
   }
 
-  private calculateInterventionConfidence(type: MetacognitiveInterventionType, context: CognitiveContext): number {
+  private calculateInterventionConfidence(
+    type: MetacognitiveInterventionType,
+    context: CognitiveContext
+  ): number {
     // Calculate confidence based on intervention type and context
     const baseConfidence = 0.7;
     const contextMatch = this.assessContextMatch(type, context);
-    return Math.min(0.95, baseConfidence + (contextMatch * 0.2));
+    return Math.min(0.95, baseConfidence + contextMatch * 0.2);
   }
 
-  private assessContextMatch(type: MetacognitiveInterventionType, context: CognitiveContext): number {
+  private assessContextMatch(
+    type: MetacognitiveInterventionType,
+    context: CognitiveContext
+  ): number {
     // Assess how well the intervention type matches the context
     switch (type) {
       case 'confidence_calibration':
@@ -725,26 +750,26 @@ Pick one perspective that's most different from your current approach and explor
 
   private getExpectedBenefit(type: MetacognitiveInterventionType): string {
     const benefits: Record<MetacognitiveInterventionType, string> = {
-      'confidence_calibration': 'Better calibrated confidence and reduced overconfidence',
-      'assumption_questioning': 'Identification and validation of hidden assumptions',
-      'alternative_generation': 'Expanded solution space and creative alternatives',
-      'bias_detection': 'Reduced cognitive bias impact on reasoning',
-      'reasoning_evaluation': 'Improved logical rigor and evidence assessment',
-      'uncertainty_acknowledgment': 'Better uncertainty handling and risk awareness',
-      'perspective_shift': 'Fresh viewpoints and breakthrough insights'
+      confidence_calibration: 'Better calibrated confidence and reduced overconfidence',
+      assumption_questioning: 'Identification and validation of hidden assumptions',
+      alternative_generation: 'Expanded solution space and creative alternatives',
+      bias_detection: 'Reduced cognitive bias impact on reasoning',
+      reasoning_evaluation: 'Improved logical rigor and evidence assessment',
+      uncertainty_acknowledgment: 'Better uncertainty handling and risk awareness',
+      perspective_shift: 'Fresh viewpoints and breakthrough insights',
     };
     return benefits[type];
   }
 
   private getPotentialSideEffects(type: MetacognitiveInterventionType): string[] {
     const sideEffects: Record<MetacognitiveInterventionType, string[]> = {
-      'confidence_calibration': ['Potential overcautiousness', 'Analysis paralysis'],
-      'assumption_questioning': ['Increased uncertainty', 'Delayed decision making'],
-      'alternative_generation': ['Decision complexity', 'Option paralysis'],
-      'bias_detection': ['Self-doubt', 'Overthinking'],
-      'reasoning_evaluation': ['Perfectionism', 'Delayed progress'],
-      'uncertainty_acknowledgment': ['Reduced confidence', 'Hesitation'],
-      'perspective_shift': ['Confusion', 'Loss of focus']
+      confidence_calibration: ['Potential overcautiousness', 'Analysis paralysis'],
+      assumption_questioning: ['Increased uncertainty', 'Delayed decision making'],
+      alternative_generation: ['Decision complexity', 'Option paralysis'],
+      bias_detection: ['Self-doubt', 'Overthinking'],
+      reasoning_evaluation: ['Perfectionism', 'Delayed progress'],
+      uncertainty_acknowledgment: ['Reduced confidence', 'Hesitation'],
+      perspective_shift: ['Confusion', 'Loss of focus'],
     };
     return sideEffects[type] || [];
   }
@@ -753,4 +778,4 @@ Pick one perspective that's most different from your current approach and explor
     // Determine if this intervention type typically needs follow-up
     return ['confidence_calibration', 'bias_detection', 'reasoning_evaluation'].includes(type);
   }
-} 
+}

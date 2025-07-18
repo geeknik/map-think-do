@@ -1,11 +1,17 @@
 /**
  * @fileoverview Code Analysis Tool
- * 
+ *
  * Advanced code analysis tool that can analyze code structure, detect patterns,
  * identify potential issues, suggest improvements, and provide architectural insights.
  */
 
-import { ExternalTool, ToolInput, ToolOutput, ValidationResult, ToolSchema } from '../tool-registry.js';
+import {
+  ExternalTool,
+  ToolInput,
+  ToolOutput,
+  ValidationResult,
+  ToolSchema,
+} from '../tool-registry.js';
 
 export class CodeAnalyzer implements ExternalTool {
   id = 'code-analyzer';
@@ -21,7 +27,7 @@ export class CodeAnalyzer implements ExternalTool {
     'refactoring_suggestions',
     'performance_analysis',
     'security_scanning',
-    'dependency_analysis'
+    'dependency_analysis',
   ];
 
   config = {
@@ -30,16 +36,16 @@ export class CodeAnalyzer implements ExternalTool {
     requires_auth: false,
     rate_limit: {
       requests_per_minute: 50,
-      burst_limit: 5
-    }
+      burst_limit: 5,
+    },
   };
 
   async execute(input: ToolInput): Promise<ToolOutput> {
     const startTime = Date.now();
-    
+
     try {
       const result = await this.performCodeAnalysis(input);
-      
+
       return {
         success: true,
         result,
@@ -47,8 +53,8 @@ export class CodeAnalyzer implements ExternalTool {
           execution_time_ms: Date.now() - startTime,
           tool_version: this.version,
           confidence: result.confidence,
-          reasoning_trace: result.analysis_steps
-        }
+          reasoning_trace: result.analysis_steps,
+        },
       };
     } catch (error) {
       return {
@@ -56,13 +62,13 @@ export class CodeAnalyzer implements ExternalTool {
         result: null,
         metadata: {
           execution_time_ms: Date.now() - startTime,
-          tool_version: this.version
+          tool_version: this.version,
         },
         error: {
           code: 'CODE_ANALYSIS_ERROR',
           message: (error as Error).message,
-          details: error
-        }
+          details: error,
+        },
       };
     }
   }
@@ -102,96 +108,124 @@ export class CodeAnalyzer implements ExternalTool {
       valid: errors.length === 0,
       errors,
       warnings,
-      suggestions
+      suggestions,
     };
   }
 
   getSchema(): ToolSchema {
     return {
       operations: {
-        'analyze_code': {
+        analyze_code: {
           description: 'Comprehensive code structure and quality analysis',
           parameters: {
             code: { type: 'string', description: 'Source code to analyze' },
-            language: { type: 'string', description: 'Programming language', default: 'auto-detect' },
-            focus: { type: 'string', description: 'Analysis focus (structure, performance, security)', default: 'all' }
+            language: {
+              type: 'string',
+              description: 'Programming language',
+              default: 'auto-detect',
+            },
+            focus: {
+              type: 'string',
+              description: 'Analysis focus (structure, performance, security)',
+              default: 'all',
+            },
           },
           returns: {
             structure: { type: 'object', description: 'Code structure analysis' },
             metrics: { type: 'object', description: 'Code quality metrics' },
-            issues: { type: 'array', description: 'Identified issues and concerns' }
+            issues: { type: 'array', description: 'Identified issues and concerns' },
           },
-          examples: []
+          examples: [],
         },
-        'detect_patterns': {
+        detect_patterns: {
           description: 'Detect design patterns and architectural patterns',
           parameters: {
             code: { type: 'string', description: 'Source code to analyze' },
-            pattern_types: { type: 'array', description: 'Specific patterns to look for', default: ['all'] }
+            pattern_types: {
+              type: 'array',
+              description: 'Specific patterns to look for',
+              default: ['all'],
+            },
           },
           returns: {
             patterns: { type: 'array', description: 'Detected patterns with confidence scores' },
-            anti_patterns: { type: 'array', description: 'Detected anti-patterns' }
+            anti_patterns: { type: 'array', description: 'Detected anti-patterns' },
           },
-          examples: []
+          examples: [],
         },
-        'suggest_refactoring': {
+        suggest_refactoring: {
           description: 'Suggest code refactoring opportunities',
           parameters: {
             code: { type: 'string', description: 'Source code to analyze' },
-            refactoring_type: { type: 'string', description: 'Type of refactoring focus', default: 'all' }
+            refactoring_type: {
+              type: 'string',
+              description: 'Type of refactoring focus',
+              default: 'all',
+            },
           },
           returns: {
             suggestions: { type: 'array', description: 'Refactoring suggestions with rationale' },
-            priority: { type: 'string', description: 'Priority level of refactoring' }
+            priority: { type: 'string', description: 'Priority level of refactoring' },
           },
-          examples: []
+          examples: [],
         },
-        'analyze_complexity': {
+        analyze_complexity: {
           description: 'Analyze code complexity metrics',
           parameters: {
             code: { type: 'string', description: 'Source code to analyze' },
-            complexity_types: { type: 'array', description: 'Types of complexity to analyze', default: ['cyclomatic', 'cognitive'] }
+            complexity_types: {
+              type: 'array',
+              description: 'Types of complexity to analyze',
+              default: ['cyclomatic', 'cognitive'],
+            },
           },
           returns: {
             complexity_metrics: { type: 'object', description: 'Various complexity measurements' },
-            complexity_hotspots: { type: 'array', description: 'Areas of high complexity' }
+            complexity_hotspots: { type: 'array', description: 'Areas of high complexity' },
           },
-          examples: []
+          examples: [],
         },
-        'security_scan': {
+        security_scan: {
           description: 'Scan code for potential security vulnerabilities',
           parameters: {
             code: { type: 'string', description: 'Source code to scan' },
-            scan_depth: { type: 'string', description: 'Depth of security analysis', default: 'standard' }
+            scan_depth: {
+              type: 'string',
+              description: 'Depth of security analysis',
+              default: 'standard',
+            },
           },
           returns: {
             vulnerabilities: { type: 'array', description: 'Identified security issues' },
-            security_score: { type: 'number', description: 'Overall security score (0-100)' }
+            security_score: { type: 'number', description: 'Overall security score (0-100)' },
           },
-          examples: []
-        }
-      }
+          examples: [],
+        },
+      },
     };
   }
 
   private async performCodeAnalysis(input: ToolInput): Promise<any> {
     switch (input.operation) {
       case 'analyze_code':
-        return this.analyzeCode(input.parameters.code, input.parameters.language, input.parameters.focus);
-      
+        return this.analyzeCode(
+          input.parameters.code,
+          input.parameters.language,
+          input.parameters.focus
+        );
+
       case 'detect_patterns':
         return this.detectPatterns(input.parameters.code, input.parameters.pattern_types);
-      
+
       case 'suggest_refactoring':
         return this.suggestRefactoring(input.parameters.code, input.parameters.refactoring_type);
-      
+
       case 'analyze_complexity':
         return this.analyzeComplexity(input.parameters.code, input.parameters.complexity_types);
-      
+
       case 'security_scan':
         return this.securityScan(input.parameters.code, input.parameters.scan_depth);
-      
+
       default:
         throw new Error(`Unsupported operation: ${input.operation}`);
     }
@@ -208,11 +242,15 @@ export class CodeAnalyzer implements ExternalTool {
 
     // Basic structure analysis
     const structure = this.analyzeStructure(code, detectedLanguage);
-    analysisSteps.push(`Analyzed code structure: ${structure.functions.length} functions, ${structure.classes.length} classes`);
+    analysisSteps.push(
+      `Analyzed code structure: ${structure.functions.length} functions, ${structure.classes.length} classes`
+    );
 
     // Code metrics
     const metrics = this.calculateMetrics(code, detectedLanguage);
-    analysisSteps.push(`Calculated code metrics: ${metrics.lines_of_code} LOC, complexity ${metrics.cyclomatic_complexity}`);
+    analysisSteps.push(
+      `Calculated code metrics: ${metrics.lines_of_code} LOC, complexity ${metrics.cyclomatic_complexity}`
+    );
 
     // Issue detection
     const issues = this.detectIssues(code, detectedLanguage, focus);
@@ -225,7 +263,7 @@ export class CodeAnalyzer implements ExternalTool {
       issues,
       analysis_steps: analysisSteps,
       confidence: 0.85,
-      recommendations: this.generateRecommendations(structure, metrics, issues)
+      recommendations: this.generateRecommendations(structure, metrics, issues),
     };
   }
 
@@ -276,8 +314,8 @@ export class CodeAnalyzer implements ExternalTool {
       pattern_summary: {
         total_patterns: patterns.length,
         total_anti_patterns: antiPatterns.length,
-        pattern_diversity: new Set(patterns.map(p => p.type)).size
-      }
+        pattern_diversity: new Set(patterns.map(p => p.type)).size,
+      },
     };
   }
 
@@ -318,11 +356,14 @@ export class CodeAnalyzer implements ExternalTool {
       priority,
       analysis_steps: analysisSteps,
       confidence: 0.82,
-      refactoring_impact: this.assessRefactoringImpact(suggestions)
+      refactoring_impact: this.assessRefactoringImpact(suggestions),
     };
   }
 
-  private analyzeComplexity(code: string, complexityTypes: string[] = ['cyclomatic', 'cognitive']): any {
+  private analyzeComplexity(
+    code: string,
+    complexityTypes: string[] = ['cyclomatic', 'cognitive']
+  ): any {
     const analysisSteps: string[] = [];
     analysisSteps.push(`Analyzing code complexity`);
     analysisSteps.push(`Complexity types: ${complexityTypes.join(', ')}`);
@@ -356,8 +397,11 @@ export class CodeAnalyzer implements ExternalTool {
       confidence: 0.88,
       complexity_summary: {
         overall_score: this.calculateOverallComplexityScore(complexityMetrics),
-        recommendations: this.generateComplexityRecommendations(complexityMetrics, complexityHotspots)
-      }
+        recommendations: this.generateComplexityRecommendations(
+          complexityMetrics,
+          complexityHotspots
+        ),
+      },
     };
   }
 
@@ -400,8 +444,8 @@ export class CodeAnalyzer implements ExternalTool {
       security_summary: {
         total_vulnerabilities: vulnerabilities.length,
         critical_vulnerabilities: vulnerabilities.filter(v => v.severity === 'critical').length,
-        recommendations: this.generateSecurityRecommendations(vulnerabilities)
-      }
+        recommendations: this.generateSecurityRecommendations(vulnerabilities),
+      },
     };
   }
 
@@ -426,7 +470,7 @@ export class CodeAnalyzer implements ExternalTool {
     const functions = this.extractFunctions(code, language);
     const classes = this.extractClasses(code, language);
     const imports = this.extractImports(code, language);
-    
+
     return {
       functions: functions.map(f => ({ name: f, line_count: this.estimateLineCount(f) })),
       classes: classes.map(c => ({ name: c, method_count: this.estimateMethodCount(c) })),
@@ -436,8 +480,8 @@ export class CodeAnalyzer implements ExternalTool {
         has_main_function: functions.some(f => f.includes('main')),
         has_classes: classes.length > 0,
         has_interfaces: code.includes('interface'),
-        has_async_code: code.includes('async') || code.includes('await')
-      }
+        has_async_code: code.includes('async') || code.includes('await'),
+      },
     };
   }
 
@@ -445,47 +489,53 @@ export class CodeAnalyzer implements ExternalTool {
     const lines = code.split('\n');
     const linesOfCode = lines.filter(line => line.trim() && !line.trim().startsWith('//')).length;
     const commentLines = lines.filter(line => line.trim().startsWith('//')).length;
-    
+
     return {
       lines_of_code: linesOfCode,
       comment_lines: commentLines,
       comment_ratio: commentLines / linesOfCode,
       cyclomatic_complexity: this.calculateBasicCyclomaticComplexity(code),
       maintainability_index: this.calculateMaintainabilityIndex(code),
-      code_duplication_ratio: this.calculateDuplicationRatio(code)
+      code_duplication_ratio: this.calculateDuplicationRatio(code),
     };
   }
 
   private detectIssues(code: string, language: string, focus: string): any[] {
     const issues: any[] = [];
-    
+
     // Long methods
     const longMethods = this.findLongMethods(code);
-    issues.push(...longMethods.map(method => ({
-      type: 'long_method',
-      severity: 'medium',
-      description: `Method ${method} is too long`,
-      suggestion: 'Consider breaking this method into smaller, more focused methods'
-    })));
+    issues.push(
+      ...longMethods.map(method => ({
+        type: 'long_method',
+        severity: 'medium',
+        description: `Method ${method} is too long`,
+        suggestion: 'Consider breaking this method into smaller, more focused methods',
+      }))
+    );
 
     // Deep nesting
     const deepNesting = this.findDeepNesting(code);
-    issues.push(...deepNesting.map(location => ({
-      type: 'deep_nesting',
-      severity: 'medium',
-      description: 'Deep nesting detected',
-      location,
-      suggestion: 'Consider extracting nested logic into separate methods'
-    })));
+    issues.push(
+      ...deepNesting.map(location => ({
+        type: 'deep_nesting',
+        severity: 'medium',
+        description: 'Deep nesting detected',
+        location,
+        suggestion: 'Consider extracting nested logic into separate methods',
+      }))
+    );
 
     // Magic numbers
     const magicNumbers = this.findMagicNumbers(code);
-    issues.push(...magicNumbers.map(number => ({
-      type: 'magic_number',
-      severity: 'low',
-      description: `Magic number found: ${number}`,
-      suggestion: 'Consider defining this as a named constant'
-    })));
+    issues.push(
+      ...magicNumbers.map(number => ({
+        type: 'magic_number',
+        severity: 'low',
+        description: `Magic number found: ${number}`,
+        suggestion: 'Consider defining this as a named constant',
+      }))
+    );
 
     return issues;
   }
@@ -528,9 +578,12 @@ export class CodeAnalyzer implements ExternalTool {
   }
 
   private calculateDuplicationRatio(code: string): number {
-    const lines = code.split('\n').map(line => line.trim()).filter(line => line);
+    const lines = code
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line);
     const uniqueLines = new Set(lines);
-    return 1 - (uniqueLines.size / lines.length);
+    return 1 - uniqueLines.size / lines.length;
   }
 
   // Placeholder implementations for pattern detection
@@ -541,20 +594,22 @@ export class CodeAnalyzer implements ExternalTool {
       type: 'singleton',
       confidence: 0.8,
       location: match.substring(0, 50) + '...',
-      description: 'Singleton pattern detected'
+      description: 'Singleton pattern detected',
     }));
   }
 
   private detectObserverPattern(code: string): any[] {
     const hasSubscribe = code.includes('subscribe') || code.includes('addEventListener');
     const hasNotify = code.includes('notify') || code.includes('emit');
-    
+
     if (hasSubscribe && hasNotify) {
-      return [{
-        type: 'observer',
-        confidence: 0.7,
-        description: 'Observer pattern indicators detected'
-      }];
+      return [
+        {
+          type: 'observer',
+          confidence: 0.7,
+          description: 'Observer pattern indicators detected',
+        },
+      ];
     }
     return [];
   }
@@ -562,38 +617,46 @@ export class CodeAnalyzer implements ExternalTool {
   private detectFactoryPattern(code: string): any[] {
     const factoryPattern = /create\w+|make\w+|build\w+/gi;
     const matches = code.match(factoryPattern) || [];
-    return matches.length > 0 ? [{
-      type: 'factory',
-      confidence: 0.6,
-      description: 'Factory pattern indicators detected',
-      instances: matches.length
-    }] : [];
+    return matches.length > 0
+      ? [
+          {
+            type: 'factory',
+            confidence: 0.6,
+            description: 'Factory pattern indicators detected',
+            instances: matches.length,
+          },
+        ]
+      : [];
   }
 
   private detectGodObjectAntiPattern(code: string): any[] {
     const classes = this.extractClasses(code, 'auto');
-    return classes.filter(className => {
-      const classCode = this.extractClassCode(code, className);
-      const methodCount = this.estimateMethodCount(classCode);
-      return methodCount > 20; // Threshold for god object
-    }).map(className => ({
-      type: 'god_object',
-      severity: 'high',
-      class_name: className,
-      description: 'Class has too many responsibilities'
-    }));
+    return classes
+      .filter(className => {
+        const classCode = this.extractClassCode(code, className);
+        const methodCount = this.estimateMethodCount(classCode);
+        return methodCount > 20; // Threshold for god object
+      })
+      .map(className => ({
+        type: 'god_object',
+        severity: 'high',
+        class_name: className,
+        description: 'Class has too many responsibilities',
+      }));
   }
 
   private detectSpaghettiCodeAntiPattern(code: string): any[] {
     const complexity = this.calculateBasicCyclomaticComplexity(code);
     const nesting = this.getMaxNestingLevel(code);
-    
+
     if (complexity > 15 && nesting > 5) {
-      return [{
-        type: 'spaghetti_code',
-        severity: 'high',
-        description: 'High complexity and deep nesting detected'
-      }];
+      return [
+        {
+          type: 'spaghetti_code',
+          severity: 'high',
+          description: 'High complexity and deep nesting detected',
+        },
+      ];
     }
     return [];
   }
@@ -604,19 +667,21 @@ export class CodeAnalyzer implements ExternalTool {
       type: 'extract_method',
       target: method,
       description: 'Long method should be broken down',
-      benefit: 'Improved readability and maintainability'
+      benefit: 'Improved readability and maintainability',
     }));
   }
 
   private findDuplicationToRemove(code: string): any[] {
     const duplicationRatio = this.calculateDuplicationRatio(code);
     if (duplicationRatio > 0.1) {
-      return [{
-        type: 'remove_duplication',
-        duplication_ratio: duplicationRatio,
-        description: 'Significant code duplication detected',
-        benefit: 'Reduced maintenance burden'
-      }];
+      return [
+        {
+          type: 'remove_duplication',
+          duplication_ratio: duplicationRatio,
+          description: 'Significant code duplication detected',
+          benefit: 'Reduced maintenance burden',
+        },
+      ];
     }
     return [];
   }
@@ -627,7 +692,7 @@ export class CodeAnalyzer implements ExternalTool {
       type: 'simplify_conditional',
       target: conditional.substring(0, 50) + '...',
       description: 'Complex conditional expression',
-      suggestion: 'Extract to well-named boolean variables'
+      suggestion: 'Extract to well-named boolean variables',
     }));
   }
 
@@ -642,27 +707,29 @@ export class CodeAnalyzer implements ExternalTool {
   private findDeepNesting(code: string): string[] {
     const lines = code.split('\n');
     const deepNestingLines: string[] = [];
-    
+
     lines.forEach((line, index) => {
       const indentLevel = (line.match(/^\s*/)?.[0].length || 0) / 2;
       if (indentLevel > 4) {
         deepNestingLines.push(`Line ${index + 1}: ${line.trim()}`);
       }
     });
-    
+
     return deepNestingLines;
   }
 
   private findMagicNumbers(code: string): string[] {
     const numberMatches = code.match(/\b\d+\b/g) || [];
-    return numberMatches.filter(num => 
-      parseInt(num) > 1 && parseInt(num) !== 0 && parseInt(num) !== 100
+    return numberMatches.filter(
+      num => parseInt(num) > 1 && parseInt(num) !== 0 && parseInt(num) !== 100
     );
   }
 
   // More helper methods with simplified implementations
   private determinePriority(suggestions: any[]): string {
-    const highPriority = suggestions.filter(s => s.type === 'extract_method' || s.type === 'remove_duplication');
+    const highPriority = suggestions.filter(
+      s => s.type === 'extract_method' || s.type === 'remove_duplication'
+    );
     if (highPriority.length > 3) return 'high';
     if (suggestions.length > 5) return 'medium';
     return 'low';
@@ -672,7 +739,7 @@ export class CodeAnalyzer implements ExternalTool {
     return {
       maintainability_improvement: suggestions.length * 0.1,
       readability_improvement: suggestions.length * 0.15,
-      estimated_effort_hours: suggestions.length * 2
+      estimated_effort_hours: suggestions.length * 2,
     };
   }
 
@@ -682,8 +749,8 @@ export class CodeAnalyzer implements ExternalTool {
       overall,
       per_function: this.extractFunctions(code, 'auto').map(func => ({
         name: func,
-        complexity: Math.floor(Math.random() * 10) + 1 // Simplified
-      }))
+        complexity: Math.floor(Math.random() * 10) + 1, // Simplified
+      })),
     };
   }
 
@@ -691,22 +758,24 @@ export class CodeAnalyzer implements ExternalTool {
     // Simplified cognitive complexity calculation
     const nesting = this.getMaxNestingLevel(code);
     const overall = this.calculateBasicCyclomaticComplexity(code) + nesting;
-    
+
     return {
       overall,
       nesting_penalty: nesting,
-      base_complexity: this.calculateBasicCyclomaticComplexity(code)
+      base_complexity: this.calculateBasicCyclomaticComplexity(code),
     };
   }
 
   private identifyComplexityHotspots(code: string, metrics: any): any[] {
     const functions = this.extractFunctions(code, 'auto');
-    return functions.filter(() => Math.random() > 0.7).map(func => ({
-      type: 'function',
-      name: func,
-      complexity_score: Math.floor(Math.random() * 20) + 10,
-      recommendation: 'Consider refactoring this function'
-    }));
+    return functions
+      .filter(() => Math.random() > 0.7)
+      .map(func => ({
+        type: 'function',
+        name: func,
+        complexity_score: Math.floor(Math.random() * 20) + 10,
+        recommendation: 'Consider refactoring this function',
+      }));
   }
 
   private calculateOverallComplexityScore(metrics: any): number {
@@ -728,11 +797,8 @@ export class CodeAnalyzer implements ExternalTool {
 
   // Security scan helper methods
   private detectSQLInjection(code: string): any[] {
-    const sqlPatterns = [
-      /query\s*\+\s*\w+/gi,
-      /execute\s*\(\s*['"].*\+.*['"].*\)/gi
-    ];
-    
+    const sqlPatterns = [/query\s*\+\s*\w+/gi, /execute\s*\(\s*['"].*\+.*['"].*\)/gi];
+
     const vulnerabilities: any[] = [];
     sqlPatterns.forEach(pattern => {
       const matches = code.match(pattern) || [];
@@ -741,20 +807,17 @@ export class CodeAnalyzer implements ExternalTool {
           type: 'sql_injection',
           severity: 'critical',
           location: match,
-          description: 'Potential SQL injection vulnerability'
+          description: 'Potential SQL injection vulnerability',
         });
       });
     });
-    
+
     return vulnerabilities;
   }
 
   private detectXSS(code: string): any[] {
-    const xssPatterns = [
-      /innerHTML\s*=\s*\w+/gi,
-      /document\.write\s*\(\s*\w+/gi
-    ];
-    
+    const xssPatterns = [/innerHTML\s*=\s*\w+/gi, /document\.write\s*\(\s*\w+/gi];
+
     const vulnerabilities: any[] = [];
     xssPatterns.forEach(pattern => {
       const matches = code.match(pattern) || [];
@@ -763,11 +826,11 @@ export class CodeAnalyzer implements ExternalTool {
           type: 'xss',
           severity: 'high',
           location: match,
-          description: 'Potential XSS vulnerability'
+          description: 'Potential XSS vulnerability',
         });
       });
     });
-    
+
     return vulnerabilities;
   }
 
@@ -775,9 +838,9 @@ export class CodeAnalyzer implements ExternalTool {
     const secretPatterns = [
       /password\s*=\s*['"][^'"]+['"]/gi,
       /api_key\s*=\s*['"][^'"]+['"]/gi,
-      /token\s*=\s*['"][^'"]+['"]/gi
+      /token\s*=\s*['"][^'"]+['"]/gi,
     ];
-    
+
     const vulnerabilities: any[] = [];
     secretPatterns.forEach(pattern => {
       const matches = code.match(pattern) || [];
@@ -786,26 +849,29 @@ export class CodeAnalyzer implements ExternalTool {
           type: 'hardcoded_secret',
           severity: 'medium',
           location: match.substring(0, 30) + '...',
-          description: 'Hardcoded secret detected'
+          description: 'Hardcoded secret detected',
         });
       });
     });
-    
+
     return vulnerabilities;
   }
 
   private detectInputValidationIssues(code: string): any[] {
     const hasValidation = code.includes('validate') || code.includes('sanitize');
-    const hasUserInput = code.includes('req.body') || code.includes('input') || code.includes('params');
-    
+    const hasUserInput =
+      code.includes('req.body') || code.includes('input') || code.includes('params');
+
     if (hasUserInput && !hasValidation) {
-      return [{
-        type: 'input_validation',
-        severity: 'medium',
-        description: 'User input detected without apparent validation'
-      }];
+      return [
+        {
+          type: 'input_validation',
+          severity: 'medium',
+          description: 'User input detected without apparent validation',
+        },
+      ];
     }
-    
+
     return [];
   }
 
@@ -813,64 +879,65 @@ export class CodeAnalyzer implements ExternalTool {
     const criticalVulns = vulnerabilities.filter(v => v.severity === 'critical').length;
     const highVulns = vulnerabilities.filter(v => v.severity === 'high').length;
     const mediumVulns = vulnerabilities.filter(v => v.severity === 'medium').length;
-    
-    const penalty = (criticalVulns * 30) + (highVulns * 20) + (mediumVulns * 10);
+
+    const penalty = criticalVulns * 30 + highVulns * 20 + mediumVulns * 10;
     return Math.max(0, 100 - penalty);
   }
 
   private generateSecurityRecommendations(vulnerabilities: any[]): string[] {
     const recommendations = [];
-    
+
     if (vulnerabilities.some(v => v.type === 'sql_injection')) {
       recommendations.push('Use parameterized queries to prevent SQL injection');
     }
-    
+
     if (vulnerabilities.some(v => v.type === 'xss')) {
       recommendations.push('Sanitize user input and use safe DOM manipulation methods');
     }
-    
+
     if (vulnerabilities.some(v => v.type === 'hardcoded_secret')) {
       recommendations.push('Move secrets to environment variables or secure configuration');
     }
-    
+
     return recommendations;
   }
 
   private generateRecommendations(structure: any, metrics: any, issues: any[]): string[] {
     const recommendations = [];
-    
+
     if (metrics.comment_ratio < 0.1) {
       recommendations.push('Consider adding more documentation and comments');
     }
-    
+
     if (metrics.cyclomatic_complexity > 10) {
       recommendations.push('Reduce complexity by breaking down large functions');
     }
-    
+
     if (issues.length > 10) {
       recommendations.push('Address code quality issues to improve maintainability');
     }
-    
+
     return recommendations;
   }
 
   // Utility methods
   private extractFunctionCode(code: string, functionName: string): string {
-    const functionStart = code.indexOf(`function ${functionName}`) || code.indexOf(`${functionName} =`);
+    const functionStart =
+      code.indexOf(`function ${functionName}`) || code.indexOf(`${functionName} =`);
     if (functionStart === -1) return '';
-    
+
     // Simplified extraction - in production, use proper AST parsing
     const fromStart = code.substring(functionStart);
     const braceCount = (fromStart.match(/{/g) || []).length;
     const closeBraceCount = (fromStart.match(/}/g) || []).length;
-    
+
     return fromStart.substring(0, Math.min(1000, fromStart.length)); // Simplified
   }
 
   private extractClassCode(code: string, className: string): string {
     const classStart = code.indexOf(`class ${className}`);
     if (classStart === -1) return '';
-    
+
     // Simplified extraction
     const fromStart = code.substring(classStart);
     return fromStart.substring(0, Math.min(2000, fromStart.length));
@@ -879,12 +946,12 @@ export class CodeAnalyzer implements ExternalTool {
   private getMaxNestingLevel(code: string): number {
     const lines = code.split('\n');
     let maxNesting = 0;
-    
+
     lines.forEach(line => {
       const indentLevel = (line.match(/^\s*/)?.[0].length || 0) / 2;
       maxNesting = Math.max(maxNesting, indentLevel);
     });
-    
+
     return maxNesting;
   }
 
@@ -894,7 +961,7 @@ export class CodeAnalyzer implements ExternalTool {
       'detect_patterns',
       'suggest_refactoring',
       'analyze_complexity',
-      'security_scan'
+      'security_scan',
     ];
   }
-} 
+}

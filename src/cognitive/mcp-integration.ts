@@ -1,9 +1,9 @@
 /**
  * 🌐 MCP Integration System
- * 
+ *
  * Full Model Context Protocol support with dynamic server discovery,
  * tool integration, and seamless external system communication.
- * 
+ *
  * Features:
  * - Dynamic MCP server discovery and connection
  * - Tool and resource registration and management
@@ -112,7 +112,12 @@ export class MCPIntegrationSystem extends EventEmitter {
    */
   private startDiscovery(): void {
     this.discoveryInterval = setInterval(async () => {
-      await this.discoverServers();
+      try {
+        await this.discoverServers();
+      } catch (error) {
+        console.error('Error during server discovery:', error);
+        this.emit('discovery_error', error);
+      }
     }, 30000); // Discover every 30 seconds
   }
 
@@ -121,7 +126,12 @@ export class MCPIntegrationSystem extends EventEmitter {
    */
   private startHeartbeat(): void {
     this.heartbeatInterval = setInterval(async () => {
-      await this.performHealthChecks();
+      try {
+        await this.performHealthChecks();
+      } catch (error) {
+        console.error('Error during health check:', error);
+        this.emit('health_check_error', error);
+      }
     }, 10000); // Health check every 10 seconds
   }
 
@@ -132,11 +142,19 @@ export class MCPIntegrationSystem extends EventEmitter {
     try {
       // Check common MCP server configurations
       const commonServers = [
-        { name: 'filesystem', command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem'] },
+        {
+          name: 'filesystem',
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-filesystem'],
+        },
         { name: 'github', command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'] },
         { name: 'sqlite', command: 'npx', args: ['-y', '@modelcontextprotocol/server-sqlite'] },
-        { name: 'brave-search', command: 'npx', args: ['-y', '@modelcontextprotocol/server-brave-search'] },
-        { name: 'postgres', command: 'npx', args: ['-y', '@modelcontextprotocol/server-postgres'] }
+        {
+          name: 'brave-search',
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-brave-search'],
+        },
+        { name: 'postgres', command: 'npx', args: ['-y', '@modelcontextprotocol/server-postgres'] },
       ];
 
       for (const serverConfig of commonServers) {
@@ -155,7 +173,7 @@ export class MCPIntegrationSystem extends EventEmitter {
   private async attemptServerConnection(config: any): Promise<void> {
     try {
       const serverId = `${config.name}_${Date.now()}`;
-      
+
       const server: MCPServer = {
         id: serverId,
         name: config.name,
@@ -164,7 +182,7 @@ export class MCPIntegrationSystem extends EventEmitter {
           resources: true,
           prompts: true,
           tools: true,
-          discovery: true
+          discovery: true,
         },
         status: 'connected',
         transport: 'stdio',
@@ -174,13 +192,13 @@ export class MCPIntegrationSystem extends EventEmitter {
           successfulRequests: 0,
           failedRequests: 0,
           averageResponseTime: 0,
-          uptime: 0
-        }
+          uptime: 0,
+        },
       };
 
       this.servers.set(serverId, server);
       await this.initializeServerCapabilities(serverId);
-      
+
       this.emit('server_connected', server);
     } catch (error) {
       console.error(`Failed to connect to ${config.name}:`, error);
@@ -227,14 +245,14 @@ export class MCPIntegrationSystem extends EventEmitter {
         schema: {
           type: 'object',
           properties: {
-            path: { type: 'string', description: 'File path to read' }
+            path: { type: 'string', description: 'File path to read' },
           },
-          required: ['path']
+          required: ['path'],
         },
         category: 'filesystem',
         confidence_score: 0.9,
         usage_count: 0,
-        success_rate: 1.0
+        success_rate: 1.0,
       },
       {
         name: 'search_web',
@@ -243,15 +261,15 @@ export class MCPIntegrationSystem extends EventEmitter {
         schema: {
           type: 'object',
           properties: {
-            query: { type: 'string', description: 'Search query' }
+            query: { type: 'string', description: 'Search query' },
           },
-          required: ['query']
+          required: ['query'],
         },
         category: 'search',
         confidence_score: 0.85,
         usage_count: 0,
-        success_rate: 0.95
-      }
+        success_rate: 0.95,
+      },
     ];
 
     for (const tool of mockTools) {
@@ -271,8 +289,8 @@ export class MCPIntegrationSystem extends EventEmitter {
         description: 'Access to document files',
         server_id: serverId,
         mime_type: 'inode/directory',
-        access_count: 0
-      }
+        access_count: 0,
+      },
     ];
 
     for (const resource of mockResources) {
@@ -290,12 +308,10 @@ export class MCPIntegrationSystem extends EventEmitter {
         name: 'analyze_code',
         description: 'Analyze code for issues and improvements',
         server_id: serverId,
-        arguments: [
-          { name: 'code', type: 'string', description: 'Code to analyze' }
-        ],
+        arguments: [{ name: 'code', type: 'string', description: 'Code to analyze' }],
         usage_count: 0,
-        effectiveness_score: 0.8
-      }
+        effectiveness_score: 0.8,
+      },
     ];
 
     for (const prompt of mockPrompts) {
@@ -319,31 +335,30 @@ export class MCPIntegrationSystem extends EventEmitter {
 
     try {
       const startTime = Date.now();
-      
+
       // Simulate tool execution - in real implementation, this would make actual MCP calls
       const result = await this.simulateToolExecution(tool, parameters);
-      
+
       const responseTime = Date.now() - startTime;
-      
+
       // Update metrics
       server.metrics.totalRequests++;
       server.metrics.successfulRequests++;
-      server.metrics.averageResponseTime = (
+      server.metrics.averageResponseTime =
         (server.metrics.averageResponseTime * (server.metrics.totalRequests - 1) + responseTime) /
-        server.metrics.totalRequests
-      );
+        server.metrics.totalRequests;
       server.metrics.lastRequestTime = new Date();
 
       tool.usage_count++;
       tool.last_used = new Date();
 
       this.emit('tool_executed', { tool: toolName, success: true, responseTime });
-      
+
       return result;
     } catch (error) {
       server.metrics.totalRequests++;
       server.metrics.failedRequests++;
-      
+
       this.emit('tool_execution_error', { tool: toolName, error });
       throw error;
     }
@@ -361,21 +376,21 @@ export class MCPIntegrationSystem extends EventEmitter {
         return {
           content: `File content for ${parameters.path}`,
           size: 1024,
-          modified: new Date().toISOString()
+          modified: new Date().toISOString(),
         };
-      
+
       case 'search_web':
         return {
           results: [
             {
               title: `Search result for "${parameters.query}"`,
               url: 'https://example.com',
-              snippet: 'Relevant information about the query...'
-            }
+              snippet: 'Relevant information about the query...',
+            },
           ],
-          total_results: 1
+          total_results: 1,
         };
-      
+
       default:
         return { success: true, message: `Tool ${tool.name} executed successfully` };
     }
@@ -408,17 +423,17 @@ export class MCPIntegrationSystem extends EventEmitter {
    */
   recommendTools(context: string, maxRecommendations: number = 3): MCPTool[] {
     const tools = this.getAvailableTools();
-    
+
     // Simple keyword-based recommendation (in real implementation, use embeddings)
     const scored = tools.map(tool => {
       let score = tool.confidence_score * tool.success_rate;
-      
+
       // Boost score if tool description matches context
       const contextWords = context.toLowerCase().split(/\s+/);
       const descWords = tool.description.toLowerCase().split(/\s+/);
       const overlap = contextWords.filter(word => descWords.includes(word)).length;
       score += overlap * 0.1;
-      
+
       return { tool, score };
     });
 
@@ -436,7 +451,7 @@ export class MCPIntegrationSystem extends EventEmitter {
       try {
         // Simulate health check - in real implementation, send ping/status request
         const isHealthy = Math.random() > 0.05; // 95% uptime simulation
-        
+
         if (isHealthy) {
           server.status = 'connected';
           server.lastHeartbeat = new Date();
@@ -479,27 +494,30 @@ export class MCPIntegrationSystem extends EventEmitter {
    * Get system status and metrics
    */
   getSystemStatus(): any {
-    const serverStats = Array.from(this.servers.values()).reduce((acc, server) => {
-      acc[server.status] = (acc[server.status] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const serverStats = Array.from(this.servers.values()).reduce(
+      (acc, server) => {
+        acc[server.status] = (acc[server.status] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
 
     return {
       servers: {
         total: this.servers.size,
-        status_breakdown: serverStats
+        status_breakdown: serverStats,
       },
       tools: {
         total: this.tools.size,
-        categories: this.getToolCategories()
+        categories: this.getToolCategories(),
       },
       resources: {
-        total: this.resources.size
+        total: this.resources.size,
       },
       prompts: {
-        total: this.prompts.size
+        total: this.prompts.size,
       },
-      performance: this.getPerformanceMetrics()
+      performance: this.getPerformanceMetrics(),
     };
   }
 
@@ -507,10 +525,13 @@ export class MCPIntegrationSystem extends EventEmitter {
    * Get tool categories
    */
   private getToolCategories(): Record<string, number> {
-    return Array.from(this.tools.values()).reduce((acc, tool) => {
-      acc[tool.category] = (acc[tool.category] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    return Array.from(this.tools.values()).reduce(
+      (acc, tool) => {
+        acc[tool.category] = (acc[tool.category] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>
+    );
   }
 
   /**
@@ -520,13 +541,14 @@ export class MCPIntegrationSystem extends EventEmitter {
     const servers = Array.from(this.servers.values());
     const totalRequests = servers.reduce((sum, s) => sum + s.metrics.totalRequests, 0);
     const successfulRequests = servers.reduce((sum, s) => sum + s.metrics.successfulRequests, 0);
-    const avgResponseTime = servers.reduce((sum, s) => sum + s.metrics.averageResponseTime, 0) / servers.length;
+    const avgResponseTime =
+      servers.reduce((sum, s) => sum + s.metrics.averageResponseTime, 0) / servers.length;
 
     return {
       total_requests: totalRequests,
       success_rate: totalRequests > 0 ? successfulRequests / totalRequests : 0,
       average_response_time: avgResponseTime || 0,
-      uptime_percentage: this.calculateUptimePercentage()
+      uptime_percentage: this.calculateUptimePercentage(),
     };
   }
 
@@ -539,7 +561,7 @@ export class MCPIntegrationSystem extends EventEmitter {
 
     const totalUptime = servers.reduce((sum, s) => sum + s.metrics.uptime, 0);
     const maxPossibleUptime = servers.length * Math.max(...servers.map(s => s.metrics.uptime || 1));
-    
+
     return maxPossibleUptime > 0 ? totalUptime / maxPossibleUptime : 0;
   }
 
@@ -555,4 +577,4 @@ export class MCPIntegrationSystem extends EventEmitter {
     }
     this.removeAllListeners();
   }
-} 
+}

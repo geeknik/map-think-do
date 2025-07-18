@@ -1,12 +1,17 @@
 /**
  * @fileoverview Metacognitive prompt plugin for self-reflection and meta-reasoning
- * 
+ *
  * This plugin enables AGI-like self-awareness by providing prompts that encourage
  * the system to reflect on its own thinking process, question assumptions,
  * and evaluate the quality of its reasoning.
  */
 
-import { BasePromptPlugin, PromptContext, PluginMetadata, ActivationConditions } from './base-plugin.js';
+import {
+  BasePromptPlugin,
+  PromptContext,
+  PluginMetadata,
+  ActivationConditions,
+} from './base-plugin.js';
 import { Prompt, PromptResult } from '../types.js';
 
 /**
@@ -15,7 +20,7 @@ import { Prompt, PromptResult } from '../types.js';
 export class MetaPromptsPlugin extends BasePromptPlugin {
   private reflectionTriggers: Set<string> = new Set();
   private assumptionPatterns: RegExp[] = [];
-  
+
   constructor() {
     const metadata: PluginMetadata = {
       name: 'meta-prompts',
@@ -24,63 +29,63 @@ export class MetaPromptsPlugin extends BasePromptPlugin {
       author: 'map-think-do',
       capabilities: [
         'self-reflection',
-        'assumption-questioning', 
+        'assumption-questioning',
         'reasoning-evaluation',
         'cognitive-monitoring',
         'bias-detection',
-        'confidence-calibration'
+        'confidence-calibration',
       ],
       domains: ['all'], // Metacognition applies to all domains
       complexityRange: [3, 10], // More useful for complex problems
-      priority: 8 // High priority for metacognitive oversight
+      priority: 8, // High priority for metacognitive oversight
     };
-    
+
     const activationConditions: ActivationConditions = {
       // Activate when confidence is uncertain or when we've been thinking for a while
       customCondition: (context: PromptContext) => {
         const thoughtCount = context.thoughtHistory.length;
         const latestThought = context.thoughtHistory[thoughtCount - 1];
-        
+
         // Activate every 3-5 thoughts for reflection
         if (thoughtCount > 0 && thoughtCount % 4 === 0) return true;
-        
+
         // Activate when confidence is low or missing
         if (latestThought && (latestThought.confidence || 0) < 0.7) return true;
-        
+
         // Activate when we detect assumption-heavy language
         if (latestThought && this.containsAssumptions(latestThought.thought)) return true;
-        
+
         // Activate for high complexity problems
         if (context.complexity && context.complexity >= 7) return true;
-        
+
         return false;
-      }
+      },
     };
-    
+
     super(metadata, activationConditions);
-    
+
     // Initialize assumption detection patterns
     this.assumptionPatterns = [
       /\b(assume|assuming|presumably|likely|probably|should|must|obviously|clearly)\b/gi,
       /\b(I think|I believe|it seems|appears to|tends to)\b/gi,
-      /\b(usually|typically|generally|normally|always|never)\b/gi
+      /\b(usually|typically|generally|normally|always|never)\b/gi,
     ];
   }
-  
+
   /**
    * Check if text contains assumption-heavy language
    */
   private containsAssumptions(text: string): boolean {
     return this.assumptionPatterns.some(pattern => pattern.test(text));
   }
-  
+
   /**
    * Generate metacognitive prompts based on context
    */
   generatePrompts(context: PromptContext): Prompt[] {
     const prompts: Prompt[] = [];
     const thoughtCount = context.thoughtHistory.length;
-    
+
     // Self-reflection prompt
     prompts.push({
       name: 'self-reflection',
@@ -89,16 +94,16 @@ export class MetaPromptsPlugin extends BasePromptPlugin {
         {
           name: 'current_approach',
           description: 'Describe your current reasoning approach',
-          required: true
+          required: true,
         },
         {
           name: 'thought_history',
           description: 'Summary of thoughts so far',
-          required: false
-        }
-      ]
+          required: false,
+        },
+      ],
     });
-    
+
     // Assumption questioning prompt
     if (thoughtCount > 0) {
       const latestThought = context.thoughtHistory[thoughtCount - 1];
@@ -109,19 +114,19 @@ export class MetaPromptsPlugin extends BasePromptPlugin {
           arguments: [
             {
               name: 'identified_assumptions',
-              description: 'List the assumptions you\'ve identified',
-              required: true
+              description: "List the assumptions you've identified",
+              required: true,
             },
             {
               name: 'alternative_perspectives',
               description: 'What alternative perspectives might challenge these assumptions?',
-              required: false
-            }
-          ]
+              required: false,
+            },
+          ],
         });
       }
     }
-    
+
     // Reasoning evaluation prompt
     if (thoughtCount >= 3) {
       prompts.push({
@@ -131,22 +136,22 @@ export class MetaPromptsPlugin extends BasePromptPlugin {
           {
             name: 'reasoning_strengths',
             description: 'What are the strengths of your current reasoning?',
-            required: true
+            required: true,
           },
           {
             name: 'reasoning_weaknesses',
             description: 'What are potential weaknesses or gaps?',
-            required: true
+            required: true,
           },
           {
             name: 'improvement_suggestions',
             description: 'How could the reasoning be improved?',
-            required: false
-          }
-        ]
+            required: false,
+          },
+        ],
       });
     }
-    
+
     // Confidence calibration prompt
     prompts.push({
       name: 'calibrate-confidence',
@@ -155,16 +160,16 @@ export class MetaPromptsPlugin extends BasePromptPlugin {
         {
           name: 'confidence_level',
           description: 'Your current confidence level (0-100%)',
-          required: true
+          required: true,
         },
         {
           name: 'confidence_factors',
           description: 'What factors support or undermine this confidence?',
-          required: true
-        }
-      ]
+          required: true,
+        },
+      ],
     });
-    
+
     // Alternative approach prompt
     if (thoughtCount >= 2) {
       prompts.push({
@@ -174,36 +179,39 @@ export class MetaPromptsPlugin extends BasePromptPlugin {
           {
             name: 'current_path',
             description: 'Summarize your current approach',
-            required: true
+            required: true,
           },
           {
             name: 'alternative_approaches',
             description: 'What other approaches could you take?',
-            required: true
+            required: true,
           },
           {
             name: 'approach_comparison',
             description: 'Compare the merits of different approaches',
-            required: false
-          }
-        ]
+            required: false,
+          },
+        ],
       });
     }
-    
+
     return prompts;
   }
-  
+
   /**
    * Generate metacognitive prompt templates
    */
-  generateTemplates(context: PromptContext): Record<string, (args: Record<string, string>) => PromptResult> {
+  generateTemplates(
+    context: PromptContext
+  ): Record<string, (args: Record<string, string>) => PromptResult> {
     return {
-      'self-reflection': (args) => ({
-        messages: [{
-          role: 'user',
-          content: {
-            type: 'text',
-            text: `🧠 **METACOGNITIVE REFLECTION**
+      'self-reflection': args => ({
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `🧠 **METACOGNITIVE REFLECTION**
 
 Take a step back and reflect on your reasoning process:
 
@@ -223,17 +231,19 @@ ${args.thought_history ? `**Thought History:** ${args.thought_history}` : ''}
 - What evidence would change my current thinking?
 - How can I improve my reasoning process?
 
-Please use the code-reasoning tool to work through this reflection systematically.`
-          }
-        }]
+Please use the code-reasoning tool to work through this reflection systematically.`,
+            },
+          },
+        ],
       }),
-      
-      'question-assumptions': (args) => ({
-        messages: [{
-          role: 'user',
-          content: {
-            type: 'text',
-            text: `🔍 **ASSUMPTION ANALYSIS**
+
+      'question-assumptions': args => ({
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `🔍 **ASSUMPTION ANALYSIS**
 
 I've identified potential assumptions in your reasoning. Let's examine them critically:
 
@@ -252,17 +262,19 @@ ${args.alternative_perspectives ? `**Alternative Perspectives:** ${args.alternat
 - What would experts in different fields think about these assumptions?
 - How have similar assumptions been challenged historically?
 
-Use the code-reasoning tool to systematically examine each assumption.`
-          }
-        }]
+Use the code-reasoning tool to systematically examine each assumption.`,
+            },
+          },
+        ],
       }),
-      
-      'evaluate-reasoning': (args) => ({
-        messages: [{
-          role: 'user',
-          content: {
-            type: 'text',
-            text: `⚖️ **REASONING QUALITY EVALUATION**
+
+      'evaluate-reasoning': args => ({
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `⚖️ **REASONING QUALITY EVALUATION**
 
 Let's evaluate the quality of your reasoning chain:
 
@@ -284,17 +296,19 @@ ${args.improvement_suggestions ? `**Improvement Ideas:** ${args.improvement_sugg
 - How could I make this reasoning more rigorous?
 - What additional information would strengthen my position?
 
-Use the code-reasoning tool to conduct this quality evaluation systematically.`
-          }
-        }]
+Use the code-reasoning tool to conduct this quality evaluation systematically.`,
+            },
+          },
+        ],
       }),
-      
-      'calibrate-confidence': (args) => ({
-        messages: [{
-          role: 'user',
-          content: {
-            type: 'text',
-            text: `📊 **CONFIDENCE CALIBRATION**
+
+      'calibrate-confidence': args => ({
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `📊 **CONFIDENCE CALIBRATION**
 
 Let's calibrate your confidence in your current reasoning:
 
@@ -322,17 +336,19 @@ Let's calibrate your confidence in your current reasoning:
 - Am I being overconfident due to confirmation bias?
 - Am I being underconfident due to imposter syndrome?
 
-Use the code-reasoning tool to work through this calibration process.`
-          }
-        }]
+Use the code-reasoning tool to work through this calibration process.`,
+            },
+          },
+        ],
       }),
-      
-      'explore-alternatives': (args) => ({
-        messages: [{
-          role: 'user',
-          content: {
-            type: 'text',
-            text: `🌿 **ALTERNATIVE APPROACH EXPLORATION**
+
+      'explore-alternatives': args => ({
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `🌿 **ALTERNATIVE APPROACH EXPLORATION**
 
 Let's explore different ways to approach this problem:
 
@@ -361,31 +377,39 @@ ${args.approach_comparison ? `**Approach Comparison:** ${args.approach_compariso
 - Which approach provides the best learning opportunity?
 - Which approach is most reversible if it doesn't work?
 
-Use the code-reasoning tool to systematically explore and evaluate these alternatives.`
-          }
-        }]
-      })
+Use the code-reasoning tool to systematically explore and evaluate these alternatives.`,
+            },
+          },
+        ],
+      }),
     };
   }
-  
+
   /**
    * Provide feedback to improve metacognitive prompting
    */
-  provideFeedback(promptName: string, success: boolean, confidence: number, context: PromptContext): void {
+  provideFeedback(
+    promptName: string,
+    success: boolean,
+    confidence: number,
+    context: PromptContext
+  ): void {
     super.provideFeedback(promptName, success, confidence, context);
-    
+
     // Track which types of reflection are most effective
     if (success && confidence > 0.8) {
       this.reflectionTriggers.add(promptName);
     }
-    
+
     // Learn from unsuccessful metacognitive interventions
     if (!success && promptName.includes('assumption')) {
       // Maybe we need to be more gentle with assumption questioning
-      console.error(`Assumption questioning may have been too aggressive for context: ${context.domain}`);
+      console.error(
+        `Assumption questioning may have been too aggressive for context: ${context.domain}`
+      );
     }
   }
-  
+
   /**
    * Update plugin state based on reasoning patterns
    */
@@ -394,11 +418,11 @@ Use the code-reasoning tool to systematically explore and evaluate these alterna
     if (context.thoughtHistory.length >= 2) {
       const recent = context.thoughtHistory.slice(-2);
       const [prev, curr] = recent;
-      
+
       // If confidence improved after metacognitive intervention, note it
       if (prev.confidence && curr.confidence && curr.confidence > prev.confidence) {
         console.error(`Metacognitive intervention appears to have helped improve confidence`);
       }
     }
   }
-} 
+}
