@@ -862,10 +862,22 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
   /**
    * Cleanup resources
    */
-  destroy(): void {
+  async destroy(): Promise<void> {
     if (this.integrationInterval) {
       clearInterval(this.integrationInterval);
     }
+    
+    // Remove event listeners from subsystems
+    this.mcpSystem.removeAllListeners('server_connected');
+    this.mcpSystem.removeAllListeners('tool_executed');
+    this.consciousnessSimulator.removeAllListeners('consciousness_update');
+    this.consciousnessSimulator.removeAllListeners('existential_question');
+    this.selfModifyingArchitecture.removeAllListeners('mutation_applied');
+    this.selfModifyingArchitecture.removeAllListeners('adaptation_cycle');
+    
+    // Remove all listeners from this plugin
+    this.removeAllListeners();
+    
     this.mcpSystem.destroy();
     this.consciousnessSimulator.destroy();
     this.selfModifyingArchitecture.destroy();

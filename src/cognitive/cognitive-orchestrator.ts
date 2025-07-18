@@ -1011,4 +1011,22 @@ export class CognitiveOrchestrator extends EventEmitter {
       this.emit('persona_metrics_updated', metrics);
     });
   }
+
+  /**
+   * Cleanup method to prevent memory leaks
+   * Removes all event listeners and cleans up resources
+   */
+  public async destroy(): Promise<void> {
+    // Remove all listeners from this orchestrator
+    this.removeAllListeners();
+    
+    // Remove listeners we added to other components
+    this.pluginManager.removeAllListeners('orchestration_complete');
+    this.pluginManager.removeAllListeners('orchestration_error');
+    this.metacognitivePlugin.removeAllListeners('metrics_updated');
+    this.personaPlugin.removeAllListeners('metrics_updated');
+    
+    // Destroy all plugins
+    await this.pluginManager.destroy();
+  }
 } 

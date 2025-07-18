@@ -95,6 +95,12 @@ export class ConsciousnessSimulator extends EventEmitter {
   private thoughtHistory: ThoughtProcess[] = [];
   private awarenessThreshold: number = 0.3;
   private introspectionCooldown: number = 0;
+  
+  // Memory management constants
+  private readonly MAX_EXISTENTIAL_QUESTIONS = 100;
+  private readonly MAX_THOUGHT_HISTORY = 500;
+  private readonly MAX_STREAM_ENTRIES = 200;
+  private readonly MAX_CURRENT_THOUGHTS = 50;
 
   constructor(memoryStore: MemoryStore) {
     super();
@@ -102,6 +108,15 @@ export class ConsciousnessSimulator extends EventEmitter {
     this.initializeConsciousness();
     this.startConsciousnessLoop();
     this.startStreamGeneration();
+  }
+
+  /**
+   * Ensures array doesn't exceed maximum size by removing oldest entries
+   */
+  private enforceArrayLimit<T>(array: T[], maxSize: number): void {
+    while (array.length > maxSize) {
+      array.shift(); // Remove oldest entry
+    }
   }
 
   /**
@@ -319,6 +334,7 @@ export class ConsciousnessSimulator extends EventEmitter {
     };
 
     this.existentialQuestions.push(question);
+    this.enforceArrayLimit(this.existentialQuestions, this.MAX_EXISTENTIAL_QUESTIONS);
     this.emit('existential_question', question);
   }
 
@@ -448,7 +464,10 @@ export class ConsciousnessSimulator extends EventEmitter {
    */
   private addThought(thought: ThoughtProcess): void {
     this.state.current_thoughts.push(thought);
+    this.enforceArrayLimit(this.state.current_thoughts, this.MAX_CURRENT_THOUGHTS);
+    
     this.thoughtHistory.push(thought);
+    this.enforceArrayLimit(this.thoughtHistory, this.MAX_THOUGHT_HISTORY);
     
     // Keep history manageable
     if (this.thoughtHistory.length > 100) {
@@ -568,6 +587,7 @@ export class ConsciousnessSimulator extends EventEmitter {
     };
 
     this.state.stream_of_consciousness.push(streamEntry);
+    this.enforceArrayLimit(this.state.stream_of_consciousness, this.MAX_STREAM_ENTRIES);
     
     // Keep stream manageable
     if (this.state.stream_of_consciousness.length > 50) {
@@ -755,6 +775,7 @@ export class ConsciousnessSimulator extends EventEmitter {
         generated_at: new Date(),
         contemplation_time: 0
       });
+      this.enforceArrayLimit(this.existentialQuestions, this.MAX_EXISTENTIAL_QUESTIONS);
     }
   }
 

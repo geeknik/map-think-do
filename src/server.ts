@@ -273,6 +273,13 @@ class CodeReasoningServer {
   private readonly memoryStore: MemoryStore;
   private currentSessionId: string;
 
+  /**
+   * Get the cognitive orchestrator instance for cleanup
+   */
+  public getCognitiveOrchestrator(): CognitiveOrchestrator {
+    return this.cognitiveOrchestrator;
+  }
+
   constructor(private readonly cfg: Readonly<CodeReasoningConfig>) {
     // Initialize memory store
     this.memoryStore = new InMemoryStore();
@@ -806,6 +813,16 @@ export async function runServer(debugFlag = false): Promise<void> {
 
   const shutdown = async (sig: string) => {
     console.error(`↩︎ shutdown on ${sig}`);
+    
+    // Cleanup cognitive components
+    try {
+      console.error('🧠 Cleaning up cognitive systems...');
+      await logic.getCognitiveOrchestrator().destroy();
+      console.error('✅ Cognitive systems cleaned up');
+    } catch (err) {
+      console.error('⚠️ Error cleaning up cognitive systems:', err);
+    }
+    
     await srv.close();
     await transport.close();
     process.exit(0);

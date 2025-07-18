@@ -299,6 +299,14 @@ export abstract class CognitivePlugin extends EventEmitter {
     // Emit metrics update event
     this.emit('metrics_updated', this.metrics);
   }
+
+  /**
+   * Cleanup resources when plugin is destroyed
+   * Override this method in child classes for custom cleanup
+   */
+  async destroy(): Promise<void> {
+    this.removeAllListeners();
+  }
 }
 
 /**
@@ -613,5 +621,30 @@ export class CognitivePluginManager extends EventEmitter {
     }
     
     return selected;
+  }
+
+  /**
+   * Cleanup resources and destroy all plugins
+   */
+  async destroy(): Promise<void> {
+    // Remove all event listeners
+    this.removeAllListeners();
+    
+    // Destroy all plugins
+    for (const [id, plugin] of this.plugins) {
+      try {
+        if (typeof plugin.destroy === 'function') {
+          await plugin.destroy();
+        }
+      } catch (error) {
+        console.error(`Error destroying plugin ${id}:`, error);
+      }
+    }
+    
+    // Clear all data structures
+    this.plugins.clear();
+    this.pluginDependencies.clear();
+    this.conflictMatrix.clear();
+    this.activeInterventions.clear();
   }
 } 
