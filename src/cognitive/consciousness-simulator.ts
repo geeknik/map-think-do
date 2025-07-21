@@ -89,8 +89,8 @@ export interface ExistentialQuestion {
 export class ConsciousnessSimulator extends EventEmitter {
   private state!: ConsciousnessState;
   private memoryStore: MemoryStore;
-  private consciousnessLoop: NodeJS.Timeout | null = null;
-  private streamUpdateInterval: NodeJS.Timeout | null = null;
+  private consciousnessLoop: ReturnType<typeof setTimeout> | null = null;
+  private streamUpdateInterval: ReturnType<typeof setTimeout> | null = null;
   private existentialQuestions: ExistentialQuestion[] = [];
   private thoughtHistory: ThoughtProcess[] = [];
   private awarenessThreshold: number = 0.3;

@@ -21,6 +21,7 @@ import {
   CognitiveContext,
   PluginIntervention,
   CognitivePlugin,
+  PluginMetrics,
 } from './plugin-system.js';
 import { MetacognitivePlugin } from './plugins/metacognitive-plugin.js';
 import { PersonaPlugin } from './plugins/persona-plugin.js';
@@ -28,6 +29,47 @@ import { ExternalReasoningPlugin } from './plugins/external-reasoning-plugin.js'
 import { Phase5IntegrationPlugin } from './plugins/phase5-integration-plugin.js';
 import { MemoryStore, StoredThought, ReasoningSession } from '../memory/memory-store.js';
 import { ValidatedThoughtData } from '../server.js';
+
+/**
+ * Learning data structure for pattern recognition
+ */
+interface LearningData {
+  count: number;
+  total_impact: number;
+  interventions: Array<{
+    plugin_id: string;
+    effectiveness: number;
+    context_complexity: number;
+    outcome_quality: number;
+    timestamp: string;
+  }>;
+}
+
+/**
+ * Intervention pattern data for context-specific learning
+ */
+interface InterventionPattern {
+  success_count: number;
+  total_count: number;
+  typical_impact: number;
+  contexts_used: string[];
+}
+
+/**
+ * Insight pattern data for tracking cognitive breakthroughs
+ */
+interface InsightPattern {
+  insight_frequency: number;
+  average_novelty: number;
+  breakthrough_contexts: Array<{
+    domain?: string;
+    complexity: number;
+    urgency: string;
+    session_phase: number;
+    timestamp: string;
+  }>;
+  total_insights: number;
+}
 
 /**
  * Cognitive state tracking
@@ -126,9 +168,12 @@ export class CognitiveOrchestrator extends EventEmitter {
   private thoughtOutputHistory: string[] = [];
 
   // Learning and adaptation
-  private learningData: Map<string, any> = new Map();
+  private learningData: Map<string, LearningData> = new Map();
   private performanceMetrics: Map<string, number> = new Map();
   private adaptationTriggers: Set<string> = new Set();
+  private interventionPatterns: Map<string, InterventionPattern> = new Map();
+  private insightPatterns: Map<string, InsightPattern> = new Map();
+  private pluginEffectiveness: Map<string, number> = new Map();
 
   // Memory management limits
   private readonly MAX_SESSION_HISTORY = 100;
@@ -355,7 +400,7 @@ export class CognitiveOrchestrator extends EventEmitter {
   /**
    * Get plugin performance summary
    */
-  getPluginPerformance(): Record<string, any> {
+  getPluginPerformance(): Record<string, PluginMetrics> {
     return this.pluginManager.getPerformanceSummary();
   }
 
@@ -881,6 +926,7 @@ export class CognitiveOrchestrator extends EventEmitter {
   ): 'low' | 'medium' | 'high' {
     const thought = thoughtData.thought.toLowerCase();
 
+    // Check for explicit urgency indicators in the thought
     if (
       thought.includes('urgent') ||
       thought.includes('critical') ||
@@ -889,10 +935,34 @@ export class CognitiveOrchestrator extends EventEmitter {
       return 'high';
     }
 
+    // Factor in session context for more accurate urgency assessment
+    if (sessionContext) {
+      // High urgency if this is a late thought in a session with many revisions
+      if (sessionContext.revision_count && sessionContext.revision_count > 3) {
+        return 'high';
+      }
+
+      // Medium urgency if session has been running for a while without goal achievement
+      if (sessionContext.start_time && sessionContext.goal_achieved === false) {
+        const sessionDuration = Date.now() - sessionContext.start_time.getTime();
+        const hoursRunning = sessionDuration / (1000 * 60 * 60);
+        if (hoursRunning > 1) {
+          return 'medium';
+        }
+      }
+
+      // Higher urgency for sessions with low confidence
+      if (sessionContext.confidence_level && sessionContext.confidence_level < 0.3) {
+        return 'medium';
+      }
+    }
+
+    // Check for time-sensitive keywords
     if (thought.includes('soon') || thought.includes('quickly') || thought.includes('asap')) {
       return 'medium';
     }
 
+    // Default to low urgency for exploratory thoughts
     return 'low';
   }
 
@@ -901,39 +971,53 @@ export class CognitiveOrchestrator extends EventEmitter {
     sessionContext?: Partial<ReasoningSession>
   ): { max_thoughts?: number; deadline?: Date } | undefined {
     const constraints: { max_thoughts?: number; deadline?: Date } = {};
-    
+
     // Check session context first
     if (sessionContext?.total_thoughts) {
       constraints.max_thoughts = sessionContext.total_thoughts;
     }
-    
+
     // Extract from thought content using regex patterns
     const thought = thoughtData.thought.toLowerCase();
-    
+
     // Look for thought limits in the content
     const thoughtLimitMatch = thought.match(/(?:maximum|max|limit.*?)(\d+).*?thoughts?/);
     if (thoughtLimitMatch) {
       constraints.max_thoughts = parseInt(thoughtLimitMatch[1], 10);
     }
-    
+
     // Look for time-based deadlines
     const timePatterns = [
       { pattern: /(?:deadline|due|finish.*?by).*?(\d{1,2}:\d{2})/i, type: 'time' },
       { pattern: /(?:today|by.*?end.*?day)/i, type: 'today' },
       { pattern: /(?:tomorrow|next.*?day)/i, type: 'tomorrow' },
       { pattern: /(?:this.*?week|by.*?week)/i, type: 'week' },
-      { pattern: /urgent|asap|immediately/i, type: 'urgent' }
+      { pattern: /urgent|asap|immediately/i, type: 'urgent' },
     ];
-    
+
     for (const { pattern, type } of timePatterns) {
       if (pattern.test(thought)) {
         const now = new Date();
         switch (type) {
           case 'today':
-            constraints.deadline = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+            constraints.deadline = new Date(
+              now.getFullYear(),
+              now.getMonth(),
+              now.getDate(),
+              23,
+              59,
+              59
+            );
             break;
           case 'tomorrow':
-            constraints.deadline = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 23, 59, 59);
+            constraints.deadline = new Date(
+              now.getFullYear(),
+              now.getMonth(),
+              now.getDate() + 1,
+              23,
+              59,
+              59
+            );
             break;
           case 'week':
             constraints.deadline = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -941,46 +1025,53 @@ export class CognitiveOrchestrator extends EventEmitter {
           case 'urgent':
             constraints.deadline = new Date(now.getTime() + 30 * 60 * 1000); // 30 minutes for urgent
             break;
-          case 'time':
+          case 'time': {
             // Try to parse specific time if mentioned
             const timeMatch = thought.match(/(\d{1,2}):(\d{2})/);
             if (timeMatch) {
               const hours = parseInt(timeMatch[1], 10);
               const minutes = parseInt(timeMatch[2], 10);
-              constraints.deadline = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
+              constraints.deadline = new Date(
+                now.getFullYear(),
+                now.getMonth(),
+                now.getDate(),
+                hours,
+                minutes
+              );
               // If time is in the past, assume next day
               if (constraints.deadline < now) {
                 constraints.deadline.setDate(constraints.deadline.getDate() + 1);
               }
             }
             break;
+          }
         }
         break; // Use first match
       }
     }
-    
+
     // Default thought limit based on complexity if none specified
     if (!constraints.max_thoughts && thoughtData.total_thoughts) {
       constraints.max_thoughts = thoughtData.total_thoughts;
     }
-    
+
     return Object.keys(constraints).length > 0 ? constraints : undefined;
   }
 
   // Insight detection methods
   private async detectPatternInsights(context: CognitiveContext): Promise<CognitiveInsight[]> {
     const insights: CognitiveInsight[] = [];
-    
+
     if (!this.memoryStore || !this.config.pattern_recognition_threshold) return insights;
-    
+
     try {
       // Look for patterns in thought history
       const recentThoughts = context.thought_history.slice(-10);
-      
+
       // Detect recurring themes
       const themes = this.extractThemes(recentThoughts);
       const recurringThemes = themes.filter(theme => theme.frequency >= 3);
-      
+
       for (const theme of recurringThemes) {
         insights.push({
           type: 'pattern_recognition',
@@ -990,25 +1081,24 @@ export class CognitiveOrchestrator extends EventEmitter {
           implications: [
             `The pattern "${theme.pattern}" may represent a core concept in your reasoning`,
             'This recurring theme could indicate a cognitive bias or valuable insight',
-            'Pattern frequency suggests high relevance to current problem domain'
+            'Pattern frequency suggests high relevance to current problem domain',
           ],
           evidence: theme.contexts,
-          novelty_score: 0.3
+          novelty_score: 0.3,
         });
       }
-      
+
       // Detect progression patterns
       const progressionInsights = this.detectProgressionPatterns(recentThoughts);
       insights.push(...progressionInsights);
-      
+
       // Detect contradiction patterns
       const contradictionInsights = this.detectContradictionPatterns(recentThoughts);
       insights.push(...contradictionInsights);
-      
     } catch (error) {
       console.error('Error detecting pattern insights:', error);
     }
-    
+
     return insights;
   }
 
@@ -1017,10 +1107,10 @@ export class CognitiveOrchestrator extends EventEmitter {
     interventions: PluginIntervention[]
   ): Promise<CognitiveInsight[]> {
     const insights: CognitiveInsight[] = [];
-    
+
     // Breakthrough indicators
     const breakthroughScore = this.calculateBreakthroughScore(context, interventions);
-    
+
     if (breakthroughScore > this.config.breakthrough_detection_sensitivity) {
       // High confidence level after period of uncertainty
       const confidenceJump = this.detectConfidenceJump(context);
@@ -1033,13 +1123,13 @@ export class CognitiveOrchestrator extends EventEmitter {
           implications: [
             'This breakthrough may lead to accelerated problem solving',
             'Increased confidence suggests resolution of key uncertainties',
-            'Pattern could be applicable to similar future challenges'
+            'Pattern could be applicable to similar future challenges',
           ],
           evidence: [context.current_thought || 'current reasoning'],
-          novelty_score: 0.8
+          novelty_score: 0.8,
         });
       }
-      
+
       // Sudden complexity reduction
       const complexityReduction = this.detectComplexityReduction(context);
       if (complexityReduction > 0.3) {
@@ -1051,13 +1141,13 @@ export class CognitiveOrchestrator extends EventEmitter {
           implications: [
             'Complexity reduction indicates deeper understanding of core issues',
             'Simplified approach may be more maintainable and scalable',
-            'This simplification pattern could apply to other complex problems'
+            'This simplification pattern could apply to other complex problems',
           ],
           evidence: [context.current_thought || 'current reasoning'],
-          novelty_score: 0.7
+          novelty_score: 0.7,
         });
       }
-      
+
       // Novel connection detection
       const novelConnections = this.detectNovelConnections(context, interventions);
       if (novelConnections.length > 0) {
@@ -1069,14 +1159,14 @@ export class CognitiveOrchestrator extends EventEmitter {
           implications: [
             'Cross-domain connections may reveal universal principles',
             'Novel relationships could lead to innovative solutions',
-            'These connections expand the solution space significantly'
+            'These connections expand the solution space significantly',
           ],
           evidence: novelConnections,
-          novelty_score: 0.9
+          novelty_score: 0.9,
         });
       }
     }
-    
+
     return insights;
   }
 
@@ -1085,7 +1175,7 @@ export class CognitiveOrchestrator extends EventEmitter {
     interventions: PluginIntervention[]
   ): Promise<CognitiveInsight[]> {
     const insights: CognitiveInsight[] = [];
-    
+
     // Detect integration of multiple perspectives
     const perspectiveIntegration = this.analyzeMultiPerspectiveIntegration(interventions);
     if (perspectiveIntegration.score > 0.7) {
@@ -1097,13 +1187,13 @@ export class CognitiveOrchestrator extends EventEmitter {
         implications: [
           'Multi-perspective synthesis reduces cognitive blind spots',
           'Integrated approach is more robust than single-perspective solutions',
-          'This synthesis pattern can be applied to future complex problems'
+          'This synthesis pattern can be applied to future complex problems',
         ],
         evidence: perspectiveIntegration.perspectives,
-        novelty_score: 0.6
+        novelty_score: 0.6,
       });
     }
-    
+
     // Detect conceptual bridging
     const conceptualBridges = this.detectConceptualBridging(context, interventions);
     if (conceptualBridges.length > 0) {
@@ -1115,13 +1205,13 @@ export class CognitiveOrchestrator extends EventEmitter {
         implications: [
           'Cross-domain bridging reveals transferable principles',
           'Conceptual connections enable knowledge transfer between fields',
-          'This bridging approach can be systematically applied'
+          'This bridging approach can be systematically applied',
         ],
         evidence: conceptualBridges,
-        novelty_score: 0.7
+        novelty_score: 0.7,
       });
     }
-    
+
     // Detect emergent understanding
     const emergentUnderstanding = this.detectEmergentUnderstanding(context);
     if (emergentUnderstanding.detected) {
@@ -1133,13 +1223,13 @@ export class CognitiveOrchestrator extends EventEmitter {
         implications: [
           'Emergent understanding represents genuine cognitive breakthrough',
           'This insight may have broader applications beyond current context',
-          'Emergence indicates successful integration of disparate concepts'
+          'Emergence indicates successful integration of disparate concepts',
         ],
         evidence: [emergentUnderstanding.description],
-        novelty_score: 0.9
+        novelty_score: 0.9,
       });
     }
-    
+
     return insights;
   }
 
@@ -1163,13 +1253,56 @@ export class CognitiveOrchestrator extends EventEmitter {
   ): Promise<void> {
     // Store learning data for future adaptation
     const learningKey = `${context.domain}_${context.complexity}_${outcome}`;
-    const existingData = this.learningData.get(learningKey) || { count: 0, total_impact: 0 };
+    const existingData = this.learningData.get(learningKey) || {
+      count: 0,
+      total_impact: 0,
+      interventions: [],
+    };
+
+    // Analyze which interventions were most effective
+    const interventionEffectiveness = new Map<string, number>();
+    for (const intervention of interventions) {
+      const pluginId = intervention.metadata.plugin_id;
+      const currentScore = interventionEffectiveness.get(pluginId) || 0;
+      interventionEffectiveness.set(pluginId, currentScore + impact_score / interventions.length);
+    }
+
+    // Update learning data with intervention-specific insights
+    const updatedInterventions = [...(existingData.interventions || [])];
+    interventions.forEach(intervention => {
+      updatedInterventions.push({
+        plugin_id: intervention.metadata.plugin_id,
+        effectiveness: interventionEffectiveness.get(intervention.metadata.plugin_id) || 0,
+        context_complexity: context.complexity,
+        outcome_quality: impact_score,
+        timestamp: new Date().toISOString(),
+      });
+    });
 
     this.learningData.set(learningKey, {
       count: existingData.count + 1,
       total_impact: existingData.total_impact + impact_score,
-      interventions: interventions.map(i => i.metadata.plugin_id),
+      interventions: updatedInterventions.slice(-50), // Keep last 50 interventions
     });
+
+    // Update plugin effectiveness scores based on this feedback
+    await this.updatePluginEffectiveness(interventionEffectiveness, context);
+  }
+
+  private async updatePluginEffectiveness(
+    interventionEffectiveness: Map<string, number>,
+    context: CognitiveContext
+  ): Promise<void> {
+    for (const [pluginId, effectiveness] of interventionEffectiveness.entries()) {
+      const contextKey = `${pluginId}_${context.domain}_${context.complexity}`;
+      const existingScore = this.pluginEffectiveness.get(contextKey) || 0.5;
+
+      // Exponential moving average for effectiveness scores
+      const learningRate = this.config.learning_rate;
+      const newScore = existingScore * (1 - learningRate) + effectiveness * learningRate;
+
+      this.pluginEffectiveness.set(contextKey, Math.max(0.1, Math.min(1.0, newScore)));
+    }
   }
 
   private checkAdaptationTriggers(outcome: string, impact_score: number): void {
@@ -1191,10 +1324,75 @@ export class CognitiveOrchestrator extends EventEmitter {
     interventions: PluginIntervention[]
   ): void {
     // Learn which interventions work well in which contexts
+    for (const intervention of interventions) {
+      const patternKey = `${intervention.metadata.plugin_id}_${context.domain}_${context.complexity}`;
+      const existingPattern = this.interventionPatterns.get(patternKey) || {
+        success_count: 0,
+        total_count: 0,
+        typical_impact: 0,
+        contexts_used: [],
+      };
+
+      existingPattern.total_count++;
+      if (intervention.metadata.confidence > 0.6) {
+        existingPattern.success_count++;
+      }
+
+      existingPattern.typical_impact =
+        (existingPattern.typical_impact * (existingPattern.total_count - 1) +
+          intervention.metadata.confidence) /
+        existingPattern.total_count;
+
+      // Track context variations
+      const contextSignature = `${context.domain}_${context.complexity}_${context.urgency}`;
+      if (!existingPattern.contexts_used.includes(contextSignature)) {
+        existingPattern.contexts_used.push(contextSignature);
+        // Keep only last 20 context signatures
+        existingPattern.contexts_used = existingPattern.contexts_used.slice(-20);
+      }
+
+      this.interventionPatterns.set(patternKey, existingPattern);
+    }
   }
 
   private learnInsightPatterns(context: CognitiveContext, insights: CognitiveInsight[]): void {
     // Learn which contexts lead to insights
+    for (const insight of insights) {
+      const patternKey = `insights_${context.domain}_${context.complexity}`;
+      const existingPattern = this.insightPatterns.get(patternKey) || {
+        insight_frequency: 0,
+        average_novelty: 0,
+        breakthrough_contexts: [],
+        total_insights: 0,
+      };
+
+      existingPattern.total_insights++;
+      const sessionLength = context.session?.total_thoughts || context.thought_history.length || 1;
+      existingPattern.insight_frequency =
+        existingPattern.total_insights / Math.max(1, sessionLength);
+
+      // Update average novelty score
+      existingPattern.average_novelty =
+        (existingPattern.average_novelty * (existingPattern.total_insights - 1) +
+          insight.novelty_score) /
+        existingPattern.total_insights;
+
+      // Track breakthrough contexts (high-impact, high-novelty insights)
+      if (insight.confidence > 0.7 && insight.novelty_score > 0.7) {
+        const contextSnapshot = {
+          domain: context.domain,
+          complexity: context.complexity,
+          urgency: context.urgency,
+          session_phase: context.session?.total_thoughts || context.thought_history.length || 0,
+          timestamp: new Date().toISOString(),
+        };
+        existingPattern.breakthrough_contexts.push(contextSnapshot);
+        // Keep only last 10 breakthrough contexts
+        existingPattern.breakthrough_contexts = existingPattern.breakthrough_contexts.slice(-10);
+      }
+
+      this.insightPatterns.set(patternKey, existingPattern);
+    }
   }
 
   private updatePerformanceMetrics(
@@ -1344,14 +1542,37 @@ export class CognitiveOrchestrator extends EventEmitter {
   }
 
   // Helper methods for insight detection
-  private extractThemes(thoughts: StoredThought[]): Array<{ pattern: string; frequency: number; contexts: string[] }> {
+  private extractThemes(
+    thoughts: StoredThought[]
+  ): Array<{ pattern: string; frequency: number; contexts: string[] }> {
     const themeMap = new Map<string, { count: number; contexts: string[] }>();
-    
+
     thoughts.forEach(thought => {
-      const words = thought.thought.toLowerCase().split(/\s+/)
+      const words = thought.thought
+        .toLowerCase()
+        .split(/\s+/)
         .filter(word => word.length > 4)
-        .filter(word => !['that', 'this', 'with', 'from', 'have', 'been', 'were', 'what', 'when', 'where', 'which', 'while', 'would', 'could', 'should'].includes(word));
-      
+        .filter(
+          word =>
+            ![
+              'that',
+              'this',
+              'with',
+              'from',
+              'have',
+              'been',
+              'were',
+              'what',
+              'when',
+              'where',
+              'which',
+              'while',
+              'would',
+              'could',
+              'should',
+            ].includes(word)
+        );
+
       words.forEach(word => {
         const current = themeMap.get(word) || { count: 0, contexts: [] };
         current.count++;
@@ -1359,22 +1580,22 @@ export class CognitiveOrchestrator extends EventEmitter {
         themeMap.set(word, current);
       });
     });
-    
+
     return Array.from(themeMap.entries())
       .map(([pattern, data]) => ({ pattern, frequency: data.count, contexts: data.contexts }))
       .sort((a, b) => b.frequency - a.frequency);
   }
-  
+
   private detectProgressionPatterns(thoughts: StoredThought[]): CognitiveInsight[] {
     const insights: CognitiveInsight[] = [];
-    
+
     if (thoughts.length < 3) return insights;
-    
+
     // Check for increasing confidence over time
     const confidenceProgression = thoughts
       .filter(t => t.confidence !== undefined)
       .map(t => t.confidence!);
-    
+
     if (confidenceProgression.length >= 3) {
       const trend = this.calculateTrend(confidenceProgression);
       if (trend > 0.1) {
@@ -1386,30 +1607,35 @@ export class CognitiveOrchestrator extends EventEmitter {
           implications: [
             'Increasing confidence suggests effective problem-solving approach',
             'This trend indicates growing mastery of the domain',
-            'Pattern may predict continued success on current path'
+            'Pattern may predict continued success on current path',
           ],
           evidence: ['confidence progression pattern'],
-          novelty_score: 0.4
+          novelty_score: 0.4,
         });
       }
     }
-    
+
     return insights;
   }
-  
+
   private detectContradictionPatterns(thoughts: StoredThought[]): CognitiveInsight[] {
     const insights: CognitiveInsight[] = [];
-    
+
     // Look for contradictory statements using simple keyword analysis
     const contradictionKeywords = [
-      ['yes', 'no'], ['true', 'false'], ['correct', 'incorrect'], ['right', 'wrong'],
-      ['good', 'bad'], ['positive', 'negative'], ['agree', 'disagree']
+      ['yes', 'no'],
+      ['true', 'false'],
+      ['correct', 'incorrect'],
+      ['right', 'wrong'],
+      ['good', 'bad'],
+      ['positive', 'negative'],
+      ['agree', 'disagree'],
     ];
-    
+
     for (const [pos, neg] of contradictionKeywords) {
       const posThoughts = thoughts.filter(t => t.thought.toLowerCase().includes(pos));
       const negThoughts = thoughts.filter(t => t.thought.toLowerCase().includes(neg));
-      
+
       if (posThoughts.length > 0 && negThoughts.length > 0) {
         insights.push({
           type: 'pattern_recognition',
@@ -1419,60 +1645,66 @@ export class CognitiveOrchestrator extends EventEmitter {
           implications: [
             'Contradiction may indicate oversimplification or missing context',
             'Resolution could lead to more nuanced understanding',
-            'This pattern suggests need for dialectical thinking'
+            'This pattern suggests need for dialectical thinking',
           ],
           evidence: [`${pos} vs ${neg} contradiction`],
-          novelty_score: 0.5
+          novelty_score: 0.5,
         });
       }
     }
-    
+
     return insights;
   }
-  
-  private calculateBreakthroughScore(context: CognitiveContext, interventions: PluginIntervention[]): number {
+
+  private calculateBreakthroughScore(
+    context: CognitiveContext,
+    interventions: PluginIntervention[]
+  ): number {
     let score = 0;
-    
+
     // High intervention activity indicates active problem solving
     score += Math.min(0.3, interventions.length * 0.1);
-    
+
     // High metacognitive awareness suggests potential for breakthrough
     score += context.metacognitive_awareness * 0.3;
-    
+
     // Creative pressure combined with analytical depth
-    score += (context.creative_pressure * 0.2) + (context.confidence_level * 0.2);
-    
+    score += context.creative_pressure * 0.2 + context.confidence_level * 0.2;
+
     return Math.min(1, score);
   }
-  
+
   private detectConfidenceJump(context: CognitiveContext): number {
     const trajectory = this.cognitiveState.confidence_trajectory;
     if (trajectory.length < 3) return 0;
-    
+
     const recent = trajectory.slice(-3);
     const earlier = trajectory.slice(-6, -3);
-    
+
     if (earlier.length === 0) return 0;
-    
+
     const recentAvg = recent.reduce((sum, val) => sum + val, 0) / recent.length;
     const earlierAvg = earlier.reduce((sum, val) => sum + val, 0) / earlier.length;
-    
+
     return recentAvg - earlierAvg;
   }
-  
+
   private detectComplexityReduction(context: CognitiveContext): number {
     // Compare current complexity to historical average
     const avgComplexity = this.performanceMetrics.get('avg_complexity') || context.complexity;
     return Math.max(0, (avgComplexity - context.complexity) / 10);
   }
-  
-  private detectNovelConnections(context: CognitiveContext, interventions: PluginIntervention[]): string[] {
+
+  private detectNovelConnections(
+    context: CognitiveContext,
+    interventions: PluginIntervention[]
+  ): string[] {
     const connections: string[] = [];
-    
+
     // Look for cross-domain references in interventions
     const domains = ['technical', 'creative', 'analytical', 'strategic', 'practical'];
     const mentionedDomains = new Set<string>();
-    
+
     interventions.forEach(intervention => {
       domains.forEach(domain => {
         if (intervention.content.toLowerCase().includes(domain)) {
@@ -1480,37 +1712,50 @@ export class CognitiveOrchestrator extends EventEmitter {
         }
       });
     });
-    
+
     if (mentionedDomains.size >= 2) {
       connections.push(`Cross-domain connections: ${Array.from(mentionedDomains).join(', ')}`);
     }
-    
+
     return connections;
   }
-  
-  private analyzeMultiPerspectiveIntegration(interventions: PluginIntervention[]): { score: number; perspectives: string[] } {
+
+  private analyzeMultiPerspectiveIntegration(interventions: PluginIntervention[]): {
+    score: number;
+    perspectives: string[];
+  } {
     const perspectives = interventions.map(i => i.metadata.plugin_id);
     const uniquePerspectives = [...new Set(perspectives)];
-    
+
     // Score based on diversity and coherence
     const diversityScore = Math.min(1, uniquePerspectives.length / 3);
     const coherenceScore = interventions.length > 1 ? 0.8 : 0.5; // Assume coherence if multiple interventions
-    
+
     return {
       score: (diversityScore + coherenceScore) / 2,
-      perspectives: uniquePerspectives
+      perspectives: uniquePerspectives,
     };
   }
-  
-  private detectConceptualBridging(context: CognitiveContext, interventions: PluginIntervention[]): string[] {
+
+  private detectConceptualBridging(
+    context: CognitiveContext,
+    interventions: PluginIntervention[]
+  ): string[] {
     const bridges: string[] = [];
-    
+
     // Look for bridging words/phrases in content
     const bridgingPatterns = [
-      'similar to', 'like', 'analogous', 'parallel', 'reminds me of',
-      'connects to', 'relates to', 'builds on', 'extends from'
+      'similar to',
+      'like',
+      'analogous',
+      'parallel',
+      'reminds me of',
+      'connects to',
+      'relates to',
+      'builds on',
+      'extends from',
     ];
-    
+
     interventions.forEach(intervention => {
       bridgingPatterns.forEach(pattern => {
         if (intervention.content.toLowerCase().includes(pattern)) {
@@ -1518,40 +1763,51 @@ export class CognitiveOrchestrator extends EventEmitter {
         }
       });
     });
-    
+
     return bridges;
   }
-  
-  private detectEmergentUnderstanding(context: CognitiveContext): { detected: boolean; confidence: number; description: string } {
+
+  private detectEmergentUnderstanding(context: CognitiveContext): {
+    detected: boolean;
+    confidence: number;
+    description: string;
+  } {
     // Look for sudden clarity or insight indicators
     const thought = context.current_thought?.toLowerCase() || '';
-    
+
     const insightIndicators = [
-      'i see', 'i understand', 'now i realize', 'it becomes clear',
-      'the key is', 'the insight is', 'suddenly', 'aha', 'eureka'
+      'i see',
+      'i understand',
+      'now i realize',
+      'it becomes clear',
+      'the key is',
+      'the insight is',
+      'suddenly',
+      'aha',
+      'eureka',
     ];
-    
+
     const hasInsightIndicator = insightIndicators.some(indicator => thought.includes(indicator));
-    
+
     if (hasInsightIndicator && context.confidence_level > 0.7) {
       return {
         detected: true,
         confidence: 0.8,
-        description: 'Insight language detected with high confidence'
+        description: 'Insight language detected with high confidence',
       };
     }
-    
+
     return { detected: false, confidence: 0, description: '' };
   }
-  
+
   private calculateTrend(values: number[]): number {
     if (values.length < 2) return 0;
-    
+
     let sum = 0;
     for (let i = 1; i < values.length; i++) {
       sum += values[i] - values[i - 1];
     }
-    
+
     return sum / (values.length - 1);
   }
 

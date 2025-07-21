@@ -9,6 +9,7 @@ This is the **Sentient AGI Reasoning Server** - a revolutionary transformation o
 ## Development Commands
 
 ### Build & Development
+
 - `npm run build` - Compile TypeScript and make binaries executable
 - `npm run clean:build` - Clean and rebuild from scratch
 - `npm run dev` - Watch mode for development
@@ -16,22 +17,25 @@ This is the **Sentient AGI Reasoning Server** - a revolutionary transformation o
 - `npm run debug` - Run server with debug logging
 
 ### Testing
+
 - `npm test` - Run basic end-to-end tests
 - `npm run test:all` - Run comprehensive test suite
 - `npm run test:basic` - Basic reasoning tests
-- `npm run test:branch` - Branching logic tests  
+- `npm run test:branch` - Branching logic tests
 - `npm run test:revision` - Revision capability tests
 - `npm run test:error` - Error handling tests
 - `npm run test:perf` - Performance tests
 - `npm run agi-demo` - Demonstrate AGI capabilities
 
 ### Code Quality
+
 - `npm run lint` - Run ESLint
 - `npm run lint:fix` - Fix ESLint issues
 - `npm run format` - Format code with Prettier
 - `npm run validate` - Format, lint, and build in sequence
 
 ### Evaluation
+
 - `npm run eval` - Run prompt evaluation system
 - `npm run reset:evaluations` - Clear evaluation reports
 
@@ -40,25 +44,30 @@ This is the **Sentient AGI Reasoning Server** - a revolutionary transformation o
 ### Core Components
 
 **Cognitive System** (`src/cognitive/`):
+
 - `cognitive-orchestrator.ts` - Central brain coordinating all cognitive processes
-- `plugin-system.ts` - Modular cognitive plugin architecture  
+- `plugin-system.ts` - Modular cognitive plugin architecture
 - `consciousness-simulator.ts` - Simulates consciousness-like behavior
 - `self-modifying-architecture.ts` - Enables system self-improvement
 
 **Cognitive Plugins** (`src/cognitive/plugins/`):
+
 - `metacognitive-plugin.ts` - Self-reflection and bias detection
 - `persona-plugin.ts` - 8 distinct cognitive personas (Strategist, Engineer, Skeptic, Creative, Analyst, Philosopher, Pragmatist, Synthesizer)
 - `external-reasoning-plugin.ts` - External tool integration
 - `phase5-integration-plugin.ts` - Advanced AGI features
 
 **Memory System** (`src/memory/`):
+
 - `memory-store.ts` - Persistent cognitive memory with experience accumulation and pattern learning
 
 **External Reasoning** (`src/cognitive/external-reasoning/`):
+
 - `tool-registry.ts` - Registry for cognitive tools
 - `tools/` - Specialized reasoning tools (code analysis, creative synthesis, mathematical solving)
 
 **Server Core** (`src/`):
+
 - `server.ts` - MCP server implementation with AGI enhancements
 - `prompts/` - Modular prompt system with plugin architecture
 - `utils/` - Configuration and utility functions
@@ -84,6 +93,7 @@ This is the **Sentient AGI Reasoning Server** - a revolutionary transformation o
 ### MCP Protocol Integration
 
 The system maintains full MCP compatibility while adding AGI capabilities:
+
 - **Tools**: `code-reasoning` tool for structured thought processing
 - **Resources**: Access to cognitive state and memory
 - **Prompts**: Dynamic prompt generation based on cognitive context
@@ -91,6 +101,7 @@ The system maintains full MCP compatibility while adding AGI capabilities:
 ### Cognitive Metrics
 
 Every response includes real-time cognitive analytics:
+
 - `metacognitive_awareness` - Self-reflection depth (0-1)
 - `creative_pressure` - Innovation potential (0-1)
 - `breakthrough_likelihood` - Discovery probability (0-1)
@@ -112,6 +123,7 @@ A `security/` directory has been added containing security management functional
 ## Testing Philosophy
 
 Tests validate not just functional correctness but also cognitive behavior:
+
 - Reasoning quality and consistency
 - Metacognitive awareness accuracy
 - Memory integration effectiveness

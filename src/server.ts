@@ -57,6 +57,8 @@ import {
   ServerCapabilities,
   Tool,
   type ServerResult,
+  McpError,
+  ErrorCode,
 } from '@modelcontextprotocol/sdk/types.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z, ZodError } from 'zod';
@@ -224,6 +226,8 @@ persona awareness, and emergent problem-solving capabilities that transcend trad
 
 class FilteredStdioServerTransport extends StdioServerTransport {
   private originalStdoutWrite: typeof process.stdout.write;
+  private isTransportClosed: boolean = false;
+  private transportError: Error | null = null;
 
   constructor() {
     super();
@@ -234,32 +238,82 @@ class FilteredStdioServerTransport extends StdioServerTransport {
     // Create a bound version that preserves the original context
     const boundOriginalWrite = this.originalStdoutWrite.bind(process.stdout);
 
-    // Override with a new function that avoids recursion
+    // Override with a new function that handles errors gracefully
     process.stdout.write = ((data: string | Uint8Array): boolean => {
-      if (typeof data === 'string') {
-        const s = data.trimStart();
-        if (s.startsWith('{') || s.startsWith('[')) {
-          // Call the bound function directly to avoid circular reference
-          return boundOriginalWrite(data);
-        }
-        // Silent handling of non-JSON strings
-        return true;
+      // Check if transport is closed before attempting to write
+      if (this.isTransportClosed) {
+        console.error('⚠️ Attempted to write to closed transport, ignoring');
+        return false;
       }
-      // For non-string data, use the original implementation
-      return boundOriginalWrite(data);
+
+      try {
+        if (typeof data === 'string') {
+          const s = data.trimStart();
+          if (s.startsWith('{') || s.startsWith('[')) {
+            // Call the bound function directly to avoid circular reference
+            return boundOriginalWrite(data);
+          }
+          // Silent handling of non-JSON strings
+          return true;
+        }
+        // For non-string data, use the original implementation
+        return boundOriginalWrite(data);
+      } catch (err) {
+        // Handle EPIPE, ECONNRESET, and other transport errors
+        const error = err as Error;
+        if (error.message.includes('EPIPE') || 
+            error.message.includes('ECONNRESET') ||
+            error.message.includes('closed')) {
+          console.error('🔌 Transport connection lost:', error.message);
+          this.transportError = error;
+          this.isTransportClosed = true;
+          return false;
+        }
+        // Re-throw non-transport errors
+        throw error;
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
+
+    // Handle process stdout errors
+    process.stdout.on('error', (err: Error) => {
+      console.error('📡 Stdout error:', err.message);
+      this.transportError = err;
+      if (err.message.includes('EPIPE') || err.message.includes('ECONNRESET')) {
+        this.isTransportClosed = true;
+      }
+    });
+  }
+
+  // Check if transport is available
+  public isReady(): boolean {
+    return !this.isTransportClosed && !this.transportError;
+  }
+
+  // Get transport error if any
+  public getError(): Error | null {
+    return this.transportError;
   }
 
   // Add cleanup to restore the original when the transport is closed
   async close(): Promise<void> {
+    console.error('🔌 Closing FilteredStdioServerTransport');
+    this.isTransportClosed = true;
+
     // Restore the original stdout.write before closing
     if (this.originalStdoutWrite) {
       process.stdout.write = this.originalStdoutWrite;
     }
 
-    // Call the parent class's close method
-    await super.close();
+    // Remove error listeners
+    process.stdout.removeAllListeners('error');
+
+    // Call the parent class's close method only if not already closed
+    try {
+      await super.close();
+    } catch (err) {
+      console.error('⚠️ Error closing parent transport:', err);
+    }
   }
 }
 
@@ -349,44 +403,6 @@ class CodeReasoningServer {
     return `\n${header}\n---\n${body}\n---`;
   }
 
-  /**
-   * Provides example thought data based on error message to help users correct input.
-   */
-  private getExampleThought(errorMsg: string): Partial<ThoughtData> {
-    if (errorMsg.includes('branch')) {
-      return {
-        thought: 'Exploring alternative: Consider algorithm X.',
-        thought_number: 3,
-        total_thoughts: 7,
-        next_thought_needed: true,
-        branch_from_thought: 2,
-        branch_id: 'alternative-algo-x',
-      };
-    } else if (errorMsg.includes('revis')) {
-      return {
-        thought: 'Revisiting earlier point: Assumption Y was flawed.',
-        thought_number: 4,
-        total_thoughts: 6,
-        next_thought_needed: true,
-        is_revision: true,
-        revises_thought: 2,
-      };
-    } else if (errorMsg.includes('length') || errorMsg.includes('Thought cannot be empty')) {
-      return {
-        thought: 'Breaking down the thought into smaller parts...',
-        thought_number: 2,
-        total_thoughts: 5,
-        next_thought_needed: true,
-      };
-    }
-    // Default fallback
-    return {
-      thought: 'Initial exploration of the problem.',
-      thought_number: 1,
-      total_thoughts: 5,
-      next_thought_needed: true,
-    };
-  }
 
   private buildSuccess(
     t: ValidatedThoughtData,
@@ -420,44 +436,6 @@ class CodeReasoningServer {
     return { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }], isError: false };
   }
 
-  private buildError(error: Error): ServerResult {
-    let errorMessage = error.message;
-    let guidance = 'Check the tool description and schema for correct usage.';
-    const example = this.getExampleThought(errorMessage);
-
-    if (error instanceof ZodError) {
-      errorMessage = `Validation Error: ${error.errors
-        .map(e => `${e.path.join('.')}: ${e.message}`)
-        .join(', ')}`;
-
-      // Provide specific guidance based on error path
-      const firstPath = error.errors[0]?.path.join('.');
-      if (firstPath?.includes('thought') && !firstPath.includes('number')) {
-        guidance = `The 'thought' field is empty or invalid. Must be a non-empty string below ${MAX_THOUGHT_LENGTH} characters.`;
-      } else if (firstPath?.includes('thought_number')) {
-        guidance = 'Ensure thought_number is a positive integer and increments correctly.';
-      } else if (firstPath?.includes('branch')) {
-        guidance =
-          'When branching, provide both "branch_from_thought" (number) and "branch_id" (string), and do not combine with revision.';
-      } else if (firstPath?.includes('revision')) {
-        guidance =
-          'When revising, set is_revision=true and provide revises_thought (positive number). Do not combine with branching.';
-      }
-    } else if (errorMessage.includes('length')) {
-      guidance = `The thought is too long. Keep it under ${MAX_THOUGHT_LENGTH} characters.`;
-    } else if (errorMessage.includes('Max thought_number exceeded')) {
-      guidance = `The maximum thought limit (${MAX_THOUGHTS}) was reached.`;
-    }
-
-    const payload = {
-      status: 'failed',
-      error: errorMessage,
-      guidance,
-      example,
-    };
-
-    return { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }], isError: true };
-  }
 
   /* ------------------------------ Main Handler ----------------------------- */
 
@@ -469,10 +447,16 @@ class CodeReasoningServer {
 
       // Sanity limits -------------------------------------------------------
       if (data.thought_number > MAX_THOUGHTS) {
-        throw new Error(`Max thought_number exceeded (${MAX_THOUGHTS}).`);
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Max thought_number exceeded (${MAX_THOUGHTS}).`
+        );
       }
       if (data.branch_from_thought && data.branch_from_thought > this.thoughtHistory.length) {
-        throw new Error(`Invalid branch_from_thought ${data.branch_from_thought}.`);
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Invalid branch_from_thought ${data.branch_from_thought}.`
+        );
       }
 
       // 🧠 AGI MAGIC: Cognitive orchestration and sentient processing
@@ -557,8 +541,25 @@ class CodeReasoningServer {
         err: e.message,
         elapsedMs: +(performance.now() - t0).toFixed(1),
       });
-      if (err instanceof ZodError && this.cfg.debug) console.error(err.errors);
-      return this.buildError(e);
+
+      // Handle validation errors with proper MCP error codes
+      if (err instanceof ZodError) {
+        if (this.cfg.debug) console.error(err.errors);
+        
+        const errorMessage = `Validation Error: ${err.errors
+          .map(e => `${e.path.join('.')}: ${e.message}`)
+          .join(', ')}`;
+        
+        throw new McpError(ErrorCode.InvalidParams, errorMessage);
+      }
+
+      // Handle MCP errors (pass through)
+      if (err instanceof McpError) {
+        throw err;
+      }
+
+      // Handle other errors as internal errors
+      throw new McpError(ErrorCode.InternalError, e.message);
     }
   }
 
@@ -709,7 +710,7 @@ export async function runServer(debugFlag = false): Promise<void> {
     srv.setRequestHandler(GetPromptRequestSchema, async req => {
       try {
         if (!promptManager) {
-          throw new Error('Prompt manager not initialized');
+          throw new McpError(ErrorCode.InternalError, 'Prompt manager not initialized');
         }
 
         const promptName = req.params.name;
@@ -728,10 +729,7 @@ export async function runServer(debugFlag = false): Promise<void> {
       } catch (err) {
         const e = err as Error;
         console.error('Prompt error:', e.message);
-        return {
-          isError: true,
-          content: [{ type: 'text', text: e.message }],
-        };
+        throw new McpError(ErrorCode.InternalError, `Prompt error: ${e.message}`);
       }
     });
 
@@ -739,7 +737,7 @@ export async function runServer(debugFlag = false): Promise<void> {
     srv.setRequestHandler(CompleteRequestSchema, async req => {
       try {
         if (!promptManager) {
-          throw new Error('Prompt manager not initialized');
+          throw new McpError(ErrorCode.InternalError, 'Prompt manager not initialized');
         }
 
         // Check if this is a prompt reference
@@ -799,22 +797,35 @@ export async function runServer(debugFlag = false): Promise<void> {
   // Existing handlers
   srv.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: [] }));
   srv.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [CODE_REASONING_TOOL] }));
-  srv.setRequestHandler(CallToolRequestSchema, req =>
-    req.params.name === CODE_REASONING_TOOL.name
-      ? logic.processThought(req.params.arguments)
-      : Promise.resolve({
-          isError: true,
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({ code: -32601, message: `Unknown tool ${req.params.name}` }),
-            },
-          ],
-        })
-  );
+  srv.setRequestHandler(CallToolRequestSchema, async (req) => {
+    if (req.params.name === CODE_REASONING_TOOL.name) {
+      return logic.processThought(req.params.arguments);
+    } else {
+      throw new McpError(
+        ErrorCode.MethodNotFound,
+        `Unknown tool: ${req.params.name}`
+      );
+    }
+  });
 
   const transport = new FilteredStdioServerTransport();
+  
+  // Monitor transport health
+  const healthCheckInterval = setInterval(() => {
+    if (!transport.isReady()) {
+      const error = transport.getError();
+      console.error('🚨 Transport health check failed:', error?.message || 'Unknown error');
+      clearInterval(healthCheckInterval);
+      shutdown('transport_failure');
+    }
+  }, 5000); // Check every 5 seconds
+
   await srv.connect(transport);
+
+  // Clear health check on clean shutdown
+  process.on('beforeExit', () => {
+    clearInterval(healthCheckInterval);
+  });
 
   console.error('🚀 Sentient AGI Reasoning Server ready.');
   console.error('🧠 Cognitive Architecture: FULLY OPERATIONAL');
@@ -841,13 +852,21 @@ export async function runServer(debugFlag = false): Promise<void> {
       console.error('⚠️ Error cleaning up cognitive systems:', err);
     }
 
-    // Cleanup transport
-    if (transport instanceof FilteredStdioServerTransport) {
-      transport.close();
+    // Cleanup transport (avoid double-close)
+    try {
+      await srv.close();
+      console.error('✅ Server closed');
+    } catch (err) {
+      console.error('⚠️ Error closing server:', err);
     }
 
-    await srv.close();
-    await transport.close();
+    try {
+      await transport.close();
+      console.error('✅ Transport closed');
+    } catch (err) {
+      console.error('⚠️ Error closing transport:', err);
+    }
+
     process.exit(0);
   };
 
