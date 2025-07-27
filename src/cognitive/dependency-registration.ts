@@ -21,6 +21,8 @@ import { ErrorBoundaryFactory } from '../utils/error-boundary.js';
 import { BufferFactory } from '../utils/circular-buffer.js';
 import { secureLogger } from '../utils/secure-logger.js';
 import { OrchestratorConfig } from './cognitive-orchestrator.js';
+import { StateService } from '../state/state-service.js';
+import { StateManager } from '../state/state-manager.js';
 
 /**
  * Configure the dependency injection container with all cognitive system services
@@ -47,6 +49,31 @@ export function registerCognitiveDependencies(container: DependencyContainer): v
   container.registerSingleton(
     ServiceTokens.STATE_TRACKER,
     () => new StateTracker()
+  );
+
+  container.registerSingleton(
+    ServiceTokens.STATE_MANAGER,
+    () => new StateManager()
+  );
+
+  container.registerSingleton(
+    ServiceTokens.STATE_SERVICE,
+    async (container) => {
+      const stateService = new StateService({
+        persistence: {
+          enabled: true,
+          autoSave: true,
+          saveInterval: 30000,
+        },
+        monitoring: {
+          performanceTracking: true,
+          memoryTracking: true,
+          pluginTracking: true,
+        },
+      });
+      
+      return stateService;
+    }
   );
 
   container.registerSingleton(
@@ -135,6 +162,20 @@ export async function wirePluginDependencies(container: DependencyContainer): Pr
   // Set up plugin relationships
   pluginManager.setPluginConflicts('metacognitive', []);
   pluginManager.setPluginConflicts('persona', []);
+}
+
+/**
+ * Initialize state service with all dependencies
+ */
+export async function initializeStateService(container: DependencyContainer): Promise<void> {
+  const stateService = await container.resolve<StateService>(ServiceTokens.STATE_SERVICE);
+  const memoryStore = await container.resolve<MemoryStore>(ServiceTokens.MEMORY_STORE);
+  
+  // Note: We'll resolve the orchestrator later since it depends on the state service
+  await stateService.initialize({
+    memoryStore,
+    // orchestrator will be set later via a separate method
+  });
 }
 
 /**

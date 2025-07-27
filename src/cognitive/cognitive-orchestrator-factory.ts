@@ -52,9 +52,10 @@ export async function createCognitiveOrchestrator(
       cognitive_load_balancing: true,
     });
     
-    const { registerCognitiveDependencies, wirePluginDependencies } = await import('./dependency-registration.js');
+    const { registerCognitiveDependencies, wirePluginDependencies, initializeStateService } = await import('./dependency-registration.js');
     registerCognitiveDependencies(container);
     await wirePluginDependencies(container);
+    await initializeStateService(container);
   }
   
   // Override configuration if provided

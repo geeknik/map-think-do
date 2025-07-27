@@ -36,6 +36,7 @@ import { StateTracker, CognitiveState } from './state-tracker.js';
 import { InsightDetector, CognitiveInsight } from './insight-detector.js';
 import { LearningManager } from './learning-manager.js';
 import { DependencyContainer, ServiceTokens, Disposable } from './dependency-container.js';
+import { StateService } from '../state/state-service.js';
 
 
 /**
@@ -90,6 +91,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
   private learningManager!: LearningManager;
   private logger!: SecureLogger;
   private config!: OrchestratorConfig;
+  private stateService!: StateService;
 
   // Plugin instances - injected
   private metacognitivePlugin!: MetacognitivePlugin;
@@ -129,6 +131,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     this.config = await this.container.resolve<OrchestratorConfig>(ServiceTokens.ORCHESTRATOR_CONFIG);
     this.logger = await this.container.resolve<SecureLogger>(ServiceTokens.LOGGER);
     this.memoryStore = await this.container.resolve<MemoryStore>(ServiceTokens.MEMORY_STORE);
+    this.stateService = await this.container.resolve<StateService>(ServiceTokens.STATE_SERVICE);
     
     // Initialize state management
     this.stateTracker = await this.container.resolve<StateTracker>(ServiceTokens.STATE_TRACKER);
@@ -163,7 +166,49 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     // Set up event listeners
     this.setupEventListeners();
 
+    // Complete state service initialization with orchestrator
+    await this.finalizeStateServiceInitialization();
+
     console.error('Cognitive Orchestrator initialized with dependency injection and AGI-like capabilities');
+  }
+
+  /**
+   * Complete state service initialization with orchestrator dependencies
+   */
+  private async finalizeStateServiceInitialization(): Promise<void> {
+    try {
+      // Initialize state service with orchestrator dependencies
+      await this.stateService.initialize({
+        orchestrator: this,
+        memoryStore: this.memoryStore,
+      });
+
+      // Set up state synchronization
+      this.setupStateSync();
+    } catch (error) {
+      console.error('❌ Failed to finalize state service initialization:', error);
+    }
+  }
+
+  /**
+   * Set up bidirectional state synchronization
+   */
+  private setupStateSync(): void {
+    // Subscribe to cognitive state changes for performance monitoring
+    this.on('thought_processed', (event) => {
+      // Record request performance
+      this.stateService.recordRequest(event.processing_time, true);
+      
+      // Update cognitive state in unified state
+      this.stateService.updateState({
+        cognitive: event.cognitiveState,
+      }, 'cognitive_orchestrator');
+    });
+
+    // Subscribe to orchestration errors for performance tracking
+    this.on('orchestration_error', () => {
+      this.stateService.recordRequest(0, false);
+    });
   }
 
   /**
@@ -382,6 +427,27 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
    */
   getCognitiveState(): CognitiveState {
     return { ...this.cognitiveState };
+  }
+
+  /**
+   * Get unified system state
+   */
+  getUnifiedState() {
+    return this.stateService.getState();
+  }
+
+  /**
+   * Get system health overview
+   */
+  getSystemHealth() {
+    return this.stateService.getSystemHealth();
+  }
+
+  /**
+   * Get state statistics
+   */
+  getStateStats() {
+    return this.stateService.getStateStats();
   }
 
   /**
@@ -1612,6 +1678,11 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     // Destroy all plugins if available
     if (this.pluginManager && typeof this.pluginManager.destroy === 'function') {
       await this.pluginManager.destroy();
+    }
+
+    // Dispose state service
+    if (this.stateService) {
+      await this.stateService.dispose();
     }
 
     // Dispose dependency container

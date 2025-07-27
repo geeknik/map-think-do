@@ -251,6 +251,8 @@ export const ServiceTokens = {
   STATE_TRACKER: Symbol('StateTracker'),
   LEARNING_MANAGER: Symbol('LearningManager'),
   INSIGHT_DETECTOR: Symbol('InsightDetector'),
+  STATE_SERVICE: Symbol('StateService'),
+  STATE_MANAGER: Symbol('StateManager'),
   
   // Plugin system
   PLUGIN_MANAGER: Symbol('PluginManager'),
