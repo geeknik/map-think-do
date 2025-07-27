@@ -2,7 +2,7 @@
 
 /**
  * MCP Compliance Test Suite
- * 
+ *
  * Tests our server against the official MCP specification to ensure
  * full protocol compliance including:
  * - JSON-RPC 2.0 message format
@@ -26,41 +26,42 @@ async function testMcpCompliance() {
   await testInvalidMethodHandling();
   await testInvalidParamsHandling();
   await testTransportCompliance();
-  
+
   console.log('✅ MCP Compliance test suite completed\n');
 }
 
 async function testInitializationHandshake() {
   console.log('🤝 Test: Initialization Handshake');
-  
+
   const serverProcess = spawn('node', [path.join(__dirname, '../dist/index.js')], {
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 
   try {
     // Send initialize request
-    const initRequest = JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2024-11-05',
-        capabilities: {
-          tools: {}
+    const initRequest =
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2024-11-05',
+          capabilities: {
+            tools: {},
+          },
+          clientInfo: {
+            name: 'mcp-compliance-test',
+            version: '1.0.0',
+          },
         },
-        clientInfo: {
-          name: 'mcp-compliance-test',
-          version: '1.0.0'
-        }
-      }
-    }) + '\n';
+      }) + '\n';
 
     serverProcess.stdin.write(initRequest);
 
     // Wait for response
     let response = '';
-    const responsePromise = new Promise((resolve) => {
-      serverProcess.stdout.on('data', (data) => {
+    const responsePromise = new Promise(resolve => {
+      serverProcess.stdout.on('data', data => {
         response += data.toString();
         if (response.includes('}')) {
           resolve(response);
@@ -73,7 +74,7 @@ async function testInitializationHandshake() {
     // Validate response format
     try {
       const parsedResponse = JSON.parse(response.trim());
-      
+
       // Check JSON-RPC 2.0 format
       if (parsedResponse.jsonrpc !== '2.0') {
         console.log('❌ Invalid JSON-RPC version');
@@ -87,7 +88,7 @@ async function testInitializationHandshake() {
       }
 
       const result = parsedResponse.result;
-      
+
       // Check protocol version
       if (!result.protocolVersion) {
         console.log('❌ Missing protocolVersion');
@@ -107,11 +108,9 @@ async function testInitializationHandshake() {
       }
 
       console.log('✅ Initialization handshake compliant');
-      
     } catch (err) {
       console.log('❌ Invalid JSON response:', err.message);
     }
-
   } finally {
     serverProcess.kill();
   }
@@ -119,69 +118,72 @@ async function testInitializationHandshake() {
 
 async function testErrorCodeCompliance() {
   console.log('⚠️ Test: Error Code Compliance');
-  
+
   const serverProcess = spawn('node', [path.join(__dirname, '../dist/index.js')], {
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 
   try {
     // Initialize first
-    const initRequest = JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2024-11-05',
-        capabilities: {},
-        clientInfo: { name: 'test', version: '1.0.0' }
-      }
-    }) + '\n';
+    const initRequest =
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2024-11-05',
+          capabilities: {},
+          clientInfo: { name: 'test', version: '1.0.0' },
+        },
+      }) + '\n';
 
     serverProcess.stdin.write(initRequest);
     await new Promise(resolve => setTimeout(resolve, 200));
 
     // Test unknown method (should return -32601)
-    const unknownMethodRequest = JSON.stringify({
-      jsonrpc: '2.0',
-      id: 2,
-      method: 'unknown/method',
-      params: {}
-    }) + '\n';
+    const unknownMethodRequest =
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'unknown/method',
+        params: {},
+      }) + '\n';
 
     serverProcess.stdin.write(unknownMethodRequest);
 
     // Test invalid tool call (should return -32601)
-    const invalidToolRequest = JSON.stringify({
-      jsonrpc: '2.0',
-      id: 3,
-      method: 'tools/call',
-      params: {
-        name: 'non-existent-tool',
-        arguments: {}
-      }
-    }) + '\n';
+    const invalidToolRequest =
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: {
+          name: 'non-existent-tool',
+          arguments: {},
+        },
+      }) + '\n';
 
     serverProcess.stdin.write(invalidToolRequest);
 
     // Test invalid parameters (should return -32602)
-    const invalidParamsRequest = JSON.stringify({
-      jsonrpc: '2.0',
-      id: 4,
-      method: 'tools/call',
-      params: {
-        name: 'code-reasoning',
-        arguments: {
-          // Missing required fields
-          thought_number: 'invalid'
-        }
-      }
-    }) + '\n';
+    const invalidParamsRequest =
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 4,
+        method: 'tools/call',
+        params: {
+          name: 'code-reasoning',
+          arguments: {
+            // Missing required fields
+            thought_number: 'invalid',
+          },
+        },
+      }) + '\n';
 
     serverProcess.stdin.write(invalidParamsRequest);
 
     await new Promise(resolve => setTimeout(resolve, 1000));
     console.log('✅ Error code tests sent (responses should use MCP standard error codes)');
-
   } finally {
     serverProcess.kill();
   }
@@ -189,7 +191,7 @@ async function testErrorCodeCompliance() {
 
 async function testInvalidMethodHandling() {
   console.log('🚫 Test: Invalid Method Handling');
-  
+
   const serverProcess = spawn('node', [path.join(__dirname, '../dist/index.js')], {
     stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -199,9 +201,10 @@ async function testInvalidMethodHandling() {
     const malformedRequest = '{"jsonrpc":"2.0","id":1,"method":"test"' + '\n'; // Missing closing brace
 
     let errorReceived = false;
-    serverProcess.stdout.on('data', (data) => {
+    serverProcess.stdout.on('data', data => {
       const response = data.toString();
-      if (response.includes('-32700')) { // ParseError
+      if (response.includes('-32700')) {
+        // ParseError
         errorReceived = true;
         console.log('✅ Correctly handled malformed JSON with ParseError (-32700)');
       }
@@ -213,7 +216,6 @@ async function testInvalidMethodHandling() {
     if (!errorReceived) {
       console.log('⚠️ Server may not be handling parse errors correctly');
     }
-
   } finally {
     serverProcess.kill();
   }
@@ -221,23 +223,24 @@ async function testInvalidMethodHandling() {
 
 async function testInvalidParamsHandling() {
   console.log('📋 Test: Invalid Parameters Handling');
-  
+
   const serverProcess = spawn('node', [path.join(__dirname, '../dist/index.js')], {
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 
   try {
     // Initialize server
-    const initRequest = JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2024-11-05',
-        capabilities: {},
-        clientInfo: { name: 'test', version: '1.0.0' }
-      }
-    }) + '\n';
+    const initRequest =
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2024-11-05',
+          capabilities: {},
+          clientInfo: { name: 'test', version: '1.0.0' },
+        },
+      }) + '\n';
 
     serverProcess.stdin.write(initRequest);
     await new Promise(resolve => setTimeout(resolve, 200));
@@ -252,9 +255,9 @@ async function testInvalidParamsHandling() {
             thought: '',
             thought_number: 1,
             total_thoughts: 1,
-            next_thought_needed: false
-          }
-        }
+            next_thought_needed: false,
+          },
+        },
       },
       {
         name: 'Invalid thought_number',
@@ -264,36 +267,36 @@ async function testInvalidParamsHandling() {
             thought: 'Test',
             thought_number: 0,
             total_thoughts: 1,
-            next_thought_needed: false
-          }
-        }
+            next_thought_needed: false,
+          },
+        },
       },
       {
         name: 'Missing required fields',
         params: {
           name: 'code-reasoning',
           arguments: {
-            thought: 'Test'
+            thought: 'Test',
             // Missing other required fields
-          }
-        }
-      }
+          },
+        },
+      },
     ];
 
     for (const testCase of testCases) {
-      const request = JSON.stringify({
-        jsonrpc: '2.0',
-        id: Math.floor(Math.random() * 1000),
-        method: 'tools/call',
-        params: testCase.params
-      }) + '\n';
+      const request =
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id: Math.floor(Math.random() * 1000),
+          method: 'tools/call',
+          params: testCase.params,
+        }) + '\n';
 
       serverProcess.stdin.write(request);
       await new Promise(resolve => setTimeout(resolve, 100));
     }
 
     console.log('✅ Invalid parameter tests sent (should return -32602 errors)');
-
   } finally {
     serverProcess.kill();
   }
@@ -301,7 +304,7 @@ async function testInvalidParamsHandling() {
 
 async function testTransportCompliance() {
   console.log('🚇 Test: Transport Layer Compliance');
-  
+
   // Test that server properly handles stdio transport
   const serverProcess = spawn('node', [path.join(__dirname, '../dist/index.js')], {
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -320,16 +323,17 @@ async function testTransportCompliance() {
     });
 
     // Send a request
-    const request = JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2024-11-05',
-        capabilities: {},
-        clientInfo: { name: 'test', version: '1.0.0' }
-      }
-    }) + '\n';
+    const request =
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2024-11-05',
+          capabilities: {},
+          clientInfo: { name: 'test', version: '1.0.0' },
+        },
+      }) + '\n';
 
     serverProcess.stdin.write(request);
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -344,7 +348,6 @@ async function testTransportCompliance() {
     } else {
       console.log('❌ No output detected on either stdout or stderr');
     }
-
   } finally {
     serverProcess.kill();
   }

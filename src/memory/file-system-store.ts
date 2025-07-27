@@ -229,7 +229,10 @@ export class FileSystemStore extends MemoryStore {
 
   async importData(data: string, format: 'json' | 'csv' | 'jsonl'): Promise<void> {
     if (format === 'json') {
-      const parsed = JSON.parse(data) as { thoughts: StoredThought[]; sessions: ReasoningSession[] };
+      const parsed = JSON.parse(data) as {
+        thoughts: StoredThought[];
+        sessions: ReasoningSession[];
+      };
       for (const t of parsed.thoughts) await this.storeThought(t);
       for (const s of parsed.sessions) await this.storeSession(s);
     }

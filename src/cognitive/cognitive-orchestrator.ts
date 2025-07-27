@@ -16,7 +16,7 @@
 import { EventEmitter } from 'events';
 import { ErrorSeverity, handleError } from '../utils/error-handler.js';
 import { Mutex } from '../utils/mutex.js';
-import { secureLogger } from '../utils/secure-logger.js';
+import { SecureLogger } from '../utils/secure-logger.js';
 import { CircularBuffer, CognitiveCircularBuffer, BufferFactory } from '../utils/circular-buffer.js';
 import { ErrorBoundary, ErrorBoundaryFactory, withErrorBoundary } from '../utils/error-boundary.js';
 import {
@@ -35,12 +35,13 @@ import { ValidatedThoughtData } from '../server.js';
 import { StateTracker, CognitiveState } from './state-tracker.js';
 import { InsightDetector, CognitiveInsight } from './insight-detector.js';
 import { LearningManager } from './learning-manager.js';
+import { DependencyContainer, ServiceTokens, Disposable } from './dependency-container.js';
 
 
 /**
  * Orchestrator configuration
  */
-interface OrchestratorConfig {
+export interface OrchestratorConfig {
   // Plugin management
   max_concurrent_interventions: number;
   intervention_cooldown_ms: number;
@@ -77,106 +78,84 @@ interface LocalCognitiveInsight {
 }
 
 /**
- * Main Cognitive Orchestrator
+ * Main Cognitive Orchestrator with Dependency Injection
  */
-export class CognitiveOrchestrator extends EventEmitter {
-  private pluginManager: CognitivePluginManager;
+export class CognitiveOrchestrator extends EventEmitter implements Disposable {
+  private container: DependencyContainer;
+  private pluginManager!: CognitivePluginManager;
   private memoryStore?: MemoryStore;
-  private cognitiveState: CognitiveState;
-  private stateTracker: StateTracker;
-  private insightDetector: InsightDetector;
-  private learningManager: LearningManager;
-  private config: OrchestratorConfig;
+  private cognitiveState!: CognitiveState;
+  private stateTracker!: StateTracker;
+  private insightDetector!: InsightDetector;
+  private learningManager!: LearningManager;
+  private logger!: SecureLogger;
+  private config!: OrchestratorConfig;
 
-  // Plugin instances
-  private metacognitivePlugin: MetacognitivePlugin;
-  private personaPlugin: PersonaPlugin;
-  private externalReasoningPlugin: ExternalReasoningPlugin;
-  private phase5IntegrationPlugin: Phase5IntegrationPlugin;
+  // Plugin instances - injected
+  private metacognitivePlugin!: MetacognitivePlugin;
+  private personaPlugin!: PersonaPlugin;
+  private externalReasoningPlugin!: ExternalReasoningPlugin;
+  private phase5IntegrationPlugin!: Phase5IntegrationPlugin;
 
   // State tracking with memory bounds
   private sessionHistory: Map<string, ReasoningSession> = new Map();
-  private interventionHistory: CognitiveCircularBuffer<PluginIntervention>;
-  private insightHistory: CognitiveCircularBuffer<CognitiveInsight>;
+  private interventionHistory!: CognitiveCircularBuffer<PluginIntervention>;
+  private insightHistory!: CognitiveCircularBuffer<CognitiveInsight>;
   private lastInterventionTime: number = 0;
-  private thoughtOutputHistory: CognitiveCircularBuffer<string>;
+  private thoughtOutputHistory!: CognitiveCircularBuffer<string>;
 
   // Error boundaries for resilient operation
-  private pluginBoundary: ErrorBoundary;
-  private memoryBoundary: ErrorBoundary;
-  private generalBoundary: ErrorBoundary;
-
-  // Learning and adaptation
+  private pluginBoundary!: ErrorBoundary;
+  private memoryBoundary!: ErrorBoundary;
+  private generalBoundary!: ErrorBoundary;
 
   // Memory management limits
   private readonly MAX_SESSION_HISTORY = 100;
-  private readonly MAX_INTERVENTION_HISTORY = 500;
-  private readonly MAX_INSIGHT_HISTORY = 200;
-  private readonly MAX_THOUGHT_OUTPUT_HISTORY = 50;
 
   // Synchronization
   private readonly stateMutex = new Mutex();
 
-  constructor(config: Partial<OrchestratorConfig> = {}, memoryStore?: MemoryStore) {
+  constructor(container: DependencyContainer) {
     super();
+    this.container = container;
+  }
 
-    this.config = {
-      max_concurrent_interventions: 3,
-      intervention_cooldown_ms: 1000,
-      adaptive_plugin_selection: true,
-      learning_rate: 0.1,
-      memory_integration_enabled: true,
-      pattern_recognition_threshold: 0.7,
-      adaptive_learning_enabled: true,
-      emergence_detection_enabled: true,
-      breakthrough_detection_sensitivity: 0.8,
-      insight_cultivation_enabled: true,
-      performance_monitoring_enabled: true,
-      self_optimization_enabled: true,
-      cognitive_load_balancing: true,
-      ...config,
-    };
+  /**
+   * Initialize the orchestrator with dependency injection
+   * This replaces the constructor logic to support async initialization
+   */
+  async initialize(): Promise<void> {
+    // Resolve all dependencies from container
+    this.config = await this.container.resolve<OrchestratorConfig>(ServiceTokens.ORCHESTRATOR_CONFIG);
+    this.logger = await this.container.resolve<SecureLogger>(ServiceTokens.LOGGER);
+    this.memoryStore = await this.container.resolve<MemoryStore>(ServiceTokens.MEMORY_STORE);
+    
+    // Initialize state management
+    this.stateTracker = await this.container.resolve<StateTracker>(ServiceTokens.STATE_TRACKER);
+    this.cognitiveState = this.stateTracker.getState();
+    this.learningManager = await this.container.resolve<LearningManager>(ServiceTokens.LEARNING_MANAGER);
+    this.insightDetector = await this.container.resolve<InsightDetector>(ServiceTokens.INSIGHT_DETECTOR);
 
-    this.memoryStore = memoryStore;
+    // Initialize plugin system
+    this.pluginManager = await this.container.resolve<CognitivePluginManager>(ServiceTokens.PLUGIN_MANAGER);
+    this.metacognitivePlugin = await this.container.resolve<MetacognitivePlugin>(ServiceTokens.METACOGNITIVE_PLUGIN);
+    this.personaPlugin = await this.container.resolve<PersonaPlugin>(ServiceTokens.PERSONA_PLUGIN);
+    this.externalReasoningPlugin = await this.container.resolve<ExternalReasoningPlugin>(ServiceTokens.EXTERNAL_REASONING_PLUGIN);
+    this.phase5IntegrationPlugin = await this.container.resolve<Phase5IntegrationPlugin>(ServiceTokens.PHASE5_INTEGRATION_PLUGIN);
+
+    // Initialize utilities
+    const bufferFactory = await this.container.resolve<typeof BufferFactory>(ServiceTokens.BUFFER_FACTORY);
+    const errorBoundaryFactory = await this.container.resolve<typeof ErrorBoundaryFactory>(ServiceTokens.ERROR_BOUNDARY_FACTORY);
 
     // Initialize memory-bounded circular buffers
-    this.interventionHistory = BufferFactory.createInterventionBuffer(1000);
-    this.insightHistory = BufferFactory.createInsightBuffer(500);
-    this.thoughtOutputHistory = BufferFactory.createThoughtBuffer(2000);
+    this.interventionHistory = bufferFactory.createInterventionBuffer(1000);
+    this.insightHistory = bufferFactory.createInsightBuffer(500);
+    this.thoughtOutputHistory = bufferFactory.createThoughtBuffer(2000);
 
     // Initialize error boundaries for resilient operation
-    this.pluginBoundary = ErrorBoundaryFactory.createPluginBoundary();
-    this.memoryBoundary = ErrorBoundaryFactory.createMemoryBoundary();
-    this.generalBoundary = ErrorBoundaryFactory.createExternalBoundary();
-
-    // Initialize state tracker and related managers
-    this.stateTracker = new StateTracker();
-    this.cognitiveState = this.stateTracker.getState();
-    this.learningManager = new LearningManager(this.config.learning_rate);
-    this.insightDetector = new InsightDetector(
-      this.memoryStore,
-      this.cognitiveState,
-      this.learningManager.getPerformanceMetrics()
-    );
-
-    // Initialize plugin manager
-    this.pluginManager = new CognitivePluginManager({
-      maxConcurrentPlugins: this.config.max_concurrent_interventions,
-      adaptivePriority: this.config.adaptive_plugin_selection,
-      learningEnabled: this.config.memory_integration_enabled,
-    });
-
-    // Initialize core plugins
-    this.metacognitivePlugin = new MetacognitivePlugin();
-    this.personaPlugin = new PersonaPlugin();
-    this.externalReasoningPlugin = new ExternalReasoningPlugin();
-    this.phase5IntegrationPlugin = new Phase5IntegrationPlugin(this.memoryStore!);
-
-    // Register plugins
-    this.pluginManager.registerPlugin(this.metacognitivePlugin);
-    this.pluginManager.registerPlugin(this.personaPlugin);
-    this.pluginManager.registerPlugin(this.externalReasoningPlugin);
-    this.pluginManager.registerPlugin(this.phase5IntegrationPlugin);
+    this.pluginBoundary = errorBoundaryFactory.createPluginBoundary();
+    this.memoryBoundary = errorBoundaryFactory.createMemoryBoundary();
+    this.generalBoundary = errorBoundaryFactory.createExternalBoundary();
 
     // Set up plugin relationships
     this.setupPluginRelationships();
@@ -184,7 +163,7 @@ export class CognitiveOrchestrator extends EventEmitter {
     // Set up event listeners
     this.setupEventListeners();
 
-    console.error('Cognitive Orchestrator initialized with AGI-like capabilities');
+    console.error('Cognitive Orchestrator initialized with dependency injection and AGI-like capabilities');
   }
 
   /**
@@ -288,7 +267,7 @@ export class CognitiveOrchestrator extends EventEmitter {
       this.thoughtOutputHistory.push(thoughtContent);
 
       // Log cognitive output securely
-      await secureLogger.logThought(thoughtContent, 'CognitiveOrchestrator', 'processThought', {
+      await this.logger.logThought(thoughtContent, 'CognitiveOrchestrator', 'processThought', {
         session_id: this.cognitiveState.session_id,
         thought_count: this.cognitiveState.thought_count,
         intervention_count: interventions.length,
@@ -444,15 +423,16 @@ export class CognitiveOrchestrator extends EventEmitter {
   /**
    * Reset cognitive state (useful for testing)
    */
-  reset(): void {
-    this.stateTracker = new StateTracker();
+  async reset(): Promise<void> {
+    // Reset state tracker
+    this.stateTracker = await this.container.resolve<StateTracker>(ServiceTokens.STATE_TRACKER);
     this.cognitiveState = this.stateTracker.getState();
-    this.learningManager = new LearningManager(this.config.learning_rate);
-    this.insightDetector = new InsightDetector(
-      this.memoryStore,
-      this.cognitiveState,
-      this.learningManager.getPerformanceMetrics()
-    );
+    
+    // Reset learning manager
+    this.learningManager = await this.container.resolve<LearningManager>(ServiceTokens.LEARNING_MANAGER);
+    
+    // Reset insight detector
+    this.insightDetector = await this.container.resolve<InsightDetector>(ServiceTokens.INSIGHT_DETECTOR);
 
     this.sessionHistory.clear();
     this.interventionHistory.clear();
@@ -1608,20 +1588,40 @@ export class CognitiveOrchestrator extends EventEmitter {
   }
 
   /**
-   * Cleanup method to prevent memory leaks
-   * Removes all event listeners and cleans up resources
+   * Cleanup method to prevent memory leaks and dispose resources
+   * Implements Disposable interface
    */
-  public async destroy(): Promise<void> {
+  public async dispose(): Promise<void> {
     // Remove all listeners from this orchestrator
     this.removeAllListeners();
 
     // Remove listeners we added to other components
-    this.pluginManager.removeAllListeners('orchestration_complete');
-    this.pluginManager.removeAllListeners('orchestration_error');
-    this.metacognitivePlugin.removeAllListeners('metrics_updated');
-    this.personaPlugin.removeAllListeners('metrics_updated');
+    if (this.pluginManager) {
+      this.pluginManager.removeAllListeners('orchestration_complete');
+      this.pluginManager.removeAllListeners('orchestration_error');
+    }
+    
+    if (this.metacognitivePlugin) {
+      this.metacognitivePlugin.removeAllListeners('metrics_updated');
+    }
+    
+    if (this.personaPlugin) {
+      this.personaPlugin.removeAllListeners('metrics_updated');
+    }
 
-    // Destroy all plugins
-    await this.pluginManager.destroy();
+    // Destroy all plugins if available
+    if (this.pluginManager && typeof this.pluginManager.destroy === 'function') {
+      await this.pluginManager.destroy();
+    }
+
+    // Dispose dependency container
+    await this.container.dispose();
+  }
+
+  /**
+   * Legacy destroy method for backward compatibility
+   */
+  public async destroy(): Promise<void> {
+    await this.dispose();
   }
 }

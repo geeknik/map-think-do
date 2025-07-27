@@ -72,6 +72,7 @@ import {
   CUSTOM_PROMPTS_DIR,
 } from './utils/config.js';
 import { CognitiveOrchestrator } from './cognitive/cognitive-orchestrator.js';
+import { createCognitiveOrchestrator } from './cognitive/cognitive-orchestrator-factory.js';
 import { Mutex } from './utils/mutex.js';
 import {
   MemoryStore,
@@ -327,7 +328,7 @@ class FilteredStdioServerTransport extends StdioServerTransport {
 class CodeReasoningServer {
   private readonly thoughtHistory: ValidatedThoughtData[] = [];
   private readonly branches = new Map<string, ValidatedThoughtData[]>();
-  private readonly cognitiveOrchestrator: CognitiveOrchestrator;
+  private cognitiveOrchestrator!: CognitiveOrchestrator;
   private readonly memoryStore: MemoryStore;
   private currentSessionId: string;
   private readonly thoughtMutex = new Mutex();
@@ -343,30 +344,41 @@ class CodeReasoningServer {
     // Initialize memory store
     this.memoryStore = new InMemoryStore();
 
-    // Initialize cognitive orchestrator with AGI-like configuration
-    this.cognitiveOrchestrator = new CognitiveOrchestrator(
-      {
+    // Cognitive orchestrator will be initialized via initialize() method
+
+    // Generate session ID for this reasoning session
+    this.currentSessionId = this.generateSessionId();
+
+    console.error('🧠 Sentient AGI Code-Reasoning system constructor completed', {
+      cfg,
+      sessionId: this.currentSessionId,
+    });
+  }
+
+  /**
+   * Initialize the cognitive orchestrator with dependency injection
+   */
+  async initialize(): Promise<void> {
+    // Initialize cognitive orchestrator with dependency injection
+    this.cognitiveOrchestrator = await createCognitiveOrchestrator({
+      config: {
         max_concurrent_interventions: 5,
         intervention_cooldown_ms: 500,
         adaptive_plugin_selection: true,
         learning_rate: 0.15,
         memory_integration_enabled: true,
         pattern_recognition_threshold: 0.6,
+        adaptive_learning_enabled: true,
         emergence_detection_enabled: true,
         breakthrough_detection_sensitivity: 0.75,
         insight_cultivation_enabled: true,
         performance_monitoring_enabled: true,
         self_optimization_enabled: true,
         cognitive_load_balancing: true,
-      },
-      this.memoryStore
-    );
+      }
+    });
 
-    // Generate session ID for this reasoning session
-    this.currentSessionId = this.generateSessionId();
-
-    console.error('🧠 Sentient AGI Code-Reasoning system initialized', {
-      cfg,
+    console.error('🧠 Cognitive orchestrator initialized with dependency injection', {
       sessionId: this.currentSessionId,
       cognitiveCapabilities: 'FULL_SPECTRUM_AGI_MAGIC',
     });
@@ -721,6 +733,9 @@ export async function runServer(debugFlag = false): Promise<void> {
 
   const srv = new Server(serverMeta, { capabilities });
   const logic = new CodeReasoningServer(config);
+  
+  // Initialize the cognitive orchestrator with dependency injection
+  await logic.initialize();
 
   // Initialize prompt manager if enabled
   let promptManager: PromptManager | undefined;
@@ -874,7 +889,7 @@ export async function runServer(debugFlag = false): Promise<void> {
     // Cleanup cognitive components
     try {
       console.error('🧠 Cleaning up cognitive systems...');
-      await logic.getCognitiveOrchestrator().destroy();
+      await logic.getCognitiveOrchestrator().dispose();
       await logic.destroy();
       console.error('✅ Cognitive systems cleaned up');
     } catch (err) {

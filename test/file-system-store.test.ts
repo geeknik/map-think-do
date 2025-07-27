@@ -46,7 +46,10 @@ async function run() {
   const encStore = new FileSystemStore(baseEnc, { encryptSensitiveData: true });
   const secretThought = { ...thought, id: MemoryUtils.generateThoughtId(), thought: 'secret' };
   await encStore.storeThought(secretThought);
-  const encRaw = await fs.readFile(path.join(baseEnc, 'thoughts', `${secretThought.id}.json`), 'utf8');
+  const encRaw = await fs.readFile(
+    path.join(baseEnc, 'thoughts', `${secretThought.id}.json`),
+    'utf8'
+  );
   assert.ok(!encRaw.includes('secret'), 'encrypted file should not contain plaintext');
   const decThought = await encStore.getThought(secretThought.id);
   assert.equal(decThought?.thought, 'secret');
