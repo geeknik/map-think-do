@@ -17,6 +17,8 @@ import { EventEmitter } from 'events';
 import { ErrorSeverity, handleError } from '../utils/error-handler.js';
 import { Mutex } from '../utils/mutex.js';
 import { secureLogger } from '../utils/secure-logger.js';
+import { CircularBuffer, CognitiveCircularBuffer, BufferFactory } from '../utils/circular-buffer.js';
+import { ErrorBoundary, ErrorBoundaryFactory, withErrorBoundary } from '../utils/error-boundary.js';
 import {
   CognitivePluginManager,
   CognitiveContext,
@@ -64,7 +66,7 @@ interface OrchestratorConfig {
 /**
  * Cognitive insight detection
  */
-interface CognitiveInsight {
+interface LocalCognitiveInsight {
   type: 'pattern_recognition' | 'breakthrough' | 'synthesis' | 'paradigm_shift';
   confidence: number;
   description: string;
@@ -92,12 +94,17 @@ export class CognitiveOrchestrator extends EventEmitter {
   private externalReasoningPlugin: ExternalReasoningPlugin;
   private phase5IntegrationPlugin: Phase5IntegrationPlugin;
 
-  // State tracking
+  // State tracking with memory bounds
   private sessionHistory: Map<string, ReasoningSession> = new Map();
-  private interventionHistory: PluginIntervention[] = [];
-  private insightHistory: CognitiveInsight[] = [];
+  private interventionHistory: CognitiveCircularBuffer<PluginIntervention>;
+  private insightHistory: CognitiveCircularBuffer<CognitiveInsight>;
   private lastInterventionTime: number = 0;
-  private thoughtOutputHistory: string[] = [];
+  private thoughtOutputHistory: CognitiveCircularBuffer<string>;
+
+  // Error boundaries for resilient operation
+  private pluginBoundary: ErrorBoundary;
+  private memoryBoundary: ErrorBoundary;
+  private generalBoundary: ErrorBoundary;
 
   // Learning and adaptation
 
@@ -131,6 +138,16 @@ export class CognitiveOrchestrator extends EventEmitter {
     };
 
     this.memoryStore = memoryStore;
+
+    // Initialize memory-bounded circular buffers
+    this.interventionHistory = BufferFactory.createInterventionBuffer(1000);
+    this.insightHistory = BufferFactory.createInsightBuffer(500);
+    this.thoughtOutputHistory = BufferFactory.createThoughtBuffer(2000);
+
+    // Initialize error boundaries for resilient operation
+    this.pluginBoundary = ErrorBoundaryFactory.createPluginBoundary();
+    this.memoryBoundary = ErrorBoundaryFactory.createMemoryBoundary();
+    this.generalBoundary = ErrorBoundaryFactory.createExternalBoundary();
 
     // Initialize state tracker and related managers
     this.stateTracker = new StateTracker();
@@ -182,14 +199,49 @@ export class CognitiveOrchestrator extends EventEmitter {
     cognitiveState: CognitiveState;
     recommendations: string[];
   }> {
+    return this.generalBoundary.execute(
+      async () => this.processThoughtInternal(thoughtData, sessionContext),
+      { 
+        component: 'CognitiveOrchestrator', 
+        method: 'processThought',
+        input: { thoughtData, sessionContext }
+      },
+      async (error, context) => {
+        // Fallback: return minimal safe response
+        console.error('🚨 Cognitive processing failed, returning fallback response');
+        return {
+          interventions: [],
+          insights: [],
+          cognitiveState: this.cognitiveState,
+          recommendations: [`Error occurred during processing: ${error.message}`],
+        };
+      }
+    );
+  }
+
+  private async processThoughtInternal(
+    thoughtData: ValidatedThoughtData,
+    sessionContext?: Partial<ReasoningSession>
+  ): Promise<{
+    interventions: PluginIntervention[];
+    insights: CognitiveInsight[];
+    cognitiveState: CognitiveState;
+    recommendations: string[];
+  }> {
     const startTime = Date.now();
 
     try {
-      // Update cognitive state
-      await this.updateCognitiveState(thoughtData, sessionContext);
+      // Update cognitive state with error boundary
+      await this.generalBoundary.execute(
+        () => this.updateCognitiveState(thoughtData, sessionContext),
+        { component: 'CognitiveOrchestrator', method: 'updateCognitiveState' }
+      );
 
-      // Build cognitive context
-      const context = await this.buildCognitiveContext(thoughtData, sessionContext);
+      // Build cognitive context with error boundary
+      const context = await this.generalBoundary.execute(
+        () => this.buildCognitiveContext(thoughtData, sessionContext),
+        { component: 'CognitiveOrchestrator', method: 'buildCognitiveContext' }
+      );
 
       // Check intervention cooldown
       if (Date.now() - this.lastInterventionTime < this.config.intervention_cooldown_ms) {
@@ -201,14 +253,35 @@ export class CognitiveOrchestrator extends EventEmitter {
         };
       }
 
-      // Orchestrate cognitive interventions
-      const interventions = await this.orchestrateInterventions(context);
+      // Orchestrate cognitive interventions with plugin error boundary
+      const interventions = await this.pluginBoundary.execute(
+        () => this.orchestrateInterventions(context),
+        { component: 'CognitiveOrchestrator', method: 'orchestrateInterventions' },
+        async (error) => {
+          console.error('🔌 Plugin orchestration failed, using fallback');
+          return []; // Return empty interventions as fallback
+        }
+      );
 
-      // Detect insights and emergent patterns
-      const insights = await this.detectInsights(context, interventions);
+      // Detect insights and emergent patterns with error boundary
+      const insights = await this.generalBoundary.execute(
+        () => this.detectInsights(context, interventions),
+        { component: 'CognitiveOrchestrator', method: 'detectInsights' },
+        async (error) => {
+          console.error('🔍 Insight detection failed, using fallback');
+          return []; // Return empty insights as fallback
+        }
+      );
 
-      // Generate recommendations
-      const recommendations = await this.generateRecommendations(context, interventions, insights);
+      // Generate recommendations with error boundary
+      const recommendations = await this.generalBoundary.execute(
+        () => this.generateRecommendations(context, interventions, insights),
+        { component: 'CognitiveOrchestrator', method: 'generateRecommendations' },
+        async (error) => {
+          console.error('💡 Recommendation generation failed, using fallback');
+          return ['Cognitive processing completed with reduced functionality due to internal errors'];
+        }
+      );
 
       // Record output for reflection (secure logging)
       const thoughtContent = interventions.map(i => i.content).join('\n');
@@ -227,13 +300,27 @@ export class CognitiveOrchestrator extends EventEmitter {
         this.enforceMemoryLimits();
       }
 
-      // Update memory if available
+      // Update memory if available with error boundary
       if (this.memoryStore) {
-        await this.updateMemory(thoughtData, context, interventions, insights);
+        await this.memoryBoundary.execute(
+          () => this.updateMemory(thoughtData, context, interventions, insights),
+          { component: 'CognitiveOrchestrator', method: 'updateMemory' },
+          async (error) => {
+            console.error('💾 Memory update failed, continuing without persistence');
+            // Continue without memory update
+          }
+        );
       }
 
-      // Learn and adapt
-      await this.learnAndAdapt(context, interventions, insights);
+      // Learn and adapt with error boundary
+      await this.generalBoundary.execute(
+        () => this.learnAndAdapt(context, interventions, insights),
+        { component: 'CognitiveOrchestrator', method: 'learnAndAdapt' },
+        async (error) => {
+          console.error('🧠 Learning adaptation failed, continuing without learning updates');
+          // Continue without learning updates
+        }
+      );
 
       // Update intervention time
       if (interventions.length > 0) {
@@ -351,7 +438,7 @@ export class CognitiveOrchestrator extends EventEmitter {
    * Get insight history
    */
   getInsightHistory(): CognitiveInsight[] {
-    return [...this.insightHistory];
+    return this.insightHistory.getAll();
   }
 
   /**
@@ -368,8 +455,9 @@ export class CognitiveOrchestrator extends EventEmitter {
     );
 
     this.sessionHistory.clear();
-    this.interventionHistory = [];
-    this.insightHistory = [];
+    this.interventionHistory.clear();
+    this.insightHistory.clear();
+    this.thoughtOutputHistory.clear();
     this.lastInterventionTime = 0;
   }
 
@@ -429,8 +517,8 @@ export class CognitiveOrchestrator extends EventEmitter {
       metacognitive_awareness: this.cognitiveState.metacognitive_awareness,
       self_doubt_level: this.cognitiveState.self_doubt_level,
       creative_pressure: this.cognitiveState.creative_pressure,
-      last_thought_output: this.thoughtOutputHistory.slice(-1)[0],
-      context_trace: this.thoughtOutputHistory.slice(-5),
+      last_thought_output: this.thoughtOutputHistory.getRecent(1)[0] || '',
+      context_trace: this.thoughtOutputHistory.getRecent(5),
     };
 
     return context;
@@ -443,12 +531,9 @@ export class CognitiveOrchestrator extends EventEmitter {
     // Use plugin manager to orchestrate interventions
     const interventions = await this.pluginManager.orchestrate(context);
 
-    // Store interventions in history
-    this.interventionHistory.push(...interventions);
-
-    // Keep intervention history manageable
-    if (this.interventionHistory.length > 100) {
-      this.interventionHistory = this.interventionHistory.slice(-50);
+    // Store interventions in history (circular buffer handles bounds automatically)
+    for (const intervention of interventions) {
+      this.interventionHistory.push(intervention);
     }
 
     return interventions;
@@ -466,9 +551,8 @@ export class CognitiveOrchestrator extends EventEmitter {
     }
 
     const insights = await this.insightDetector.detectInsights(context, interventions);
-    this.insightHistory.push(...insights);
-    if (this.insightHistory.length > 50) {
-      this.insightHistory = this.insightHistory.slice(-25);
+    for (const insight of insights) {
+      this.insightHistory.push(insight);
     }
     return insights;
   }
@@ -565,7 +649,7 @@ export class CognitiveOrchestrator extends EventEmitter {
           cognitive_load: this.calculateCognitiveLoad(interventions),
         },
         output: interventions.map(i => i.content).join('\n'),
-        context_trace: this.thoughtOutputHistory.slice(-5),
+        context_trace: this.thoughtOutputHistory.getRecent(5),
         tags: this.generateTags(thoughtData, context, interventions, insights),
         patterns_detected: insights.map(insight => insight.type),
         outcome_quality: this.assessOutcomeQuality(context, interventions, insights),
@@ -1225,19 +1309,19 @@ export class CognitiveOrchestrator extends EventEmitter {
    * Enforce array size limits to prevent memory leaks
    */
   private enforceMemoryLimits(): void {
-    // Trim intervention history
-    if (this.interventionHistory.length > this.MAX_INTERVENTION_HISTORY) {
-      this.interventionHistory = this.interventionHistory.slice(-this.MAX_INTERVENTION_HISTORY);
-    }
-
-    // Trim insight history
-    if (this.insightHistory.length > this.MAX_INSIGHT_HISTORY) {
-      this.insightHistory = this.insightHistory.slice(-this.MAX_INSIGHT_HISTORY);
-    }
-
-    // Trim thought output history
-    if (this.thoughtOutputHistory.length > this.MAX_THOUGHT_OUTPUT_HISTORY) {
-      this.thoughtOutputHistory = this.thoughtOutputHistory.slice(-this.MAX_THOUGHT_OUTPUT_HISTORY);
+    // Memory management is now handled automatically by circular buffers
+    // Get buffer statistics for monitoring
+    const interventionStats = this.interventionHistory.getStats();
+    const insightStats = this.insightHistory.getStats();
+    const thoughtStats = this.thoughtOutputHistory.getStats();
+    
+    // Log memory efficiency if overflow occurred
+    if (interventionStats.overflowCount > 0 || insightStats.overflowCount > 0 || thoughtStats.overflowCount > 0) {
+      console.error('🔄 Memory buffers overflow detected:', {
+        interventionOverflow: interventionStats.overflowCount,
+        insightOverflow: insightStats.overflowCount,
+        thoughtOverflow: thoughtStats.overflowCount,
+      });
     }
 
     // Cleanup old sessions

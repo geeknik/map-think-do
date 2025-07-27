@@ -40,9 +40,14 @@ export function closeReadline() {
 // Prompt user for input
 export function promptUser(question: string): Promise<string> {
   return new Promise(resolve => {
-    getReadline().question(question, answer => {
-      resolve(answer);
-    });
+    const readline = getReadline();
+    if (readline) {
+      readline.question(question, answer => {
+        resolve(answer);
+      });
+    } else {
+      resolve('');
+    }
   });
 }
 

@@ -900,11 +900,11 @@ export async function runServer(debugFlag = false): Promise<void> {
   };
 
   ['SIGINT', 'SIGTERM'].forEach(s => process.on(s, () => shutdown(s)));
-  process.on('uncaughtException', err => {
+  process.on('uncaughtException', (err: Error) => {
     console.error('💥 uncaught', err);
     shutdown('uncaughtException');
   });
-  process.on('unhandledRejection', r => {
+  process.on('unhandledRejection', (r: unknown) => {
     console.error('💥 unhandledRejection', r);
     shutdown('unhandledRejection');
   });

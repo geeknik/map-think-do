@@ -188,7 +188,7 @@ function log(message: string): void {
 // Parse command line arguments
 const args = process.argv.slice(2);
 const options: TestOptions = {
-  scenario: args.find(arg => !arg.startsWith('-')) || 'basic',
+  scenario: args.find((arg: string) => !arg.startsWith('-')) || 'basic',
   verbose: args.includes('--verbose') || args.includes('-v'),
 };
 

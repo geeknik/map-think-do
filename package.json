@@ -55,7 +55,7 @@
     "prepare": "npm run build",
     "pretest": "tsc",
     "reset:evaluations": "rm -rf test/prompt-evaluation/reports && mkdir -p test/prompt-evaluation/reports",
-    "test": "node dist/test/code-reasoning.e2e.js basic && node dist/tests/plugin-manager.test.js",
+    "test": "node dist/test/unit-test-runner.js && node dist/test/code-reasoning.e2e.js basic && node dist/tests/plugin-manager.test.js",
     "test:basic": "node dist/test/code-reasoning.e2e.js basic",
     "test:branch": "node dist/test/code-reasoning.e2e.js branch",
     "test:revision": "node dist/test/code-reasoning.e2e.js revision",
@@ -64,6 +64,7 @@
     "test:validate": "run-s validate test",
     "test:verbose": "node dist/test/code-reasoning.e2e.js --verbose",
     "test:all": "node dist/test/code-reasoning.e2e.js all",
+    "test:unit": "node dist/test/unit-test-runner.js",
     "eval": "node dist/test/prompt-evaluation/evaluator.js",
     "eval:view": "node dist/test/prompt-evaluation/evaluator.js"
   },
