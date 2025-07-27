@@ -30,82 +30,10 @@ import { ExternalReasoningPlugin } from './plugins/external-reasoning-plugin.js'
 import { Phase5IntegrationPlugin } from './plugins/phase5-integration-plugin.js';
 import { MemoryStore, StoredThought, ReasoningSession } from '../memory/memory-store.js';
 import { ValidatedThoughtData } from '../server.js';
+import { StateTracker, CognitiveState } from './state-tracker.js';
+import { InsightDetector, CognitiveInsight } from './insight-detector.js';
+import { LearningManager } from './learning-manager.js';
 
-/**
- * Learning data structure for pattern recognition
- */
-interface LearningData {
-  count: number;
-  total_impact: number;
-  interventions: Array<{
-    plugin_id: string;
-    effectiveness: number;
-    context_complexity: number;
-    outcome_quality: number;
-    timestamp: string;
-  }>;
-}
-
-/**
- * Intervention pattern data for context-specific learning
- */
-interface InterventionPattern {
-  success_count: number;
-  total_count: number;
-  typical_impact: number;
-  contexts_used: string[];
-}
-
-/**
- * Insight pattern data for tracking cognitive breakthroughs
- */
-interface InsightPattern {
-  insight_frequency: number;
-  average_novelty: number;
-  breakthrough_contexts: Array<{
-    domain?: string;
-    complexity: number;
-    urgency: string;
-    session_phase: number;
-    timestamp: string;
-  }>;
-  total_insights: number;
-}
-
-/**
- * Cognitive state tracking
- */
-interface CognitiveState {
-  // Current reasoning state
-  session_id: string;
-  thought_count: number;
-  current_complexity: number;
-  confidence_trajectory: number[];
-
-  // Cognitive metrics
-  metacognitive_awareness: number;
-  creative_pressure: number;
-  analytical_depth: number;
-  self_doubt_level: number;
-  curiosity_level: number;
-  frustration_level: number;
-  engagement_level: number;
-
-  // Learning state
-  pattern_recognition_active: boolean;
-  adaptive_learning_enabled: boolean;
-  self_reflection_depth: number;
-
-  // Emergent properties
-  cognitive_flexibility: number;
-  insight_potential: number;
-  breakthrough_likelihood: number;
-
-  // Performance tracking
-  recent_success_rate: number;
-  improvement_trajectory: number;
-  cognitive_efficiency: number;
-}
 
 /**
  * Orchestrator configuration
@@ -153,6 +81,9 @@ export class CognitiveOrchestrator extends EventEmitter {
   private pluginManager: CognitivePluginManager;
   private memoryStore?: MemoryStore;
   private cognitiveState: CognitiveState;
+  private stateTracker: StateTracker;
+  private insightDetector: InsightDetector;
+  private learningManager: LearningManager;
   private config: OrchestratorConfig;
 
   // Plugin instances
@@ -169,12 +100,6 @@ export class CognitiveOrchestrator extends EventEmitter {
   private thoughtOutputHistory: string[] = [];
 
   // Learning and adaptation
-  private learningData: Map<string, LearningData> = new Map();
-  private performanceMetrics: Map<string, number> = new Map();
-  private adaptationTriggers: Set<string> = new Set();
-  private interventionPatterns: Map<string, InterventionPattern> = new Map();
-  private insightPatterns: Map<string, InsightPattern> = new Map();
-  private pluginEffectiveness: Map<string, number> = new Map();
 
   // Memory management limits
   private readonly MAX_SESSION_HISTORY = 100;
@@ -207,29 +132,15 @@ export class CognitiveOrchestrator extends EventEmitter {
 
     this.memoryStore = memoryStore;
 
-    // Initialize cognitive state
-    this.cognitiveState = {
-      session_id: '',
-      thought_count: 0,
-      current_complexity: 5,
-      confidence_trajectory: [],
-      metacognitive_awareness: 0.5,
-      creative_pressure: 0.3,
-      analytical_depth: 0.5,
-      self_doubt_level: 0.3,
-      curiosity_level: 0.7,
-      frustration_level: 0.2,
-      engagement_level: 0.8,
-      pattern_recognition_active: true,
-      adaptive_learning_enabled: true,
-      self_reflection_depth: 0.5,
-      cognitive_flexibility: 0.6,
-      insight_potential: 0.4,
-      breakthrough_likelihood: 0.2,
-      recent_success_rate: 0.5,
-      improvement_trajectory: 0.0,
-      cognitive_efficiency: 0.6,
-    };
+    // Initialize state tracker and related managers
+    this.stateTracker = new StateTracker();
+    this.cognitiveState = this.stateTracker.getState();
+    this.learningManager = new LearningManager(this.config.learning_rate);
+    this.insightDetector = new InsightDetector(
+      this.memoryStore,
+      this.cognitiveState,
+      this.learningManager.getPerformanceMetrics()
+    );
 
     // Initialize plugin manager
     this.pluginManager = new CognitivePluginManager({
@@ -383,7 +294,7 @@ export class CognitiveOrchestrator extends EventEmitter {
       await this.pluginManager.provideFeedback(interventions, outcome, impact_score, context);
 
       // Update cognitive state based on feedback
-      this.updateCognitiveStateFromFeedback(outcome, impact_score);
+      this.stateTracker.updateFromFeedback(outcome, impact_score);
 
       // Learn from feedback
       await this.learnFromFeedback(interventions, outcome, impact_score, context);
@@ -447,36 +358,19 @@ export class CognitiveOrchestrator extends EventEmitter {
    * Reset cognitive state (useful for testing)
    */
   reset(): void {
-    this.cognitiveState = {
-      session_id: '',
-      thought_count: 0,
-      current_complexity: 5,
-      confidence_trajectory: [],
-      metacognitive_awareness: 0.5,
-      creative_pressure: 0.3,
-      analytical_depth: 0.5,
-      self_doubt_level: 0.3,
-      curiosity_level: 0.7,
-      frustration_level: 0.2,
-      engagement_level: 0.8,
-      pattern_recognition_active: true,
-      adaptive_learning_enabled: true,
-      self_reflection_depth: 0.5,
-      cognitive_flexibility: 0.6,
-      insight_potential: 0.4,
-      breakthrough_likelihood: 0.2,
-      recent_success_rate: 0.5,
-      improvement_trajectory: 0.0,
-      cognitive_efficiency: 0.6,
-    };
+    this.stateTracker = new StateTracker();
+    this.cognitiveState = this.stateTracker.getState();
+    this.learningManager = new LearningManager(this.config.learning_rate);
+    this.insightDetector = new InsightDetector(
+      this.memoryStore,
+      this.cognitiveState,
+      this.learningManager.getPerformanceMetrics()
+    );
 
     this.sessionHistory.clear();
     this.interventionHistory = [];
     this.insightHistory = [];
     this.lastInterventionTime = 0;
-    this.learningData.clear();
-    this.performanceMetrics.clear();
-    this.adaptationTriggers.clear();
   }
 
   // Private methods
@@ -488,34 +382,7 @@ export class CognitiveOrchestrator extends EventEmitter {
     thoughtData: ValidatedThoughtData,
     sessionContext?: Partial<ReasoningSession>
   ): Promise<void> {
-    // Use mutex to prevent race conditions during state updates
-    await this.stateMutex.withLock(async () => {
-      // Update basic state
-      this.cognitiveState.thought_count++;
-      this.cognitiveState.current_complexity = this.estimateComplexity(thoughtData);
-
-      // Update confidence trajectory
-      const confidence = this.estimateConfidence(thoughtData);
-      this.cognitiveState.confidence_trajectory.push(confidence);
-      if (this.cognitiveState.confidence_trajectory.length > 10) {
-        this.cognitiveState.confidence_trajectory.shift();
-      }
-
-      // Update metacognitive awareness
-      this.cognitiveState.metacognitive_awareness =
-        this.calculateMetacognitiveAwareness(thoughtData);
-
-      // Update emotional/motivational state
-      this.updateEmotionalState(thoughtData);
-
-      // Update emergent properties
-      this.updateEmergentProperties(thoughtData);
-
-      // Update session ID if needed
-      if (sessionContext?.id && this.cognitiveState.session_id !== sessionContext.id) {
-        this.cognitiveState.session_id = sessionContext.id;
-      }
-    });
+    await this.stateTracker.update(thoughtData, sessionContext);
   }
 
   /**
@@ -598,28 +465,11 @@ export class CognitiveOrchestrator extends EventEmitter {
       return [];
     }
 
-    const insights: CognitiveInsight[] = [];
-
-    // Pattern recognition insights
-    const patternInsights = await this.detectPatternInsights(context);
-    insights.push(...patternInsights);
-
-    // Breakthrough detection
-    const breakthroughInsights = await this.detectBreakthroughs(context, interventions);
-    insights.push(...breakthroughInsights);
-
-    // Synthesis insights
-    const synthesisInsights = await this.detectSynthesis(context, interventions);
-    insights.push(...synthesisInsights);
-
-    // Store insights
+    const insights = await this.insightDetector.detectInsights(context, interventions);
     this.insightHistory.push(...insights);
-
-    // Keep insight history manageable
     if (this.insightHistory.length > 50) {
       this.insightHistory = this.insightHistory.slice(-25);
     }
-
     return insights;
   }
 
@@ -742,16 +592,9 @@ export class CognitiveOrchestrator extends EventEmitter {
     if (!this.config.adaptive_learning_enabled) return;
 
     try {
-      // Learn from intervention patterns
-      this.learnInterventionPatterns(context, interventions);
-
-      // Learn from insight patterns
-      this.learnInsightPatterns(context, insights);
-
-      // Update performance metrics
-      this.updatePerformanceMetrics(context, interventions, insights);
-
-      // Check for adaptation needs
+      this.learningManager.learnInterventionPatterns(context, interventions);
+      this.learningManager.learnInsightPatterns(context, insights);
+      this.learningManager.updatePerformanceMetrics(context, interventions, insights);
       if (this.shouldAdapt()) {
         await this.performAdaptation();
       }
@@ -1245,14 +1088,7 @@ export class CognitiveOrchestrator extends EventEmitter {
 
   // Learning and adaptation methods
   private updateCognitiveStateFromFeedback(outcome: string, impact_score: number): void {
-    // Update success rate
-    const success_value = outcome === 'success' ? 1 : outcome === 'partial' ? 0.5 : 0;
-    this.cognitiveState.recent_success_rate =
-      this.cognitiveState.recent_success_rate * 0.9 + success_value * 0.1;
-
-    // Update efficiency based on impact
-    this.cognitiveState.cognitive_efficiency =
-      this.cognitiveState.cognitive_efficiency * 0.9 + impact_score * 0.1;
+    this.stateTracker.updateFromFeedback(outcome, impact_score);
   }
 
   private async learnFromFeedback(
@@ -1261,148 +1097,30 @@ export class CognitiveOrchestrator extends EventEmitter {
     impact_score: number,
     context: CognitiveContext
   ): Promise<void> {
-    // Store learning data for future adaptation
-    const learningKey = `${context.domain}_${context.complexity}_${outcome}`;
-    const existingData = this.learningData.get(learningKey) || {
-      count: 0,
-      total_impact: 0,
-      interventions: [],
-    };
-
-    // Analyze which interventions were most effective
-    const interventionEffectiveness = new Map<string, number>();
-    for (const intervention of interventions) {
-      const pluginId = intervention.metadata.plugin_id;
-      const currentScore = interventionEffectiveness.get(pluginId) || 0;
-      interventionEffectiveness.set(pluginId, currentScore + impact_score / interventions.length);
-    }
-
-    // Update learning data with intervention-specific insights
-    const updatedInterventions = [...(existingData.interventions || [])];
-    interventions.forEach(intervention => {
-      updatedInterventions.push({
-        plugin_id: intervention.metadata.plugin_id,
-        effectiveness: interventionEffectiveness.get(intervention.metadata.plugin_id) || 0,
-        context_complexity: context.complexity,
-        outcome_quality: impact_score,
-        timestamp: new Date().toISOString(),
-      });
-    });
-
-    this.learningData.set(learningKey, {
-      count: existingData.count + 1,
-      total_impact: existingData.total_impact + impact_score,
-      interventions: updatedInterventions.slice(-50), // Keep last 50 interventions
-    });
-
-    // Update plugin effectiveness scores based on this feedback
-    await this.updatePluginEffectiveness(interventionEffectiveness, context);
+    this.learningManager.learnFromFeedback(interventions, outcome, impact_score, context);
   }
 
   private async updatePluginEffectiveness(
     interventionEffectiveness: Map<string, number>,
     context: CognitiveContext
   ): Promise<void> {
-    for (const [pluginId, effectiveness] of interventionEffectiveness.entries()) {
-      const contextKey = `${pluginId}_${context.domain}_${context.complexity}`;
-      const existingScore = this.pluginEffectiveness.get(contextKey) || 0.5;
-
-      // Exponential moving average for effectiveness scores
-      const learningRate = this.config.learning_rate;
-      const newScore = existingScore * (1 - learningRate) + effectiveness * learningRate;
-
-      this.pluginEffectiveness.set(contextKey, Math.max(0.1, Math.min(1.0, newScore)));
-    }
+    // Delegate to learning manager
+    // (legacy logic moved to LearningManager)
   }
 
   private checkAdaptationTriggers(outcome: string, impact_score: number): void {
-    if (outcome === 'failure' && impact_score < 0.3) {
-      this.adaptationTriggers.add('poor_performance');
-    }
-
-    if (this.cognitiveState.recent_success_rate < 0.4) {
-      this.adaptationTriggers.add('low_success_rate');
-    }
-
-    if (this.cognitiveState.cognitive_efficiency < 0.4) {
-      this.adaptationTriggers.add('low_efficiency');
-    }
+    // handled by LearningManager in this refactor
   }
 
   private learnInterventionPatterns(
     context: CognitiveContext,
     interventions: PluginIntervention[]
   ): void {
-    // Learn which interventions work well in which contexts
-    for (const intervention of interventions) {
-      const patternKey = `${intervention.metadata.plugin_id}_${context.domain}_${context.complexity}`;
-      const existingPattern = this.interventionPatterns.get(patternKey) || {
-        success_count: 0,
-        total_count: 0,
-        typical_impact: 0,
-        contexts_used: [],
-      };
-
-      existingPattern.total_count++;
-      if (intervention.metadata.confidence > 0.6) {
-        existingPattern.success_count++;
-      }
-
-      existingPattern.typical_impact =
-        (existingPattern.typical_impact * (existingPattern.total_count - 1) +
-          intervention.metadata.confidence) /
-        existingPattern.total_count;
-
-      // Track context variations
-      const contextSignature = `${context.domain}_${context.complexity}_${context.urgency}`;
-      if (!existingPattern.contexts_used.includes(contextSignature)) {
-        existingPattern.contexts_used.push(contextSignature);
-        // Keep only last 20 context signatures
-        existingPattern.contexts_used = existingPattern.contexts_used.slice(-20);
-      }
-
-      this.interventionPatterns.set(patternKey, existingPattern);
-    }
+    this.learningManager.learnInterventionPatterns(context, interventions);
   }
 
   private learnInsightPatterns(context: CognitiveContext, insights: CognitiveInsight[]): void {
-    // Learn which contexts lead to insights
-    for (const insight of insights) {
-      const patternKey = `insights_${context.domain}_${context.complexity}`;
-      const existingPattern = this.insightPatterns.get(patternKey) || {
-        insight_frequency: 0,
-        average_novelty: 0,
-        breakthrough_contexts: [],
-        total_insights: 0,
-      };
-
-      existingPattern.total_insights++;
-      const sessionLength = context.session?.total_thoughts || context.thought_history.length || 1;
-      existingPattern.insight_frequency =
-        existingPattern.total_insights / Math.max(1, sessionLength);
-
-      // Update average novelty score
-      existingPattern.average_novelty =
-        (existingPattern.average_novelty * (existingPattern.total_insights - 1) +
-          insight.novelty_score) /
-        existingPattern.total_insights;
-
-      // Track breakthrough contexts (high-impact, high-novelty insights)
-      if (insight.confidence > 0.7 && insight.novelty_score > 0.7) {
-        const contextSnapshot = {
-          domain: context.domain,
-          complexity: context.complexity,
-          urgency: context.urgency,
-          session_phase: context.session?.total_thoughts || context.thought_history.length || 0,
-          timestamp: new Date().toISOString(),
-        };
-        existingPattern.breakthrough_contexts.push(contextSnapshot);
-        // Keep only last 10 breakthrough contexts
-        existingPattern.breakthrough_contexts = existingPattern.breakthrough_contexts.slice(-10);
-      }
-
-      this.insightPatterns.set(patternKey, existingPattern);
-    }
+    this.learningManager.learnInsightPatterns(context, insights);
   }
 
   private updatePerformanceMetrics(
@@ -1410,37 +1128,19 @@ export class CognitiveOrchestrator extends EventEmitter {
     interventions: PluginIntervention[],
     insights: CognitiveInsight[]
   ): void {
-    // Update various performance metrics
-    this.performanceMetrics.set('interventions_per_thought', interventions.length);
-    this.performanceMetrics.set('insights_per_thought', insights.length);
-    this.performanceMetrics.set('cognitive_load', this.calculateCognitiveLoad(interventions));
+    this.learningManager.updatePerformanceMetrics(context, interventions, insights);
   }
 
   private shouldAdapt(): boolean {
-    return this.adaptationTriggers.size > 0 && this.config.self_optimization_enabled;
+    return this.learningManager.shouldAdapt() && this.config.self_optimization_enabled;
   }
 
   private async performAdaptation(): Promise<void> {
-    // Perform actual adaptation based on triggers
-    for (const trigger of this.adaptationTriggers) {
-      await this.handleAdaptationTrigger(trigger);
-    }
-
-    this.adaptationTriggers.clear();
+    await this.learningManager.performAdaptation();
   }
 
   private async handleAdaptationTrigger(trigger: string): Promise<void> {
-    switch (trigger) {
-      case 'poor_performance':
-        // Adjust plugin sensitivity or selection criteria
-        break;
-      case 'low_success_rate':
-        // Modify cognitive strategies
-        break;
-      case 'low_efficiency':
-        // Optimize cognitive resource allocation
-        break;
-    }
+    // handled by LearningManager in this refactor
   }
 
   // Utility methods
@@ -1701,7 +1401,9 @@ export class CognitiveOrchestrator extends EventEmitter {
 
   private detectComplexityReduction(context: CognitiveContext): number {
     // Compare current complexity to historical average
-    const avgComplexity = this.performanceMetrics.get('avg_complexity') || context.complexity;
+    const avgComplexity = this.learningManager
+      .getPerformanceMetrics()
+      .get('avg_complexity') || context.complexity;
     return Math.max(0, (avgComplexity - context.complexity) / 10);
   }
 
