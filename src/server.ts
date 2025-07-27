@@ -46,6 +46,7 @@
  */
 
 import process from 'node:process';
+import { Writable } from 'node:stream';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import {
   CallToolRequestSchema,
@@ -225,64 +226,54 @@ persona awareness, and emergent problem-solving capabilities that transcend trad
 /* -------------------------------------------------------------------------- */
 
 class FilteredStdioServerTransport extends StdioServerTransport {
-  private originalStdoutWrite: typeof process.stdout.write;
-  private isTransportClosed: boolean = false;
+  private readonly filteredStdout: Writable;
+  private readonly originalStream: Writable;
+  private isTransportClosed = false;
   private transportError: Error | null = null;
 
-  constructor() {
-    super();
-
-    // Store the original implementation before making any changes
-    this.originalStdoutWrite = process.stdout.write;
-
-    // Create a bound version that preserves the original context
-    const boundOriginalWrite = this.originalStdoutWrite.bind(process.stdout);
-
-    // Override with a new function that handles errors gracefully
-    process.stdout.write = ((data: string | Uint8Array): boolean => {
-      // Check if transport is closed before attempting to write
-      if (this.isTransportClosed) {
-        console.error('⚠️ Attempted to write to closed transport, ignoring');
-        return false;
-      }
-
-      try {
-        if (typeof data === 'string') {
-          const s = data.trimStart();
-          if (s.startsWith('{') || s.startsWith('[')) {
-            // Call the bound function directly to avoid circular reference
-            return boundOriginalWrite(data);
-          }
-          // Silent handling of non-JSON strings
-          return true;
-        }
-        // For non-string data, use the original implementation
-        return boundOriginalWrite(data);
-      } catch (err) {
-        // Handle EPIPE, ECONNRESET, and other transport errors
-        const error = err as Error;
-        if (error.message.includes('EPIPE') || 
-            error.message.includes('ECONNRESET') ||
-            error.message.includes('closed')) {
-          console.error('🔌 Transport connection lost:', error.message);
-          this.transportError = error;
-          this.isTransportClosed = true;
-          return false;
-        }
-        // Re-throw non-transport errors
-        throw error;
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    }) as any;
-
-    // Handle process stdout errors
-    process.stdout.on('error', (err: Error) => {
+  constructor(output: Writable) {
+    const onError = (err: Error): void => {
       console.error('📡 Stdout error:', err.message);
       this.transportError = err;
-      if (err.message.includes('EPIPE') || err.message.includes('ECONNRESET')) {
+      if (
+        err.message.includes('EPIPE') ||
+        err.message.includes('ECONNRESET') ||
+        err.message.includes('closed')
+      ) {
         this.isTransportClosed = true;
       }
+    };
+
+    const filtered = new Writable({
+      write: (chunk, encoding, cb): void => {
+        if (this.isTransportClosed) {
+          return cb(new Error('transport closed'));
+        }
+
+        const data =
+          typeof chunk === 'string' ? chunk : chunk.toString(encoding as BufferEncoding);
+        const trimmed = data.trimStart();
+
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          try {
+            if (!output.write(chunk, encoding)) {
+              output.once('drain', () => cb());
+              return;
+            }
+          } catch (err) {
+            onError(err as Error);
+            return cb(err as Error);
+          }
+        }
+        cb();
+      },
     });
+
+    super({ input: process.stdin, output: filtered });
+
+    this.filteredStdout = filtered;
+    this.originalStream = output;
+    output.on('error', onError);
   }
 
   // Check if transport is available
@@ -298,15 +289,13 @@ class FilteredStdioServerTransport extends StdioServerTransport {
   // Add cleanup to restore the original when the transport is closed
   async close(): Promise<void> {
     console.error('🔌 Closing FilteredStdioServerTransport');
+    if (this.isTransportClosed) {
+      return;
+    }
     this.isTransportClosed = true;
 
-    // Restore the original stdout.write before closing
-    if (this.originalStdoutWrite) {
-      process.stdout.write = this.originalStdoutWrite;
-    }
-
-    // Remove error listeners
-    process.stdout.removeAllListeners('error');
+    this.filteredStdout.end();
+    this.originalStream.removeAllListeners('error');
 
     // Call the parent class's close method only if not already closed
     try {
@@ -808,7 +797,7 @@ export async function runServer(debugFlag = false): Promise<void> {
     }
   });
 
-  const transport = new FilteredStdioServerTransport();
+  const transport = new FilteredStdioServerTransport(process.stdout);
   
   // Monitor transport health
   const healthCheckInterval = setInterval(() => {
