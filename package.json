@@ -55,7 +55,7 @@
     "prepare": "npm run build",
     "pretest": "tsc",
     "reset:evaluations": "rm -rf test/prompt-evaluation/reports && mkdir -p test/prompt-evaluation/reports",
-    "test": "node dist/test/code-reasoning.e2e.js basic",
+    "test": "node dist/test/code-reasoning.e2e.js basic && node dist/tests/plugin-manager.test.js",
     "test:basic": "node dist/test/code-reasoning.e2e.js basic",
     "test:branch": "node dist/test/code-reasoning.e2e.js branch",
     "test:revision": "node dist/test/code-reasoning.e2e.js revision",
