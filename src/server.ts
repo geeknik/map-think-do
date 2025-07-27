@@ -80,6 +80,7 @@ import {
   MemoryQuery,
   MemoryStats,
 } from './memory/memory-store.js';
+import { secureLogger, LogLevel as SecureLogLevel } from './utils/secure-logger.js';
 
 /* -------------------------------------------------------------------------- */
 /*                               CONFIGURATION                                */
@@ -261,9 +262,11 @@ class FilteredStdioServerTransport extends StdioServerTransport {
       } catch (err) {
         // Handle EPIPE, ECONNRESET, and other transport errors
         const error = err as Error;
-        if (error.message.includes('EPIPE') || 
-            error.message.includes('ECONNRESET') ||
-            error.message.includes('closed')) {
+        if (
+          error.message.includes('EPIPE') ||
+          error.message.includes('ECONNRESET') ||
+          error.message.includes('closed')
+        ) {
           console.error('🔌 Transport connection lost:', error.message);
           this.transportError = error;
           this.isTransportClosed = true;
@@ -378,6 +381,37 @@ class CodeReasoningServer {
 
   /* ----------------------------- Helper Methods ---------------------------- */
 
+  private async formatThoughtSecure(t: ValidatedThoughtData): Promise<string> {
+    const {
+      thought_number,
+      total_thoughts,
+      thought,
+      is_revision,
+      revises_thought,
+      branch_id,
+      branch_from_thought,
+    } = t;
+
+    const header = is_revision
+      ? `🔄 Revision ${thought_number}/${total_thoughts} (of ${revises_thought})`
+      : branch_id
+        ? `🌿 Branch ${thought_number}/${total_thoughts} (from ${branch_from_thought}, id:${branch_id})`
+        : `💭 Thought ${thought_number}/${total_thoughts}`;
+
+    // Log the thought content securely
+    await secureLogger.logThought(thought, 'CodeReasoningServer', 'formatThoughtSecure', {
+      thought_number,
+      total_thoughts,
+      is_revision: is_revision || false,
+      revises_thought,
+      branch_id,
+      branch_from_thought,
+    });
+
+    // For console output, use header only (thought content is logged securely above)
+    return `\n${header}\n--- [Content logged securely] ---`;
+  }
+
   private formatThought(t: ValidatedThoughtData): string {
     const {
       thought_number,
@@ -402,7 +436,6 @@ class CodeReasoningServer {
 
     return `\n${header}\n---\n${body}\n---`;
   }
-
 
   private buildSuccess(
     t: ValidatedThoughtData,
@@ -435,7 +468,6 @@ class CodeReasoningServer {
 
     return { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }], isError: false };
   }
-
 
   /* ------------------------------ Main Handler ----------------------------- */
 
@@ -517,8 +549,8 @@ class CodeReasoningServer {
         }
       });
 
-      // Enhanced logging with cognitive insights
-      console.error(this.formatThought(data));
+      // Enhanced logging with cognitive insights (secure)
+      console.error(await this.formatThoughtSecure(data));
       console.error('🧠 Cognitive Analysis:', {
         metacognitive_awareness: cognitiveResult.cognitiveState.metacognitive_awareness,
         creative_pressure: cognitiveResult.cognitiveState.creative_pressure,
@@ -545,11 +577,11 @@ class CodeReasoningServer {
       // Handle validation errors with proper MCP error codes
       if (err instanceof ZodError) {
         if (this.cfg.debug) console.error(err.errors);
-        
+
         const errorMessage = `Validation Error: ${err.errors
           .map(e => `${e.path.join('.')}: ${e.message}`)
           .join(', ')}`;
-        
+
         throw new McpError(ErrorCode.InvalidParams, errorMessage);
       }
 
@@ -797,19 +829,16 @@ export async function runServer(debugFlag = false): Promise<void> {
   // Existing handlers
   srv.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: [] }));
   srv.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [CODE_REASONING_TOOL] }));
-  srv.setRequestHandler(CallToolRequestSchema, async (req) => {
+  srv.setRequestHandler(CallToolRequestSchema, async req => {
     if (req.params.name === CODE_REASONING_TOOL.name) {
       return logic.processThought(req.params.arguments);
     } else {
-      throw new McpError(
-        ErrorCode.MethodNotFound,
-        `Unknown tool: ${req.params.name}`
-      );
+      throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${req.params.name}`);
     }
   });
 
   const transport = new FilteredStdioServerTransport();
-  
+
   // Monitor transport health
   const healthCheckInterval = setInterval(() => {
     if (!transport.isReady()) {

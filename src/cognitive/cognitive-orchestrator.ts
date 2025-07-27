@@ -16,6 +16,7 @@
 import { EventEmitter } from 'events';
 import { ErrorSeverity, handleError } from '../utils/error-handler.js';
 import { Mutex } from '../utils/mutex.js';
+import { secureLogger } from '../utils/secure-logger.js';
 import {
   CognitivePluginManager,
   CognitiveContext,
@@ -298,8 +299,17 @@ export class CognitiveOrchestrator extends EventEmitter {
       // Generate recommendations
       const recommendations = await this.generateRecommendations(context, interventions, insights);
 
-      // Record output for reflection
-      this.thoughtOutputHistory.push(interventions.map(i => i.content).join('\n'));
+      // Record output for reflection (secure logging)
+      const thoughtContent = interventions.map(i => i.content).join('\n');
+      this.thoughtOutputHistory.push(thoughtContent);
+
+      // Log cognitive output securely
+      await secureLogger.logThought(thoughtContent, 'CognitiveOrchestrator', 'processThought', {
+        session_id: this.cognitiveState.session_id,
+        thought_count: this.cognitiveState.thought_count,
+        intervention_count: interventions.length,
+        insight_count: insights.length,
+      });
 
       // Enforce memory limits periodically
       if (this.cognitiveState.thought_count % 10 === 0) {
