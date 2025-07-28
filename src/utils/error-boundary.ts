@@ -1,6 +1,6 @@
 /**
  * Error Boundary System for Cognitive Components
- * 
+ *
  * Provides graceful error handling, recovery mechanisms, and error isolation
  * to prevent cascading failures in the cognitive system.
  */
@@ -40,9 +40,9 @@ export type RetryPredicate = (error: Error, attempt: number) => boolean;
  * Circuit breaker states
  */
 enum CircuitState {
-  CLOSED = 'closed',     // Normal operation
-  OPEN = 'open',         // Failing fast
-  HALF_OPEN = 'half-open' // Testing recovery
+  CLOSED = 'closed', // Normal operation
+  OPEN = 'open', // Failing fast
+  HALF_OPEN = 'half-open', // Testing recovery
 }
 
 /**
@@ -99,7 +99,9 @@ export class ErrorBoundary {
       if (this.shouldAttemptRecovery()) {
         this.circuitState = CircuitState.HALF_OPEN;
       } else {
-        const error = new Error(`Circuit breaker is OPEN for ${fullContext.component}::${fullContext.method}`);
+        const error = new Error(
+          `Circuit breaker is OPEN for ${fullContext.component}::${fullContext.method}`
+        );
         return this.handleFallback(error, fullContext, fallback);
       }
     }
@@ -111,20 +113,20 @@ export class ErrorBoundary {
       try {
         fullContext.attempt = attempt;
         const result = await operation();
-        
+
         // Success - reset circuit breaker
         this.onSuccess();
-        
+
         if (attempt > 1) {
           this.stats.recoveredErrors++;
           this.stats.averageRecoveryTime = this.updateAverageRecoveryTime(Date.now() - startTime);
         }
-        
+
         return result;
       } catch (error) {
         lastError = error as Error;
         this.stats.totalErrors++;
-        
+
         if (this.config.logErrors) {
           handleError(
             fullContext.component,
@@ -137,7 +139,10 @@ export class ErrorBoundary {
         }
 
         // Check if we should retry
-        if (attempt < this.config.maxRetries && this.shouldRetry(lastError, attempt, retryPredicate)) {
+        if (
+          attempt < this.config.maxRetries &&
+          this.shouldRetry(lastError, attempt, retryPredicate)
+        ) {
           await this.delay(this.config.retryDelay * attempt); // Exponential backoff
           continue;
         }
@@ -168,10 +173,7 @@ export class ErrorBoundary {
     });
 
     try {
-      return await Promise.race([
-        this.execute(operation, context, fallback),
-        timeoutPromise,
-      ]);
+      return await Promise.race([this.execute(operation, context, fallback), timeoutPromise]);
     } catch (error) {
       return this.handleFallback(error as Error, context as ErrorContext, fallback);
     }
@@ -197,7 +199,7 @@ export class ErrorBoundary {
     // Process in batches to limit concurrency
     for (let i = 0; i < operations.length; i += maxConcurrent) {
       const batch = operations.slice(i, i + maxConcurrent);
-      
+
       const batchPromises = batch.map(async ({ operation, context, fallback }) => {
         try {
           return await this.execute(operation, context, fallback);
@@ -210,7 +212,7 @@ export class ErrorBoundary {
       });
 
       const batchResults = await Promise.allSettled(batchPromises);
-      
+
       for (const result of batchResults) {
         if (result.status === 'fulfilled') {
           results.push(result.value);
@@ -235,9 +237,10 @@ export class ErrorBoundary {
     errorRate: number;
   } {
     const recentErrors = this.errorBuffer.getRecent(10);
-    const errorRate = this.stats.totalErrors > 0 
-      ? (this.stats.unrecoverableErrors / this.stats.totalErrors) * 100 
-      : 0;
+    const errorRate =
+      this.stats.totalErrors > 0
+        ? (this.stats.unrecoverableErrors / this.stats.totalErrors) * 100
+        : 0;
 
     return {
       ...this.stats,
@@ -330,7 +333,7 @@ export class ErrorBoundary {
 
   private shouldAttemptRecovery(): boolean {
     if (!this.circuitOpenTime) return false;
-    
+
     const timeSinceOpen = Date.now() - this.circuitOpenTime.getTime();
     return timeSinceOpen >= this.config.recoveryTimeout;
   }
@@ -338,8 +341,8 @@ export class ErrorBoundary {
   private updateAverageRecoveryTime(recoveryTime: number): number {
     const currentAverage = this.stats.averageRecoveryTime;
     const recoveredCount = this.stats.recoveredErrors;
-    
-    return ((currentAverage * (recoveredCount - 1)) + recoveryTime) / recoveredCount;
+
+    return (currentAverage * (recoveredCount - 1) + recoveryTime) / recoveredCount;
   }
 
   private delay(ms: number): Promise<void> {
@@ -412,10 +415,10 @@ export function withErrorBoundary<T extends (...args: any[]) => any>(
   component: string,
   fallback?: FallbackFunction<ReturnType<T>>
 ) {
-  return function(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+  return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value;
 
-    descriptor.value = async function(...args: Parameters<T>): Promise<ReturnType<T>> {
+    descriptor.value = async function (...args: Parameters<T>): Promise<ReturnType<T>> {
       return boundary.execute(
         () => originalMethod.apply(this, args),
         { component, method: propertyKey, input: args },
@@ -453,30 +456,34 @@ export class GlobalErrorBoundary {
 
   private setupGlobalHandlers(): void {
     process.on('uncaughtException', (error: Error) => {
-      this.boundary.execute(
-        () => {
-          throw error;
-        },
-        { component: 'global', method: 'uncaughtException' }
-      ).catch(() => {
-        // Last resort - exit process
-        console.error('💥 Unrecoverable error, exiting process');
-        process.exit(1);
-      });
+      this.boundary
+        .execute(
+          () => {
+            throw error;
+          },
+          { component: 'global', method: 'uncaughtException' }
+        )
+        .catch(() => {
+          // Last resort - exit process
+          console.error('💥 Unrecoverable error, exiting process');
+          process.exit(1);
+        });
     });
 
     process.on('unhandledRejection', (reason: unknown) => {
       const error = reason instanceof Error ? reason : new Error(String(reason));
-      this.boundary.execute(
-        () => {
-          throw error;
-        },
-        { component: 'global', method: 'unhandledRejection' }
-      ).catch(() => {
-        // Last resort - exit process
-        console.error('💥 Unrecoverable rejection, exiting process');
-        process.exit(1);
-      });
+      this.boundary
+        .execute(
+          () => {
+            throw error;
+          },
+          { component: 'global', method: 'unhandledRejection' }
+        )
+        .catch(() => {
+          // Last resort - exit process
+          console.error('💥 Unrecoverable rejection, exiting process');
+          process.exit(1);
+        });
     });
   }
 

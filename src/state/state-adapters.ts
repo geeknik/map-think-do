@@ -1,6 +1,6 @@
 /**
  * @fileoverview State Adapters
- * 
+ *
  * Adapters that connect existing cognitive components with the unified
  * state management system. These adapters handle bidirectional state
  * synchronization and event propagation.
@@ -14,7 +14,7 @@ import { MemoryStore, MemoryStats } from '../memory/memory-store.js';
 
 /**
  * Cognitive State Adapter
- * 
+ *
  * Synchronizes cognitive state between StateTracker and StateManager
  */
 export class CognitiveStateAdapter {
@@ -48,9 +48,12 @@ export class CognitiveStateAdapter {
   syncCognitiveState(): void {
     try {
       const cognitiveState = this.orchestrator.getCognitiveState();
-      this.stateManager.updateState({
-        cognitive: cognitiveState,
-      }, 'cognitive_adapter');
+      this.stateManager.updateState(
+        {
+          cognitive: cognitiveState,
+        },
+        'cognitive_adapter'
+      );
     } catch (error) {
       console.error('❌ Failed to sync cognitive state:', error);
     }
@@ -60,9 +63,12 @@ export class CognitiveStateAdapter {
    * Handle cognitive state updates from orchestrator
    */
   onCognitiveStateChange(newState: CognitiveState): void {
-    this.stateManager.updateState({
-      cognitive: newState,
-    }, 'cognitive_orchestrator');
+    this.stateManager.updateState(
+      {
+        cognitive: newState,
+      },
+      'cognitive_orchestrator'
+    );
   }
 
   /**
@@ -78,7 +84,7 @@ export class CognitiveStateAdapter {
 
 /**
  * Plugin State Adapter
- * 
+ *
  * Synchronizes plugin metrics and health status with state manager
  */
 export class PluginStateAdapter {
@@ -112,17 +118,20 @@ export class PluginStateAdapter {
     try {
       const pluginMetrics = this.orchestrator.getPluginPerformance();
       const activePlugins = Object.keys(pluginMetrics);
-      
+
       // Calculate plugin health based on metrics
       const pluginHealth = this.calculatePluginHealth(pluginMetrics);
 
-      this.stateManager.updateState({
-        plugins: {
-          metrics: pluginMetrics,
-          activePlugins,
-          pluginHealth,
+      this.stateManager.updateState(
+        {
+          plugins: {
+            metrics: pluginMetrics,
+            activePlugins,
+            pluginHealth,
+          },
         },
-      }, 'plugin_adapter');
+        'plugin_adapter'
+      );
     } catch (error) {
       console.error('❌ Failed to sync plugin metrics:', error);
     }
@@ -131,7 +140,9 @@ export class PluginStateAdapter {
   /**
    * Calculate plugin health status based on metrics
    */
-  private calculatePluginHealth(metrics: Record<string, PluginMetrics>): Record<string, 'healthy' | 'degraded' | 'failed'> {
+  private calculatePluginHealth(
+    metrics: Record<string, PluginMetrics>
+  ): Record<string, 'healthy' | 'degraded' | 'failed'> {
     const health: Record<string, 'healthy' | 'degraded' | 'failed'> = {};
 
     for (const [pluginId, metric] of Object.entries(metrics)) {
@@ -160,7 +171,7 @@ export class PluginStateAdapter {
 
 /**
  * Memory State Adapter
- * 
+ *
  * Synchronizes memory statistics and health with state manager
  */
 export class MemoryStateAdapter {
@@ -195,40 +206,46 @@ export class MemoryStateAdapter {
       const stats = await this.memoryStore.getStats();
       const healthStatus = this.calculateMemoryHealth(stats);
 
-      this.stateManager.updateState({
-        memory: {
-          stats,
-          healthStatus,
-          lastCleanup: new Date(), // This would track actual cleanup times
+      this.stateManager.updateState(
+        {
+          memory: {
+            stats,
+            healthStatus,
+            lastCleanup: new Date(), // This would track actual cleanup times
+          },
         },
-      }, 'memory_adapter');
+        'memory_adapter'
+      );
     } catch (error) {
       console.error('❌ Failed to sync memory stats:', error);
-      
+
       // Update health status to critical on error
-      this.stateManager.updateState({
-        memory: {
-          stats: { 
-            total_thoughts: 0, 
-            total_sessions: 0, 
-            average_session_length: 0, 
-            overall_success_rate: 0,
-            success_rate_by_domain: {},
-            success_rate_by_complexity: {},
-            most_effective_roles: [],
-            most_effective_patterns: [],
-            common_failure_modes: [],
-            performance_over_time: [],
-            learning_trajectory: [],
-            storage_size: 0,
-            oldest_thought: new Date(),
-            newest_thought: new Date(),
-            duplicate_rate: 0
+      this.stateManager.updateState(
+        {
+          memory: {
+            stats: {
+              total_thoughts: 0,
+              total_sessions: 0,
+              average_session_length: 0,
+              overall_success_rate: 0,
+              success_rate_by_domain: {},
+              success_rate_by_complexity: {},
+              most_effective_roles: [],
+              most_effective_patterns: [],
+              common_failure_modes: [],
+              performance_over_time: [],
+              learning_trajectory: [],
+              storage_size: 0,
+              oldest_thought: new Date(),
+              newest_thought: new Date(),
+              duplicate_rate: 0,
+            },
+            healthStatus: 'critical',
+            lastCleanup: new Date(),
           },
-          healthStatus: 'critical',
-          lastCleanup: new Date(),
         },
-      }, 'memory_adapter');
+        'memory_adapter'
+      );
     }
   }
 
@@ -237,9 +254,11 @@ export class MemoryStateAdapter {
    */
   private calculateMemoryHealth(stats: MemoryStats): 'healthy' | 'degraded' | 'critical' {
     // Health checks based on memory statistics
-    if (stats.storage_size > 100 * 1024 * 1024) { // > 100MB
+    if (stats.storage_size > 100 * 1024 * 1024) {
+      // > 100MB
       return 'critical';
-    } else if (stats.storage_size > 50 * 1024 * 1024) { // > 50MB
+    } else if (stats.storage_size > 50 * 1024 * 1024) {
+      // > 50MB
       return 'degraded';
     } else if (stats.overall_success_rate < 0.7) {
       return 'degraded';
@@ -261,7 +280,7 @@ export class MemoryStateAdapter {
 
 /**
  * Performance State Adapter
- * 
+ *
  * Monitors system performance and updates state accordingly
  */
 export class PerformanceStateAdapter {
@@ -271,7 +290,7 @@ export class PerformanceStateAdapter {
     requestCount: 0,
     startTime: Date.now(),
   };
-  
+
   private metricsUpdateInterval?: NodeJS.Timeout;
   private readonly UPDATE_INTERVAL = 5000; // 5 seconds
   private readonly MAX_RESPONSE_TIME_SAMPLES = 100;
@@ -298,17 +317,19 @@ export class PerformanceStateAdapter {
    */
   recordRequest(responseTime: number, success: boolean = true): void {
     this.performanceMetrics.requestCount++;
-    
+
     if (!success) {
       this.performanceMetrics.errorCount++;
     }
 
     // Track response times
     this.performanceMetrics.responseTimes.push(responseTime);
-    
+
     // Limit the number of response time samples
     if (this.performanceMetrics.responseTimes.length > this.MAX_RESPONSE_TIME_SAMPLES) {
-      this.performanceMetrics.responseTimes = this.performanceMetrics.responseTimes.slice(-this.MAX_RESPONSE_TIME_SAMPLES);
+      this.performanceMetrics.responseTimes = this.performanceMetrics.responseTimes.slice(
+        -this.MAX_RESPONSE_TIME_SAMPLES
+      );
     }
   }
 
@@ -318,32 +339,38 @@ export class PerformanceStateAdapter {
   private updatePerformanceMetrics(): void {
     const now = Date.now();
     const uptime = (now - this.performanceMetrics.startTime) / 1000; // seconds
-    
+
     // Calculate average response time
-    const avgResponseTime = this.performanceMetrics.responseTimes.length > 0
-      ? this.performanceMetrics.responseTimes.reduce((sum, time) => sum + time, 0) / this.performanceMetrics.responseTimes.length
-      : 0;
+    const avgResponseTime =
+      this.performanceMetrics.responseTimes.length > 0
+        ? this.performanceMetrics.responseTimes.reduce((sum, time) => sum + time, 0) /
+          this.performanceMetrics.responseTimes.length
+        : 0;
 
     // Calculate throughput (requests per second)
     const throughput = this.performanceMetrics.requestCount / uptime;
 
     // Calculate error rate
-    const errorRate = this.performanceMetrics.requestCount > 0
-      ? this.performanceMetrics.errorCount / this.performanceMetrics.requestCount
-      : 0;
+    const errorRate =
+      this.performanceMetrics.requestCount > 0
+        ? this.performanceMetrics.errorCount / this.performanceMetrics.requestCount
+        : 0;
 
     // Get resource usage (simplified - in real implementation, use process.memoryUsage() etc.)
     const resourceUsage = this.getResourceUsage();
 
-    this.stateManager.updateState({
-      performance: {
-        responseTime: avgResponseTime,
-        throughput,
-        errorRate,
-        resourceUsage,
-        lastUpdated: new Date(),
+    this.stateManager.updateState(
+      {
+        performance: {
+          responseTime: avgResponseTime,
+          throughput,
+          errorRate,
+          resourceUsage,
+          lastUpdated: new Date(),
+        },
       },
-    }, 'performance_adapter');
+      'performance_adapter'
+    );
   }
 
   /**
@@ -352,7 +379,7 @@ export class PerformanceStateAdapter {
   private getResourceUsage(): { memory: number; cpu: number } {
     // In a real implementation, this would get actual system metrics
     const memUsage = process.memoryUsage();
-    
+
     return {
       memory: memUsage.heapUsed / 1024 / 1024, // MB
       cpu: 0, // Would need additional monitoring for CPU usage
@@ -372,7 +399,7 @@ export class PerformanceStateAdapter {
 
 /**
  * Session State Adapter
- * 
+ *
  * Manages session-related state
  */
 export class SessionStateAdapter {
@@ -397,15 +424,18 @@ export class SessionStateAdapter {
   startSession(sessionId: string): void {
     this.totalSessions++;
     this.sessionStartTime = new Date();
-    
-    this.stateManager.updateState({
-      session: {
-        currentSessionId: sessionId,
-        sessionStartTime: this.sessionStartTime,
-        totalSessions: this.totalSessions,
-        activeConnections: this.activeConnections,
+
+    this.stateManager.updateState(
+      {
+        session: {
+          currentSessionId: sessionId,
+          sessionStartTime: this.sessionStartTime,
+          totalSessions: this.totalSessions,
+          activeConnections: this.activeConnections,
+        },
       },
-    }, 'session_adapter');
+      'session_adapter'
+    );
   }
 
   /**
@@ -413,29 +443,35 @@ export class SessionStateAdapter {
    */
   updateConnections(count: number): void {
     this.activeConnections = count;
-    
-    this.stateManager.updateState({
-      session: {
-        currentSessionId: this.currentSessionId,
-        sessionStartTime: this.sessionStartTime,
-        totalSessions: this.totalSessions,
-        activeConnections: this.activeConnections,
+
+    this.stateManager.updateState(
+      {
+        session: {
+          currentSessionId: this.currentSessionId,
+          sessionStartTime: this.sessionStartTime,
+          totalSessions: this.totalSessions,
+          activeConnections: this.activeConnections,
+        },
       },
-    }, 'session_adapter');
+      'session_adapter'
+    );
   }
 
   /**
    * Update session state
    */
   private updateSessionState(): void {
-    this.stateManager.updateState({
-      session: {
-        currentSessionId: `session_${Date.now()}`,
-        sessionStartTime: this.sessionStartTime,
-        totalSessions: this.totalSessions,
-        activeConnections: this.activeConnections,
+    this.stateManager.updateState(
+      {
+        session: {
+          currentSessionId: `session_${Date.now()}`,
+          sessionStartTime: this.sessionStartTime,
+          totalSessions: this.totalSessions,
+          activeConnections: this.activeConnections,
+        },
       },
-    }, 'session_adapter');
+      'session_adapter'
+    );
   }
 
   /**

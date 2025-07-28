@@ -75,8 +75,7 @@ export class StateTracker {
       if (this.state.confidence_trajectory.length > 10) {
         this.state.confidence_trajectory.shift();
       }
-      this.state.metacognitive_awareness =
-        this.calculateMetacognitiveAwareness(thoughtData);
+      this.state.metacognitive_awareness = this.calculateMetacognitiveAwareness(thoughtData);
       this.updateEmotionalState(thoughtData);
       this.updateEmergentProperties(thoughtData);
       if (sessionContext?.id && this.state.session_id !== sessionContext.id) {
@@ -87,10 +86,8 @@ export class StateTracker {
 
   public updateFromFeedback(outcome: string, impactScore: number): void {
     const successValue = outcome === 'success' ? 1 : outcome === 'partial' ? 0.5 : 0;
-    this.state.recent_success_rate =
-      this.state.recent_success_rate * 0.9 + successValue * 0.1;
-    this.state.cognitive_efficiency =
-      this.state.cognitive_efficiency * 0.9 + impactScore * 0.1;
+    this.state.recent_success_rate = this.state.recent_success_rate * 0.9 + successValue * 0.1;
+    this.state.cognitive_efficiency = this.state.cognitive_efficiency * 0.9 + impactScore * 0.1;
   }
 
   private estimateComplexity(thoughtData: ValidatedThoughtData): number {
@@ -159,8 +156,9 @@ export class StateTracker {
     this.state.insight_potential = insightPotential;
     this.state.breakthrough_likelihood = Math.min(
       1,
-      this.state.insight_potential * 0.5 + this.state.cognitive_flexibility * 0.3 + this.state.creative_pressure * 0.2
+      this.state.insight_potential * 0.5 +
+        this.state.cognitive_flexibility * 0.3 +
+        this.state.creative_pressure * 0.2
     );
   }
 }
-

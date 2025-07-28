@@ -375,7 +375,7 @@ class CodeReasoningServer {
         performance_monitoring_enabled: true,
         self_optimization_enabled: true,
         cognitive_load_balancing: true,
-      }
+      },
     });
 
     console.error('🧠 Cognitive orchestrator initialized with dependency injection', {
@@ -481,6 +481,51 @@ class CodeReasoningServer {
     return { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }], isError: false };
   }
 
+  /**
+   * Build tool error response with contextual guidance for AI recovery
+   */
+  private buildToolError(message: string): ServerResult {
+    return {
+      content: [{ type: 'text', text: message }],
+      isError: true,
+    };
+  }
+
+  /**
+   * Build contextual validation guidance from Zod errors
+   */
+  private buildValidationGuidance(errors: any[]): string {
+    const guidanceMap: Record<string, string> = {
+      thought:
+        'Your thought content is invalid. Ensure it contains meaningful text between 1-20000 characters. Empty thoughts or extremely long thoughts are not allowed.',
+      thought_number:
+        'The thought_number must be a positive integer. Start with 1 for your first thought and increment sequentially.',
+      total_thoughts:
+        'The total_thoughts must be a positive integer representing your estimated final thought count. You can adjust this as you progress.',
+      next_thought_needed:
+        'The next_thought_needed field must be true or false. Set to false when you complete your reasoning.',
+      revises_thought:
+        'When using is_revision=true, you must specify which thought number you are revising with revises_thought.',
+      branch_from_thought:
+        'When branching, specify which existing thought you are branching from using a valid thought number.',
+      branch_id:
+        'When branching, provide a unique branch_id string to identify this exploration path.',
+    };
+
+    const guidance = errors
+      .map(error => {
+        const field = error.path.join('.');
+        const customGuidance = guidanceMap[field];
+        if (customGuidance) {
+          return `${field}: ${customGuidance}`;
+        }
+        return `${field}: ${error.message}`;
+      })
+      .join('\n\n');
+
+    return `Validation errors found:\n\n${guidance}\n\nPlease correct these issues and try again. Each field serves a specific purpose in the reasoning process.`;
+  }
+
   /* ------------------------------ Main Handler ----------------------------- */
 
   public async processThought(input: unknown): Promise<ServerResult> {
@@ -489,17 +534,15 @@ class CodeReasoningServer {
     try {
       const data = ThoughtDataSchema.parse(input);
 
-      // Sanity limits -------------------------------------------------------
+      // Sanity limits with contextual guidance for AI recovery
       if (data.thought_number > MAX_THOUGHTS) {
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          `Max thought_number exceeded (${MAX_THOUGHTS}).`
+        return this.buildToolError(
+          `Thought limit reached (${MAX_THOUGHTS}). Consider breaking complex problems into separate reasoning sessions, or complete your analysis with fewer thoughts. Most problems can be solved effectively in 10-15 thoughts. You can start a new reasoning session to continue if needed.`
         );
       }
       if (data.branch_from_thought && data.branch_from_thought > this.thoughtHistory.length) {
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          `Invalid branch_from_thought ${data.branch_from_thought}.`
+        return this.buildToolError(
+          `Invalid branch reference: thought ${data.branch_from_thought} doesn't exist. You currently have ${this.thoughtHistory.length} thoughts in your history. Use a valid thought number between 1-${this.thoughtHistory.length} for branching. To explore alternatives, branch from an existing thought that represents a decision point.`
         );
       }
 
@@ -586,24 +629,23 @@ class CodeReasoningServer {
         elapsedMs: +(performance.now() - t0).toFixed(1),
       });
 
-      // Handle validation errors with proper MCP error codes
+      // Handle validation errors with contextual guidance
       if (err instanceof ZodError) {
         if (this.cfg.debug) console.error(err.errors);
 
-        const errorMessage = `Validation Error: ${err.errors
-          .map(e => `${e.path.join('.')}: ${e.message}`)
-          .join(', ')}`;
-
-        throw new McpError(ErrorCode.InvalidParams, errorMessage);
+        const validationGuidance = this.buildValidationGuidance(err.errors);
+        return this.buildToolError(validationGuidance);
       }
 
-      // Handle MCP errors (pass through)
+      // Handle MCP protocol errors (pass through - these are genuine protocol issues)
       if (err instanceof McpError) {
         throw err;
       }
 
-      // Handle other errors as internal errors
-      throw new McpError(ErrorCode.InternalError, e.message);
+      // Handle unknown errors with smart recovery guidance
+      return this.buildToolError(
+        `An unexpected error occurred: ${e.message}. Try rephrasing your thought or simplifying the reasoning. If this persists after 2-3 attempts, this may indicate a system limitation with your current approach. Consider breaking the problem into smaller steps or using different terminology.`
+      );
     }
   }
 
@@ -733,7 +775,7 @@ export async function runServer(debugFlag = false): Promise<void> {
 
   const srv = new Server(serverMeta, { capabilities });
   const logic = new CodeReasoningServer(config);
-  
+
   // Initialize the cognitive orchestrator with dependency injection
   await logic.initialize();
 

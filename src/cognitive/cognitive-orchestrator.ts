@@ -17,7 +17,11 @@ import { EventEmitter } from 'events';
 import { ErrorSeverity, handleError } from '../utils/error-handler.js';
 import { Mutex } from '../utils/mutex.js';
 import { SecureLogger } from '../utils/secure-logger.js';
-import { CircularBuffer, CognitiveCircularBuffer, BufferFactory } from '../utils/circular-buffer.js';
+import {
+  CircularBuffer,
+  CognitiveCircularBuffer,
+  BufferFactory,
+} from '../utils/circular-buffer.js';
 import { ErrorBoundary, ErrorBoundaryFactory, withErrorBoundary } from '../utils/error-boundary.js';
 import {
   CognitivePluginManager,
@@ -37,7 +41,6 @@ import { InsightDetector, CognitiveInsight } from './insight-detector.js';
 import { LearningManager } from './learning-manager.js';
 import { DependencyContainer, ServiceTokens, Disposable } from './dependency-container.js';
 import { StateService } from '../state/state-service.js';
-
 
 /**
  * Orchestrator configuration
@@ -128,27 +131,45 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
    */
   async initialize(): Promise<void> {
     // Resolve all dependencies from container
-    this.config = await this.container.resolve<OrchestratorConfig>(ServiceTokens.ORCHESTRATOR_CONFIG);
+    this.config = await this.container.resolve<OrchestratorConfig>(
+      ServiceTokens.ORCHESTRATOR_CONFIG
+    );
     this.logger = await this.container.resolve<SecureLogger>(ServiceTokens.LOGGER);
     this.memoryStore = await this.container.resolve<MemoryStore>(ServiceTokens.MEMORY_STORE);
     this.stateService = await this.container.resolve<StateService>(ServiceTokens.STATE_SERVICE);
-    
+
     // Initialize state management
     this.stateTracker = await this.container.resolve<StateTracker>(ServiceTokens.STATE_TRACKER);
     this.cognitiveState = this.stateTracker.getState();
-    this.learningManager = await this.container.resolve<LearningManager>(ServiceTokens.LEARNING_MANAGER);
-    this.insightDetector = await this.container.resolve<InsightDetector>(ServiceTokens.INSIGHT_DETECTOR);
+    this.learningManager = await this.container.resolve<LearningManager>(
+      ServiceTokens.LEARNING_MANAGER
+    );
+    this.insightDetector = await this.container.resolve<InsightDetector>(
+      ServiceTokens.INSIGHT_DETECTOR
+    );
 
     // Initialize plugin system
-    this.pluginManager = await this.container.resolve<CognitivePluginManager>(ServiceTokens.PLUGIN_MANAGER);
-    this.metacognitivePlugin = await this.container.resolve<MetacognitivePlugin>(ServiceTokens.METACOGNITIVE_PLUGIN);
+    this.pluginManager = await this.container.resolve<CognitivePluginManager>(
+      ServiceTokens.PLUGIN_MANAGER
+    );
+    this.metacognitivePlugin = await this.container.resolve<MetacognitivePlugin>(
+      ServiceTokens.METACOGNITIVE_PLUGIN
+    );
     this.personaPlugin = await this.container.resolve<PersonaPlugin>(ServiceTokens.PERSONA_PLUGIN);
-    this.externalReasoningPlugin = await this.container.resolve<ExternalReasoningPlugin>(ServiceTokens.EXTERNAL_REASONING_PLUGIN);
-    this.phase5IntegrationPlugin = await this.container.resolve<Phase5IntegrationPlugin>(ServiceTokens.PHASE5_INTEGRATION_PLUGIN);
+    this.externalReasoningPlugin = await this.container.resolve<ExternalReasoningPlugin>(
+      ServiceTokens.EXTERNAL_REASONING_PLUGIN
+    );
+    this.phase5IntegrationPlugin = await this.container.resolve<Phase5IntegrationPlugin>(
+      ServiceTokens.PHASE5_INTEGRATION_PLUGIN
+    );
 
     // Initialize utilities
-    const bufferFactory = await this.container.resolve<typeof BufferFactory>(ServiceTokens.BUFFER_FACTORY);
-    const errorBoundaryFactory = await this.container.resolve<typeof ErrorBoundaryFactory>(ServiceTokens.ERROR_BOUNDARY_FACTORY);
+    const bufferFactory = await this.container.resolve<typeof BufferFactory>(
+      ServiceTokens.BUFFER_FACTORY
+    );
+    const errorBoundaryFactory = await this.container.resolve<typeof ErrorBoundaryFactory>(
+      ServiceTokens.ERROR_BOUNDARY_FACTORY
+    );
 
     // Initialize memory-bounded circular buffers
     this.interventionHistory = bufferFactory.createInterventionBuffer(1000);
@@ -169,7 +190,9 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     // Complete state service initialization with orchestrator
     await this.finalizeStateServiceInitialization();
 
-    console.error('Cognitive Orchestrator initialized with dependency injection and AGI-like capabilities');
+    console.error(
+      'Cognitive Orchestrator initialized with dependency injection and AGI-like capabilities'
+    );
   }
 
   /**
@@ -195,14 +218,17 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
    */
   private setupStateSync(): void {
     // Subscribe to cognitive state changes for performance monitoring
-    this.on('thought_processed', (event) => {
+    this.on('thought_processed', event => {
       // Record request performance
       this.stateService.recordRequest(event.processing_time, true);
-      
+
       // Update cognitive state in unified state
-      this.stateService.updateState({
-        cognitive: event.cognitiveState,
-      }, 'cognitive_orchestrator');
+      this.stateService.updateState(
+        {
+          cognitive: event.cognitiveState,
+        },
+        'cognitive_orchestrator'
+      );
     });
 
     // Subscribe to orchestration errors for performance tracking
@@ -225,10 +251,10 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
   }> {
     return this.generalBoundary.execute(
       async () => this.processThoughtInternal(thoughtData, sessionContext),
-      { 
-        component: 'CognitiveOrchestrator', 
+      {
+        component: 'CognitiveOrchestrator',
         method: 'processThought',
-        input: { thoughtData, sessionContext }
+        input: { thoughtData, sessionContext },
       },
       async (error, context) => {
         // Fallback: return minimal safe response
@@ -281,7 +307,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       const interventions = await this.pluginBoundary.execute(
         () => this.orchestrateInterventions(context),
         { component: 'CognitiveOrchestrator', method: 'orchestrateInterventions' },
-        async (error) => {
+        async error => {
           console.error('🔌 Plugin orchestration failed, using fallback');
           return []; // Return empty interventions as fallback
         }
@@ -291,7 +317,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       const insights = await this.generalBoundary.execute(
         () => this.detectInsights(context, interventions),
         { component: 'CognitiveOrchestrator', method: 'detectInsights' },
-        async (error) => {
+        async error => {
           console.error('🔍 Insight detection failed, using fallback');
           return []; // Return empty insights as fallback
         }
@@ -301,9 +327,11 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       const recommendations = await this.generalBoundary.execute(
         () => this.generateRecommendations(context, interventions, insights),
         { component: 'CognitiveOrchestrator', method: 'generateRecommendations' },
-        async (error) => {
+        async error => {
           console.error('💡 Recommendation generation failed, using fallback');
-          return ['Cognitive processing completed with reduced functionality due to internal errors'];
+          return [
+            'Cognitive processing completed with reduced functionality due to internal errors',
+          ];
         }
       );
 
@@ -329,7 +357,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         await this.memoryBoundary.execute(
           () => this.updateMemory(thoughtData, context, interventions, insights),
           { component: 'CognitiveOrchestrator', method: 'updateMemory' },
-          async (error) => {
+          async error => {
             console.error('💾 Memory update failed, continuing without persistence');
             // Continue without memory update
           }
@@ -340,7 +368,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       await this.generalBoundary.execute(
         () => this.learnAndAdapt(context, interventions, insights),
         { component: 'CognitiveOrchestrator', method: 'learnAndAdapt' },
-        async (error) => {
+        async error => {
           console.error('🧠 Learning adaptation failed, continuing without learning updates');
           // Continue without learning updates
         }
@@ -493,12 +521,16 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     // Reset state tracker
     this.stateTracker = await this.container.resolve<StateTracker>(ServiceTokens.STATE_TRACKER);
     this.cognitiveState = this.stateTracker.getState();
-    
+
     // Reset learning manager
-    this.learningManager = await this.container.resolve<LearningManager>(ServiceTokens.LEARNING_MANAGER);
-    
+    this.learningManager = await this.container.resolve<LearningManager>(
+      ServiceTokens.LEARNING_MANAGER
+    );
+
     // Reset insight detector
-    this.insightDetector = await this.container.resolve<InsightDetector>(ServiceTokens.INSIGHT_DETECTOR);
+    this.insightDetector = await this.container.resolve<InsightDetector>(
+      ServiceTokens.INSIGHT_DETECTOR
+    );
 
     this.sessionHistory.clear();
     this.interventionHistory.clear();
@@ -1360,9 +1392,13 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     const interventionStats = this.interventionHistory.getStats();
     const insightStats = this.insightHistory.getStats();
     const thoughtStats = this.thoughtOutputHistory.getStats();
-    
+
     // Log memory efficiency if overflow occurred
-    if (interventionStats.overflowCount > 0 || insightStats.overflowCount > 0 || thoughtStats.overflowCount > 0) {
+    if (
+      interventionStats.overflowCount > 0 ||
+      insightStats.overflowCount > 0 ||
+      thoughtStats.overflowCount > 0
+    ) {
       console.error('🔄 Memory buffers overflow detected:', {
         interventionOverflow: interventionStats.overflowCount,
         insightOverflow: insightStats.overflowCount,
@@ -1531,9 +1567,8 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
 
   private detectComplexityReduction(context: CognitiveContext): number {
     // Compare current complexity to historical average
-    const avgComplexity = this.learningManager
-      .getPerformanceMetrics()
-      .get('avg_complexity') || context.complexity;
+    const avgComplexity =
+      this.learningManager.getPerformanceMetrics().get('avg_complexity') || context.complexity;
     return Math.max(0, (avgComplexity - context.complexity) / 10);
   }
 
@@ -1666,11 +1701,11 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       this.pluginManager.removeAllListeners('orchestration_complete');
       this.pluginManager.removeAllListeners('orchestration_error');
     }
-    
+
     if (this.metacognitivePlugin) {
       this.metacognitivePlugin.removeAllListeners('metrics_updated');
     }
-    
+
     if (this.personaPlugin) {
       this.personaPlugin.removeAllListeners('metrics_updated');
     }

@@ -1,6 +1,6 @@
 /**
  * @fileoverview Factory for creating CognitiveOrchestrator instances
- * 
+ *
  * Provides factory functions for creating properly configured
  * CognitiveOrchestrator instances with dependency injection.
  */
@@ -27,12 +27,12 @@ export async function createCognitiveOrchestrator(
 ): Promise<CognitiveOrchestrator> {
   // Use provided container or create a new one
   const container = factoryConfig.container || new DependencyContainer();
-  
+
   // Register memory store if provided
   if (factoryConfig.memoryStore) {
     container.registerInstance(ServiceTokens.MEMORY_STORE, factoryConfig.memoryStore);
   }
-  
+
   // Configure the container if it's new
   if (!factoryConfig.container) {
     // Register default configuration
@@ -51,24 +51,27 @@ export async function createCognitiveOrchestrator(
       self_optimization_enabled: true,
       cognitive_load_balancing: true,
     });
-    
-    const { registerCognitiveDependencies, wirePluginDependencies, initializeStateService } = await import('./dependency-registration.js');
+
+    const { registerCognitiveDependencies, wirePluginDependencies, initializeStateService } =
+      await import('./dependency-registration.js');
     registerCognitiveDependencies(container);
     await wirePluginDependencies(container);
     await initializeStateService(container);
   }
-  
+
   // Override configuration if provided
   if (factoryConfig.config) {
-    const existingConfig = await container.resolve<OrchestratorConfig>(ServiceTokens.ORCHESTRATOR_CONFIG);
+    const existingConfig = await container.resolve<OrchestratorConfig>(
+      ServiceTokens.ORCHESTRATOR_CONFIG
+    );
     const mergedConfig: OrchestratorConfig = { ...existingConfig, ...factoryConfig.config };
     container.registerInstance(ServiceTokens.ORCHESTRATOR_CONFIG, mergedConfig);
   }
-  
+
   // Create and initialize the orchestrator
   const orchestrator = new CognitiveOrchestrator(container);
   await orchestrator.initialize();
-  
+
   return orchestrator;
 }
 
@@ -81,16 +84,18 @@ export async function createScopedCognitiveOrchestrator(
   config?: Partial<OrchestratorConfig>
 ): Promise<CognitiveOrchestrator> {
   const scopedContainer = parentContainer.createScope();
-  
+
   if (config) {
-    const existingConfig = await scopedContainer.resolve<OrchestratorConfig>(ServiceTokens.ORCHESTRATOR_CONFIG);
+    const existingConfig = await scopedContainer.resolve<OrchestratorConfig>(
+      ServiceTokens.ORCHESTRATOR_CONFIG
+    );
     const mergedConfig: OrchestratorConfig = { ...existingConfig, ...config };
     scopedContainer.registerInstance(ServiceTokens.ORCHESTRATOR_CONFIG, mergedConfig);
   }
-  
+
   const orchestrator = new CognitiveOrchestrator(scopedContainer);
   await orchestrator.initialize();
-  
+
   return orchestrator;
 }
 
@@ -116,7 +121,7 @@ export async function createTestCognitiveOrchestrator(
     cognitive_load_balancing: false,
     ...testConfig,
   };
-  
+
   return createCognitiveOrchestrator({
     config: defaultTestConfig,
   });

@@ -1,6 +1,6 @@
 /**
  * @fileoverview Unit tests for State Management System
- * 
+ *
  * Tests the unified state management system including StateManager,
  * state adapters, and StateService integration.
  */
@@ -14,31 +14,34 @@ import { StateService } from '../src/state/state-service.js';
  */
 async function testStateManagerBasics(): Promise<void> {
   console.log('  Testing StateManager basic operations...');
-  
+
   const stateManager = new StateManager();
-  
+
   // Test initial state
   const initialState = stateManager.getState();
-  assert.ok(initialState.lifecycle.status === 'initializing', 'Initial lifecycle status should be initializing');
+  assert.ok(
+    initialState.lifecycle.status === 'initializing',
+    'Initial lifecycle status should be initializing'
+  );
   assert.ok(initialState.version === 1, 'Initial version should be 1');
   assert.ok(initialState.cognitive.thought_count === 0, 'Initial thought count should be 0');
-  
+
   // Test state updates
   stateManager.updateStateByPath('cognitive.thought_count', 5, 'test');
-  
+
   const updatedState = stateManager.getState();
   assert.ok(updatedState.cognitive.thought_count === 5, 'Thought count should be updated');
   assert.ok(updatedState.version === 2, 'Version should increment');
-  
+
   // Test path-based access
   const thoughtCount = stateManager.getStateByPath('cognitive.thought_count');
   assert.ok(thoughtCount === 5, 'Path-based access should work');
-  
+
   // Test path-based updates
   stateManager.updateStateByPath('cognitive.current_complexity', 8, 'test');
   const complexity = stateManager.getStateByPath('cognitive.current_complexity');
   assert.ok(complexity === 8, 'Path-based update should work');
-  
+
   stateManager.dispose();
   console.log('    ✓ Basic operations work correctly');
 }
@@ -48,24 +51,27 @@ async function testStateManagerBasics(): Promise<void> {
  */
 async function testStateValidation(): Promise<void> {
   console.log('  Testing state validation...');
-  
+
   const stateManager = new StateManager();
   let validationErrorEmitted = false;
-  
+
   // Listen for validation errors
   stateManager.on('state_validation_error', () => {
     validationErrorEmitted = true;
   });
-  
+
   // Test invalid state update
-  stateManager.updateState({
-    cognitive: {
-      thought_count: -1, // Invalid negative thought count
+  stateManager.updateState(
+    {
+      cognitive: {
+        thought_count: -1, // Invalid negative thought count
+      } as any,
     } as any,
-  } as any, 'test');
-  
+    'test'
+  );
+
   assert.ok(validationErrorEmitted, 'Validation error should be emitted for invalid state');
-  
+
   stateManager.dispose();
   console.log('    ✓ State validation works correctly');
 }
@@ -75,31 +81,31 @@ async function testStateValidation(): Promise<void> {
  */
 async function testStateSubscriptions(): Promise<void> {
   console.log('  Testing state subscriptions...');
-  
+
   const stateManager = new StateManager();
   let subscriptionCallbackCalled = false;
   let receivedValue: any;
-  
+
   // Subscribe to cognitive state changes
-  const unsubscribe = stateManager.subscribe('cognitive.thought_count', (newValue) => {
+  const unsubscribe = stateManager.subscribe('cognitive.thought_count', newValue => {
     subscriptionCallbackCalled = true;
     receivedValue = newValue;
   });
-  
+
   // Update cognitive state
   stateManager.updateStateByPath('cognitive.thought_count', 10, 'test');
-  
+
   assert.ok(subscriptionCallbackCalled, 'Subscription callback should be called');
   assert.ok(receivedValue === 10, 'Received value should be correct');
-  
+
   // Test unsubscription
   unsubscribe();
   subscriptionCallbackCalled = false;
-  
+
   stateManager.updateStateByPath('cognitive.thought_count', 15, 'test');
-  
+
   assert.ok(!subscriptionCallbackCalled, 'Callback should not be called after unsubscription');
-  
+
   stateManager.dispose();
   console.log('    ✓ State subscriptions work correctly');
 }
@@ -109,20 +115,20 @@ async function testStateSubscriptions(): Promise<void> {
  */
 async function testStateHistory(): Promise<void> {
   console.log('  Testing state history...');
-  
+
   const stateManager = new StateManager();
-  
+
   // Make several state updates
   for (let i = 1; i <= 5; i++) {
     stateManager.updateStateByPath('cognitive.thought_count', i, 'test');
   }
-  
+
   const history = stateManager.getStateHistory();
   assert.ok(history.length === 5, 'History should contain all updates');
-  
+
   const limitedHistory = stateManager.getStateHistory(3);
   assert.ok(limitedHistory.length === 3, 'Limited history should respect limit');
-  
+
   stateManager.dispose();
   console.log('    ✓ State history works correctly');
 }
@@ -132,7 +138,7 @@ async function testStateHistory(): Promise<void> {
  */
 async function testStateService(): Promise<void> {
   console.log('  Testing StateService...');
-  
+
   const stateService = new StateService({
     persistence: {
       enabled: false, // Disable persistence for testing
@@ -147,43 +153,46 @@ async function testStateService(): Promise<void> {
       session: true,
     },
   });
-  
+
   // Initialize without dependencies (adapters disabled)
   await stateService.initialize({});
-  
+
   // Test basic state access
   const state = stateService.getState();
   assert.ok(state.lifecycle.status === 'ready', 'Service should be ready after initialization');
-  
+
   // Test state updates
-  stateService.updateState({
-    session: {
-      currentSessionId: 'test_session',
-      sessionStartTime: new Date(),
-      totalSessions: 5,
-      activeConnections: 0,
+  stateService.updateState(
+    {
+      session: {
+        currentSessionId: 'test_session',
+        sessionStartTime: new Date(),
+        totalSessions: 5,
+        activeConnections: 0,
+      },
     },
-  }, 'test');
-  
+    'test'
+  );
+
   const sessionCount = stateService.getStateByPath('session.totalSessions');
   assert.ok(sessionCount === 5, 'State update should work');
-  
+
   // Test performance recording
   stateService.recordRequest(150, true);
   stateService.recordRequest(200, false);
-  
+
   // Allow time for performance metrics to update
   await new Promise(resolve => setTimeout(resolve, 100));
-  
+
   // Test system health
   const health = stateService.getSystemHealth();
   assert.ok(health.overall, 'System health should be available');
   assert.ok(health.components, 'Component health should be available');
-  
+
   // Test state stats
   const stats = stateService.getStateStats();
   assert.ok(stats.totalUpdates > 0, 'State stats should show updates');
-  
+
   await stateService.dispose();
   console.log('    ✓ StateService works correctly');
 }
@@ -193,22 +202,22 @@ async function testStateService(): Promise<void> {
  */
 async function testStatePersistence(): Promise<void> {
   console.log('  Testing state persistence...');
-  
+
   const stateManager = new StateManager(undefined, {
     autoSave: false, // Manual save for testing
   });
-  
+
   let saveRequested = false;
   stateManager.on('state_save_requested', () => {
     saveRequested = true;
   });
-  
+
   // Update state and save
   stateManager.updateStateByPath('cognitive.thought_count', 42, 'test');
-  
+
   await stateManager.saveState();
   assert.ok(saveRequested, 'Save should be requested');
-  
+
   // Test state loading
   const testState = {
     cognitive: {
@@ -245,11 +254,11 @@ async function testStatePersistence(): Promise<void> {
       version: '1.0.0-TEST',
     },
   };
-  
+
   await stateManager.loadState(testState);
   const loadedValue = stateManager.getStateByPath('cognitive.thought_count');
   assert.ok(loadedValue === 100, 'State should be loaded correctly');
-  
+
   stateManager.dispose();
   console.log('    ✓ State persistence works correctly');
 }
@@ -259,18 +268,21 @@ async function testStatePersistence(): Promise<void> {
  */
 async function testStateReset(): Promise<void> {
   console.log('  Testing state reset...');
-  
+
   const stateManager = new StateManager();
-  
+
   // Update state
   stateManager.updateStateByPath('cognitive.thought_count', 50, 'test');
-  
-  assert.ok(stateManager.getStateByPath('cognitive.thought_count') === 50, 'State should be updated');
-  
+
+  assert.ok(
+    stateManager.getStateByPath('cognitive.thought_count') === 50,
+    'State should be updated'
+  );
+
   // Reset state
   stateManager.resetState();
   assert.ok(stateManager.getStateByPath('cognitive.thought_count') === 0, 'State should be reset');
-  
+
   stateManager.dispose();
   console.log('    ✓ State reset works correctly');
 }
@@ -280,7 +292,7 @@ async function testStateReset(): Promise<void> {
  */
 export async function runStateManagerTests(): Promise<void> {
   console.log('🧪 Running State Management tests...');
-  
+
   await testStateManagerBasics();
   await testStateValidation();
   await testStateSubscriptions();
@@ -288,17 +300,19 @@ export async function runStateManagerTests(): Promise<void> {
   await testStateService();
   await testStatePersistence();
   await testStateReset();
-  
+
   console.log('✅ All State Management tests passed');
 }
 
 // Run tests if called directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runStateManagerTests().then(() => {
-    console.log('🎉 State Management tests completed successfully');
-    process.exit(0);
-  }).catch(error => {
-    console.error('💥 State Management tests failed:', error);
-    process.exit(1);
-  });
+  runStateManagerTests()
+    .then(() => {
+      console.log('🎉 State Management tests completed successfully');
+      process.exit(0);
+    })
+    .catch(error => {
+      console.error('💥 State Management tests failed:', error);
+      process.exit(1);
+    });
 }

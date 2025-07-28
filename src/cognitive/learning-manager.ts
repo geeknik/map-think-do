@@ -92,7 +92,10 @@ export class LearningManager {
     }
   }
 
-  public learnInterventionPatterns(context: CognitiveContext, interventions: PluginIntervention[]): void {
+  public learnInterventionPatterns(
+    context: CognitiveContext,
+    interventions: PluginIntervention[]
+  ): void {
     for (const iv of interventions) {
       const key = `${iv.metadata.plugin_id}_${context.domain}_${context.complexity}`;
       const existing = this.interventionPatterns.get(key) || {
@@ -184,4 +187,3 @@ export class LearningManager {
     }
   }
 }
-

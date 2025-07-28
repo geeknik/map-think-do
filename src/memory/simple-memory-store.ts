@@ -1,12 +1,18 @@
 /**
  * @fileoverview Simple in-memory implementation of MemoryStore
- * 
+ *
  * Basic concrete implementation of the MemoryStore interface for
  * dependency injection purposes. This provides all required functionality
  * while remaining lightweight and suitable for most use cases.
  */
 
-import { MemoryStore, StoredThought, ReasoningSession, MemoryQuery, MemoryStats } from './memory-store.js';
+import {
+  MemoryStore,
+  StoredThought,
+  ReasoningSession,
+  MemoryQuery,
+  MemoryStats,
+} from './memory-store.js';
 
 /**
  * Simple in-memory implementation of MemoryStore for cognitive capabilities
@@ -63,23 +69,21 @@ export class SimpleMemoryStore extends MemoryStore {
     if (query.complexity_range) {
       results = results.filter(t => {
         const complexity = t.complexity || 5;
-        return complexity >= query.complexity_range![0] && 
-               complexity <= query.complexity_range![1];
+        return complexity >= query.complexity_range![0] && complexity <= query.complexity_range![1];
       });
     }
 
     // Apply tags filter
     if (query.tags && query.tags.length > 0) {
-      results = results.filter(t => 
-        t.tags && query.tags!.some(tag => t.tags!.includes(tag))
-      );
+      results = results.filter(t => t.tags && query.tags!.some(tag => t.tags!.includes(tag)));
     }
 
     // Apply patterns filter
     if (query.patterns && query.patterns.length > 0) {
-      results = results.filter(t => 
-        t.patterns_detected && 
-        query.patterns!.some(pattern => t.patterns_detected!.includes(pattern))
+      results = results.filter(
+        t =>
+          t.patterns_detected &&
+          query.patterns!.some(pattern => t.patterns_detected!.includes(pattern))
       );
     }
 
@@ -97,7 +101,7 @@ export class SimpleMemoryStore extends MemoryStore {
     if (query.sort_by) {
       results.sort((a, b) => {
         let aVal: any, bVal: any;
-        
+
         switch (query.sort_by) {
           case 'timestamp':
             aVal = a.timestamp.getTime();
@@ -119,7 +123,7 @@ export class SimpleMemoryStore extends MemoryStore {
           default:
             return 0;
         }
-        
+
         const comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
         return query.sort_order === 'desc' ? -comparison : comparison;
       });
@@ -148,13 +152,13 @@ export class SimpleMemoryStore extends MemoryStore {
   async getSessions(limit?: number, offset?: number): Promise<ReasoningSession[]> {
     const sessions = Array.from(this.sessions.values());
     sessions.sort((a, b) => b.start_time.getTime() - a.start_time.getTime());
-    
+
     if (offset) {
       const startIndex = offset;
       const endIndex = limit ? startIndex + limit : sessions.length;
       return sessions.slice(startIndex, endIndex);
     }
-    
+
     return limit ? sessions.slice(0, limit) : sessions;
   }
 
@@ -173,17 +177,17 @@ export class SimpleMemoryStore extends MemoryStore {
     // Simple similarity based on word overlap
     const inputWords = thought.toLowerCase().split(/\s+/);
     const thoughts = Array.from(this.thoughts.values());
-    
+
     const similarities = thoughts.map(t => {
       const thoughtWords = t.thought.toLowerCase().split(/\s+/);
       const overlap = inputWords.filter(word => thoughtWords.includes(word)).length;
       const similarity = overlap / Math.max(inputWords.length, thoughtWords.length);
       return { thought: t, similarity };
     });
-    
+
     similarities.sort((a, b) => b.similarity - a.similarity);
     const results = similarities.map(s => s.thought);
-    
+
     return limit ? results.slice(0, limit) : results;
   }
 
@@ -197,13 +201,13 @@ export class SimpleMemoryStore extends MemoryStore {
   async cleanupOldThoughts(olderThan: Date): Promise<number> {
     const initialCount = this.thoughts.size;
     const cutoffTime = olderThan.getTime();
-    
+
     for (const [id, thought] of this.thoughts.entries()) {
       if (thought.timestamp.getTime() < cutoffTime) {
         this.thoughts.delete(id);
       }
     }
-    
+
     return initialCount - this.thoughts.size;
   }
 
@@ -211,12 +215,14 @@ export class SimpleMemoryStore extends MemoryStore {
     const thoughts = Array.from(this.thoughts.values());
     const sessions = Array.from(this.sessions.values());
 
-    const avgSessionLength = sessions.length > 0 
-      ? sessions.reduce((sum, s) => sum + (s.total_thoughts || 0), 0) / sessions.length 
-      : 0;
+    const avgSessionLength =
+      sessions.length > 0
+        ? sessions.reduce((sum, s) => sum + (s.total_thoughts || 0), 0) / sessions.length
+        : 0;
 
     const successfulThoughts = thoughts.filter(t => t.success);
-    const overallSuccessRate = thoughts.length > 0 ? successfulThoughts.length / thoughts.length : 0;
+    const overallSuccessRate =
+      thoughts.length > 0 ? successfulThoughts.length / thoughts.length : 0;
 
     // Get oldest and newest thoughts
     let oldest = new Date();
@@ -250,19 +256,25 @@ export class SimpleMemoryStore extends MemoryStore {
       thoughts: Array.from(this.thoughts.values()),
       sessions: Array.from(this.sessions.values()),
     };
-    
+
     switch (format) {
       case 'json':
         return JSON.stringify(data, null, 2);
       case 'jsonl':
-        return data.thoughts.map(t => JSON.stringify(t)).join('\n') + '\n' +
-               data.sessions.map(s => JSON.stringify(s)).join('\n');
+        return (
+          data.thoughts.map(t => JSON.stringify(t)).join('\n') +
+          '\n' +
+          data.sessions.map(s => JSON.stringify(s)).join('\n')
+        );
       case 'csv':
         // Simple CSV export for thoughts
         const headers = 'id,thought,timestamp,session_id,confidence,domain\n';
-        const rows = data.thoughts.map(t => 
-          `"${t.id}","${t.thought.replace(/"/g, '""')}","${t.timestamp.toISOString()}","${t.session_id}","${t.confidence || 0}","${t.domain || ''}"`
-        ).join('\n');
+        const rows = data.thoughts
+          .map(
+            t =>
+              `"${t.id}","${t.thought.replace(/"/g, '""')}","${t.timestamp.toISOString()}","${t.session_id}","${t.confidence || 0}","${t.domain || ''}"`
+          )
+          .join('\n');
         return headers + rows;
       default:
         throw new Error(`Unsupported export format: ${format}`);
@@ -303,13 +315,13 @@ export class SimpleMemoryStore extends MemoryStore {
 
   private getMostCommonDomains(thoughts: StoredThought[]): string[] {
     const domainCounts = new Map<string, number>();
-    
+
     thoughts.forEach(t => {
       if (t.domain) {
         domainCounts.set(t.domain, (domainCounts.get(t.domain) || 0) + 1);
       }
     });
-    
+
     return Array.from(domainCounts.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
@@ -318,7 +330,7 @@ export class SimpleMemoryStore extends MemoryStore {
 
   private getMostCommonPatterns(thoughts: StoredThought[]): string[] {
     const patternCounts = new Map<string, number>();
-    
+
     thoughts.forEach(t => {
       if (t.patterns_detected) {
         t.patterns_detected.forEach(pattern => {
@@ -326,7 +338,7 @@ export class SimpleMemoryStore extends MemoryStore {
         });
       }
     });
-    
+
     return Array.from(patternCounts.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
@@ -336,15 +348,15 @@ export class SimpleMemoryStore extends MemoryStore {
   private estimateStorageSize(): number {
     // Rough estimation of memory usage
     let size = 0;
-    
+
     for (const thought of this.thoughts.values()) {
       size += JSON.stringify(thought).length * 2; // Rough estimation for string storage
     }
-    
+
     for (const session of this.sessions.values()) {
       size += JSON.stringify(session).length * 2;
     }
-    
+
     return size;
   }
 }

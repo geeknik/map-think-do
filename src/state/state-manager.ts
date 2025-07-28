@@ -1,6 +1,6 @@
 /**
  * @fileoverview Unified State Management System
- * 
+ *
  * Centralized state management for the entire cognitive system.
  * Provides a single source of truth for all cognitive state with
  * event-driven updates, persistence, and validation.
@@ -17,21 +17,21 @@ import { MemoryStats } from '../memory/memory-store.js';
 export interface UnifiedState {
   // Cognitive state
   cognitive: CognitiveState;
-  
+
   // Plugin performance state
   plugins: {
     metrics: Record<string, PluginMetrics>;
     activePlugins: string[];
     pluginHealth: Record<string, 'healthy' | 'degraded' | 'failed'>;
   };
-  
+
   // Memory state
   memory: {
     stats: MemoryStats;
     healthStatus: 'healthy' | 'degraded' | 'critical';
     lastCleanup: Date;
   };
-  
+
   // System performance state
   performance: {
     responseTime: number;
@@ -43,14 +43,14 @@ export interface UnifiedState {
     };
     lastUpdated: Date;
   };
-  
+
   // Configuration state
   config: {
     orchestratorConfig: any;
     systemSettings: Record<string, any>;
     featureFlags: Record<string, boolean>;
   };
-  
+
   // Session state
   session: {
     currentSessionId: string;
@@ -58,7 +58,7 @@ export interface UnifiedState {
     totalSessions: number;
     activeConnections: number;
   };
-  
+
   // Application lifecycle
   lifecycle: {
     status: 'initializing' | 'ready' | 'degraded' | 'error' | 'shutting_down';
@@ -66,7 +66,7 @@ export interface UnifiedState {
     version: string;
     buildInfo?: Record<string, string>;
   };
-  
+
   // Metadata
   lastUpdated: Date;
   version: number;
@@ -104,7 +104,7 @@ export interface StatePersistenceOptions {
 
 /**
  * Unified State Manager
- * 
+ *
  * Centralized state management system that coordinates all cognitive
  * system state with event-driven updates and persistence.
  */
@@ -120,7 +120,7 @@ export class StateManager extends EventEmitter {
     persistenceOptions: Partial<StatePersistenceOptions> = {}
   ) {
     super();
-    
+
     this.persistenceOptions = {
       autoSave: true,
       saveInterval: 30000, // 30 seconds
@@ -131,7 +131,7 @@ export class StateManager extends EventEmitter {
 
     // Initialize state with defaults
     this.state = this.createDefaultState();
-    
+
     // Apply initial state if provided
     if (initialState) {
       this.state = this.mergeState(this.state, initialState);
@@ -165,7 +165,7 @@ export class StateManager extends EventEmitter {
   updateState(updates: Partial<UnifiedState>, source: string = 'unknown'): void {
     const oldState = { ...this.state };
     const newState = this.mergeState(this.state, updates);
-    
+
     // Validate state changes
     const validation = this.validateState(newState);
     if (!validation.isValid) {
@@ -219,7 +219,7 @@ export class StateManager extends EventEmitter {
     };
 
     this.on('state_change', handler);
-    
+
     // Return unsubscribe function
     return () => this.off('state_change', handler);
   }
@@ -254,7 +254,7 @@ export class StateManager extends EventEmitter {
 
       // Emit save event for external persistence handlers
       this.emit('state_save_requested', stateSnapshot);
-      
+
       console.error('💾 State saved successfully');
     } catch (error) {
       console.error('❌ Failed to save state:', error);
@@ -275,7 +275,7 @@ export class StateManager extends EventEmitter {
 
       // Update state
       this.updateState(stateData, 'state_load');
-      
+
       console.error('📂 State loaded successfully');
       this.emit('state_loaded', stateData);
     } catch (error) {
@@ -310,10 +310,10 @@ export class StateManager extends EventEmitter {
     if (this.saveTimer) {
       clearInterval(this.saveTimer);
     }
-    
+
     this.removeAllListeners();
     this.stateHistory = [];
-    
+
     console.error('🗂️ State Manager disposed');
   }
 
@@ -321,7 +321,7 @@ export class StateManager extends EventEmitter {
 
   private createDefaultState(): UnifiedState {
     const now = new Date();
-    
+
     return {
       cognitive: {
         session_id: `session_${Date.now()}`,
@@ -411,7 +411,7 @@ export class StateManager extends EventEmitter {
 
   private deepMerge(target: any, source: any): any {
     const result = { ...target };
-    
+
     for (const key in source) {
       if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
         result[key] = this.deepMerge(target[key] || {}, source[key]);
@@ -419,7 +419,7 @@ export class StateManager extends EventEmitter {
         result[key] = source[key];
       }
     }
-    
+
     return result;
   }
 
@@ -448,7 +448,11 @@ export class StateManager extends EventEmitter {
     }
 
     // Validate lifecycle state
-    if (!['initializing', 'ready', 'degraded', 'error', 'shutting_down'].includes(state.lifecycle?.status)) {
+    if (
+      !['initializing', 'ready', 'degraded', 'error', 'shutting_down'].includes(
+        state.lifecycle?.status
+      )
+    ) {
       errors.push('Invalid lifecycle status');
     }
 
@@ -471,9 +475,13 @@ export class StateManager extends EventEmitter {
     }
   }
 
-  private emitStateChangeEvents(oldState: UnifiedState, newState: UnifiedState, source: string): void {
+  private emitStateChangeEvents(
+    oldState: UnifiedState,
+    newState: UnifiedState,
+    source: string
+  ): void {
     const changes = this.findStateChanges(oldState, newState, '');
-    
+
     for (const change of changes) {
       this.emit('state_change', {
         path: change.path,
@@ -485,21 +493,30 @@ export class StateManager extends EventEmitter {
     }
   }
 
-  private findStateChanges(oldState: any, newState: any, path: string): Array<{
+  private findStateChanges(
+    oldState: any,
+    newState: any,
+    path: string
+  ): Array<{
     path: string;
     oldValue: any;
     newValue: any;
   }> {
     const changes: Array<{ path: string; oldValue: any; newValue: any }> = [];
-    
+
     for (const key in newState) {
       const currentPath = path ? `${path}.${key}` : key;
       const oldValue = oldState?.[key];
       const newValue = newState[key];
-      
+
       if (oldValue !== newValue) {
-        if (typeof newValue === 'object' && typeof oldValue === 'object' && 
-            newValue !== null && oldValue !== null && !Array.isArray(newValue)) {
+        if (
+          typeof newValue === 'object' &&
+          typeof oldValue === 'object' &&
+          newValue !== null &&
+          oldValue !== null &&
+          !Array.isArray(newValue)
+        ) {
           // Recursively check nested objects
           changes.push(...this.findStateChanges(oldValue, newValue, currentPath));
         } else {
@@ -512,7 +529,7 @@ export class StateManager extends EventEmitter {
         }
       }
     }
-    
+
     return changes;
   }
 
@@ -524,12 +541,12 @@ export class StateManager extends EventEmitter {
     const keys = path.split('.');
     const update: any = {};
     let current = update;
-    
+
     for (let i = 0; i < keys.length - 1; i++) {
       current[keys[i]] = {};
       current = current[keys[i]];
     }
-    
+
     current[keys[keys.length - 1]] = value;
     return update;
   }

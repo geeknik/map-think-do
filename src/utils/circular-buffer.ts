@@ -1,6 +1,6 @@
 /**
  * Circular Buffer implementation for memory-bounded collections
- * 
+ *
  * Provides fixed-size collections that automatically evict oldest items
  * when capacity is exceeded, preventing unbounded memory growth.
  */
@@ -73,18 +73,14 @@ export class CircularBuffer<T> {
    * Get items within time range
    */
   getItemsSince(since: Date): T[] {
-    return this.items
-      .filter(item => item.timestamp >= since)
-      .map(item => item.data);
+    return this.items.filter(item => item.timestamp >= since).map(item => item.data);
   }
 
   /**
    * Find items matching predicate
    */
   find(predicate: (item: T) => boolean): T[] {
-    return this.items
-      .filter(item => predicate(item.data))
-      .map(item => item.data);
+    return this.items.filter(item => predicate(item.data)).map(item => item.data);
   }
 
   /**
@@ -119,8 +115,18 @@ export class CircularBuffer<T> {
       size: this.items.length,
       capacity: this.maxSize,
       overflowCount: this.overflowCount,
-      oldestTimestamp: timestamps.length > 0 ? Math.min(...timestamps.map(t => t.getTime())) ? new Date(Math.min(...timestamps.map(t => t.getTime()))) : undefined : undefined,
-      newestTimestamp: timestamps.length > 0 ? Math.max(...timestamps.map(t => t.getTime())) ? new Date(Math.max(...timestamps.map(t => t.getTime()))) : undefined : undefined,
+      oldestTimestamp:
+        timestamps.length > 0
+          ? Math.min(...timestamps.map(t => t.getTime()))
+            ? new Date(Math.min(...timestamps.map(t => t.getTime())))
+            : undefined
+          : undefined,
+      newestTimestamp:
+        timestamps.length > 0
+          ? Math.max(...timestamps.map(t => t.getTime()))
+            ? new Date(Math.max(...timestamps.map(t => t.getTime())))
+            : undefined
+          : undefined,
     };
   }
 
@@ -191,7 +197,7 @@ export class CircularBuffer<T> {
    */
   static merge<T>(buffers: CircularBuffer<T>[], maxSize: number): CircularBuffer<T> {
     const merged = new CircularBuffer<T>(maxSize);
-    
+
     // Add all items from all buffers (they will be automatically sorted by push time)
     for (const buffer of buffers) {
       for (const item of buffer.getAll()) {
@@ -237,9 +243,14 @@ export class CognitiveCircularBuffer<T> extends CircularBuffer<T> {
   } {
     const now = new Date();
     const stats = this.getStats();
-    const averageAge = stats.size > 0 && stats.oldestTimestamp && stats.newestTimestamp
-      ? (now.getTime() - stats.oldestTimestamp.getTime() + now.getTime() - stats.newestTimestamp.getTime()) / 2
-      : 0;
+    const averageAge =
+      stats.size > 0 && stats.oldestTimestamp && stats.newestTimestamp
+        ? (now.getTime() -
+            stats.oldestTimestamp.getTime() +
+            now.getTime() -
+            stats.newestTimestamp.getTime()) /
+          2
+        : 0;
 
     return {
       accessCount: this.accessCount,

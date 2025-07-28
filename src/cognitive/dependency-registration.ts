@@ -1,6 +1,6 @@
 /**
  * @fileoverview Dependency Registration for Cognitive System
- * 
+ *
  * Centralized registration of all cognitive system dependencies.
  * This module configures the dependency injection container with
  * all required services, their lifetimes, and dependencies.
@@ -35,50 +35,38 @@ export function registerCognitiveDependencies(container: DependencyContainer): v
 
   // Memory store - singleton (register default if not already registered)
   if (!container.isRegistered(ServiceTokens.MEMORY_STORE)) {
-    container.registerSingleton(
-      ServiceTokens.MEMORY_STORE,
-      async () => {
-        const memoryStore = new SimpleMemoryStore();
-        await memoryStore.initialize();
-        return memoryStore;
-      }
-    );
+    container.registerSingleton(ServiceTokens.MEMORY_STORE, async () => {
+      const memoryStore = new SimpleMemoryStore();
+      await memoryStore.initialize();
+      return memoryStore;
+    });
   }
 
   // State management - singletons with dependencies
-  container.registerSingleton(
-    ServiceTokens.STATE_TRACKER,
-    () => new StateTracker()
-  );
+  container.registerSingleton(ServiceTokens.STATE_TRACKER, () => new StateTracker());
 
-  container.registerSingleton(
-    ServiceTokens.STATE_MANAGER,
-    () => new StateManager()
-  );
+  container.registerSingleton(ServiceTokens.STATE_MANAGER, () => new StateManager());
 
-  container.registerSingleton(
-    ServiceTokens.STATE_SERVICE,
-    async (container) => {
-      const stateService = new StateService({
-        persistence: {
-          enabled: true,
-          autoSave: true,
-          saveInterval: 30000,
-        },
-        monitoring: {
-          performanceTracking: true,
-          memoryTracking: true,
-          pluginTracking: true,
-        },
-      });
-      
-      return stateService;
-    }
-  );
+  container.registerSingleton(ServiceTokens.STATE_SERVICE, async container => {
+    const stateService = new StateService({
+      persistence: {
+        enabled: true,
+        autoSave: true,
+        saveInterval: 30000,
+      },
+      monitoring: {
+        performanceTracking: true,
+        memoryTracking: true,
+        pluginTracking: true,
+      },
+    });
+
+    return stateService;
+  });
 
   container.registerSingleton(
     ServiceTokens.LEARNING_MANAGER,
-    async (container) => {
+    async container => {
       const config = await container.resolve<OrchestratorConfig>(ServiceTokens.ORCHESTRATOR_CONFIG);
       return new LearningManager(config.learning_rate);
     },
@@ -87,11 +75,13 @@ export function registerCognitiveDependencies(container: DependencyContainer): v
 
   container.registerSingleton(
     ServiceTokens.INSIGHT_DETECTOR,
-    async (container) => {
+    async container => {
       const memoryStore = await container.resolve<MemoryStore>(ServiceTokens.MEMORY_STORE);
       const stateTracker = await container.resolve<StateTracker>(ServiceTokens.STATE_TRACKER);
-      const learningManager = await container.resolve<LearningManager>(ServiceTokens.LEARNING_MANAGER);
-      
+      const learningManager = await container.resolve<LearningManager>(
+        ServiceTokens.LEARNING_MANAGER
+      );
+
       return new InsightDetector(
         memoryStore,
         stateTracker.getState(),
@@ -104,7 +94,7 @@ export function registerCognitiveDependencies(container: DependencyContainer): v
   // Plugin manager - singleton
   container.registerSingleton(
     ServiceTokens.PLUGIN_MANAGER,
-    async (container) => {
+    async container => {
       const config = await container.resolve<OrchestratorConfig>(ServiceTokens.ORCHESTRATOR_CONFIG);
       return new CognitivePluginManager({
         maxConcurrentPlugins: config.max_concurrent_interventions,
@@ -116,15 +106,9 @@ export function registerCognitiveDependencies(container: DependencyContainer): v
   );
 
   // Cognitive plugins - singletons
-  container.registerSingleton(
-    ServiceTokens.METACOGNITIVE_PLUGIN,
-    () => new MetacognitivePlugin()
-  );
+  container.registerSingleton(ServiceTokens.METACOGNITIVE_PLUGIN, () => new MetacognitivePlugin());
 
-  container.registerSingleton(
-    ServiceTokens.PERSONA_PLUGIN,
-    () => new PersonaPlugin()
-  );
+  container.registerSingleton(ServiceTokens.PERSONA_PLUGIN, () => new PersonaPlugin());
 
   container.registerSingleton(
     ServiceTokens.EXTERNAL_REASONING_PLUGIN,
@@ -133,7 +117,7 @@ export function registerCognitiveDependencies(container: DependencyContainer): v
 
   container.registerSingleton(
     ServiceTokens.PHASE5_INTEGRATION_PLUGIN,
-    async (container) => {
+    async container => {
       const memoryStore = await container.resolve<MemoryStore>(ServiceTokens.MEMORY_STORE);
       return new Phase5IntegrationPlugin(memoryStore);
     },
@@ -145,8 +129,10 @@ export function registerCognitiveDependencies(container: DependencyContainer): v
  * Initialize and wire up all plugin dependencies
  */
 export async function wirePluginDependencies(container: DependencyContainer): Promise<void> {
-  const pluginManager = await container.resolve<CognitivePluginManager>(ServiceTokens.PLUGIN_MANAGER);
-  
+  const pluginManager = await container.resolve<CognitivePluginManager>(
+    ServiceTokens.PLUGIN_MANAGER
+  );
+
   // Register all plugins with the manager
   const plugins = await Promise.all([
     container.resolve(ServiceTokens.METACOGNITIVE_PLUGIN),
@@ -170,7 +156,7 @@ export async function wirePluginDependencies(container: DependencyContainer): Pr
 export async function initializeStateService(container: DependencyContainer): Promise<void> {
   const stateService = await container.resolve<StateService>(ServiceTokens.STATE_SERVICE);
   const memoryStore = await container.resolve<MemoryStore>(ServiceTokens.MEMORY_STORE);
-  
+
   // Note: We'll resolve the orchestrator later since it depends on the state service
   await stateService.initialize({
     memoryStore,
@@ -183,7 +169,7 @@ export async function initializeStateService(container: DependencyContainer): Pr
  */
 export async function createConfiguredCognitiveContainer(): Promise<DependencyContainer> {
   const container = new DependencyContainer();
-  
+
   // Register default configuration
   container.registerInstance(ServiceTokens.ORCHESTRATOR_CONFIG, {
     max_concurrent_interventions: 3,
@@ -203,9 +189,9 @@ export async function createConfiguredCognitiveContainer(): Promise<DependencyCo
 
   // Register all dependencies
   registerCognitiveDependencies(container);
-  
+
   // Wire up plugin dependencies
   await wirePluginDependencies(container);
-  
+
   return container;
 }

@@ -55,9 +55,7 @@ export class InsightDetector {
           description: `Recurring theme: "${theme.pattern}"`,
           confidence: Math.min(0.9, theme.frequency / 5),
           impact_potential: 0.6,
-          implications: [
-            `Pattern "${theme.pattern}" may be important to the problem domain`,
-          ],
+          implications: [`Pattern "${theme.pattern}" may be important to the problem domain`],
           evidence: theme.contexts,
           novelty_score: 0.3,
         });
@@ -114,7 +112,10 @@ export class InsightDetector {
   ): Array<{ pattern: string; frequency: number; contexts: string[] }> {
     const themeMap = new Map<string, { count: number; contexts: string[] }>();
     thoughts.forEach(t => {
-      const words = t.thought.toLowerCase().split(/\s+/).filter(w => w.length > 4);
+      const words = t.thought
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(w => w.length > 4);
       words.forEach(word => {
         const cur = themeMap.get(word) || { count: 0, contexts: [] };
         cur.count++;
@@ -140,4 +141,3 @@ export class InsightDetector {
     return Math.min(1, score);
   }
 }
-

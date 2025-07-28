@@ -1,6 +1,6 @@
 /**
  * Unit Test Runner for Phase 1 Improvements
- * 
+ *
  * Runs all unit tests for the architectural improvements implemented in Phase 1
  */
 
@@ -23,7 +23,7 @@ const testSuites: TestSuite[] = [
 
 async function runAllUnitTests() {
   console.log('🚀 Starting Phase 1 Unit Test Suite...\n');
-  
+
   const startTime = Date.now();
   let passedSuites = 0;
   let failedSuites = 0;
@@ -70,10 +70,12 @@ export { runAllUnitTests };
 
 // Run tests if called directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  runAllUnitTests().then(success => {
-    process.exit(success ? 0 : 1);
-  }).catch(error => {
-    console.error('💥 Test runner failed:', error);
-    process.exit(1);
-  });
+  runAllUnitTests()
+    .then(success => {
+      process.exit(success ? 0 : 1);
+    })
+    .catch(error => {
+      console.error('💥 Test runner failed:', error);
+      process.exit(1);
+    });
 }

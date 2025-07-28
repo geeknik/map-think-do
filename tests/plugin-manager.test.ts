@@ -1,7 +1,13 @@
 import assert from 'node:assert';
 import { PluginManager } from '../src/prompts/plugins/plugin-manager.js';
 import { BasePromptPlugin, PromptContext } from '../src/prompts/plugins/base-plugin.js';
-import { CognitivePluginManager, CognitivePlugin, CognitiveContext, PluginActivation, PluginIntervention } from '../src/cognitive/plugin-system.js';
+import {
+  CognitivePluginManager,
+  CognitivePlugin,
+  CognitiveContext,
+  PluginActivation,
+  PluginIntervention,
+} from '../src/cognitive/plugin-system.js';
 
 class DummyPromptPlugin extends BasePromptPlugin {
   constructor(name: string) {
@@ -71,7 +77,12 @@ async function testConflictHandling() {
     confidence: 1,
     reason: 'A',
     estimated_impact: 'high',
-    resource_requirements: { cognitive_load: 0.6, time_cost: 1, creativity_required: false, analysis_required: false },
+    resource_requirements: {
+      cognitive_load: 0.6,
+      time_cost: 1,
+      creativity_required: false,
+      analysis_required: false,
+    },
   });
   const pluginB = new DummyCognitivePlugin('B', {
     should_activate: true,
@@ -79,7 +90,12 @@ async function testConflictHandling() {
     confidence: 1,
     reason: 'B',
     estimated_impact: 'high',
-    resource_requirements: { cognitive_load: 0.4, time_cost: 1, creativity_required: false, analysis_required: false },
+    resource_requirements: {
+      cognitive_load: 0.4,
+      time_cost: 1,
+      creativity_required: false,
+      analysis_required: false,
+    },
   });
   const pluginC = new DummyCognitivePlugin('C', {
     should_activate: true,
@@ -87,7 +103,12 @@ async function testConflictHandling() {
     confidence: 1,
     reason: 'C',
     estimated_impact: 'high',
-    resource_requirements: { cognitive_load: 0.3, time_cost: 1, creativity_required: false, analysis_required: false },
+    resource_requirements: {
+      cognitive_load: 0.3,
+      time_cost: 1,
+      creativity_required: false,
+      analysis_required: false,
+    },
   });
   manager.registerPlugin(pluginA);
   manager.registerPlugin(pluginB);

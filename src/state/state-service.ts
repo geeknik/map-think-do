@@ -1,6 +1,6 @@
 /**
  * @fileoverview State Service
- * 
+ *
  * High-level service that orchestrates the unified state management system.
  * Coordinates all state adapters and provides a clean API for state management.
  */
@@ -42,7 +42,7 @@ export interface StateServiceConfig {
 
 /**
  * State Service
- * 
+ *
  * Central service that manages all state adapters and provides
  * a unified interface for state management across the system.
  */
@@ -59,10 +59,7 @@ export class StateService implements Disposable {
   private config: StateServiceConfig;
   private initialized = false;
 
-  constructor(
-    config: Partial<StateServiceConfig> = {},
-    initialState?: Partial<UnifiedState>
-  ) {
+  constructor(config: Partial<StateServiceConfig> = {}, initialState?: Partial<UnifiedState>) {
     this.config = {
       persistence: {
         enabled: true,
@@ -151,10 +148,7 @@ export class StateService implements Disposable {
   /**
    * Subscribe to state changes
    */
-  subscribe(
-    path: string,
-    callback: (value: any, oldValue: any) => void
-  ): () => void {
+  subscribe(path: string, callback: (value: any, oldValue: any) => void): () => void {
     return this.stateManager.subscribe(path, callback);
   }
 
@@ -216,14 +210,19 @@ export class StateService implements Disposable {
   /**
    * Update lifecycle status
    */
-  updateLifecycleStatus(status: 'initializing' | 'ready' | 'degraded' | 'error' | 'shutting_down'): void {
-    this.updateState({
-      lifecycle: {
-        status,
-        startupTime: new Date(),
-        version: '1.0.0-AGI-MAGIC',
+  updateLifecycleStatus(
+    status: 'initializing' | 'ready' | 'degraded' | 'error' | 'shutting_down'
+  ): void {
+    this.updateState(
+      {
+        lifecycle: {
+          status,
+          startupTime: new Date(),
+          version: '1.0.0-AGI-MAGIC',
+        },
       },
-    }, 'lifecycle_manager');
+      'lifecycle_manager'
+    );
   }
 
   /**
@@ -260,7 +259,7 @@ export class StateService implements Disposable {
     };
   } {
     const state = this.getState();
-    
+
     // Assess component health
     const components = {
       cognitive: this.assessCognitiveHealth(state),
@@ -271,8 +270,11 @@ export class StateService implements Disposable {
 
     // Calculate overall health
     const healthLevels = Object.values(components);
-    const overall = healthLevels.includes('critical') ? 'critical' :
-                   healthLevels.includes('degraded') ? 'degraded' : 'healthy';
+    const overall = healthLevels.includes('critical')
+      ? 'critical'
+      : healthLevels.includes('degraded')
+        ? 'degraded'
+        : 'healthy';
 
     return { overall, components };
   }
@@ -340,32 +342,35 @@ export class StateService implements Disposable {
   }
 
   private setupStateManagerEvents(): void {
-    this.stateManager.on('state_updated', (event) => {
+    this.stateManager.on('state_updated', event => {
       // Log significant state changes
       if (event.source !== 'performance_adapter') {
         console.error(`📊 State updated by ${event.source}`);
       }
     });
 
-    this.stateManager.on('state_validation_error', (event) => {
+    this.stateManager.on('state_validation_error', event => {
       console.error('❌ State validation error:', event.validation.errors);
     });
 
-    this.stateManager.on('state_save_error', (error) => {
+    this.stateManager.on('state_save_error', error => {
       console.error('❌ State save error:', error);
     });
 
-    this.stateManager.on('state_load_error', (error) => {
+    this.stateManager.on('state_load_error', error => {
       console.error('❌ State load error:', error);
     });
   }
 
   private assessCognitiveHealth(state: UnifiedState): 'healthy' | 'degraded' | 'critical' {
     const cognitive = state.cognitive;
-    
+
     if (cognitive.frustration_level > 0.8 || cognitive.self_doubt_level > 0.8) {
       return 'critical';
-    } else if (cognitive.confidence_trajectory.slice(-1)[0] < 0.3 || cognitive.engagement_level < 0.3) {
+    } else if (
+      cognitive.confidence_trajectory.slice(-1)[0] < 0.3 ||
+      cognitive.engagement_level < 0.3
+    ) {
       return 'degraded';
     } else {
       return 'healthy';
@@ -374,7 +379,7 @@ export class StateService implements Disposable {
 
   private assessPluginHealth(state: UnifiedState): 'healthy' | 'degraded' | 'critical' {
     const pluginHealthValues = Object.values(state.plugins.pluginHealth);
-    
+
     if (pluginHealthValues.includes('failed')) {
       return 'critical';
     } else if (pluginHealthValues.includes('degraded')) {
@@ -386,7 +391,7 @@ export class StateService implements Disposable {
 
   private assessPerformanceHealth(state: UnifiedState): 'healthy' | 'degraded' | 'critical' {
     const perf = state.performance;
-    
+
     if (perf.errorRate > 0.1 || perf.responseTime > 2000) {
       return 'critical';
     } else if (perf.errorRate > 0.05 || perf.responseTime > 1000) {
