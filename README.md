@@ -168,7 +168,7 @@ Run the comprehensive AGI demo:
 
 ```bash
 # Build the project
-npm run build
+npm install
 
 # Test AGI capabilities
 node test/agi-demo.js
