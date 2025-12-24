@@ -2,6 +2,11 @@ import { Mutex } from '../utils/mutex.js';
 import { ValidatedThoughtData } from '../server.js';
 import { ReasoningSession } from '../memory/memory-store.js';
 
+/**
+ * Calibration function type for adjusting confidence based on historical data
+ */
+export type ConfidenceCalibrator = (rawConfidence: number, domain?: string) => number;
+
 export interface CognitiveState {
   session_id: string;
   thought_count: number;
@@ -32,6 +37,8 @@ export interface CognitiveState {
 export class StateTracker {
   private readonly state: CognitiveState;
   private readonly mutex = new Mutex();
+  private calibrator?: ConfidenceCalibrator;
+  private currentDomain?: string;
 
   constructor(initial?: Partial<CognitiveState>) {
     this.state = {
@@ -90,6 +97,31 @@ export class StateTracker {
     this.state.cognitive_efficiency = this.state.cognitive_efficiency * 0.9 + impactScore * 0.1;
   }
 
+  /**
+   * Set a confidence calibrator function for adjusting confidence based on historical data
+   * This enables REAL calibration from SQLiteStore or other persistent memory
+   */
+  public setCalibrator(calibrator: ConfidenceCalibrator): void {
+    this.calibrator = calibrator;
+  }
+
+  /**
+   * Set the current domain for calibration purposes
+   */
+  public setDomain(domain: string): void {
+    this.currentDomain = domain;
+  }
+
+  /**
+   * Get calibrated confidence (uses raw if no calibrator set)
+   */
+  public getCalibratedConfidence(rawConfidence: number): number {
+    if (this.calibrator) {
+      return this.calibrator(rawConfidence, this.currentDomain);
+    }
+    return rawConfidence;
+  }
+
   private estimateComplexity(thoughtData: ValidatedThoughtData): number {
     const thought = thoughtData.thought.toLowerCase();
     let complexity = 5;
@@ -112,7 +144,12 @@ export class StateTracker {
     if (thought.includes('uncertain') || thought.includes('unsure')) confidence -= 0.3;
     if (thought.includes('might') || thought.includes('could be')) confidence -= 0.1;
     if (thoughtData.is_revision) confidence -= 0.1;
-    return Math.min(1, Math.max(0, confidence));
+
+    // Clamp raw confidence
+    const rawConfidence = Math.min(1, Math.max(0, confidence));
+
+    // Apply calibration if available (REAL confidence adjustment from historical data)
+    return this.getCalibratedConfidence(rawConfidence);
   }
 
   private calculateMetacognitiveAwareness(thoughtData: ValidatedThoughtData): number {

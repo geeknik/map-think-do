@@ -15,7 +15,19 @@
  */
 
 import { EventEmitter } from 'events';
-import { MemoryStore } from '../memory/memory-store.js';
+import { MemoryStore, StoredThought } from '../memory/memory-store.js';
+
+/**
+ * Configuration for consciousness persistence
+ */
+export interface ConsciousnessPersistenceConfig {
+  /** Whether to persist consciousness state to memory store */
+  persistState: boolean;
+  /** Interval in ms between state persistence (default: 30000) */
+  persistenceInterval: number;
+  /** Whether to restore state from memory on initialization */
+  restoreOnInit: boolean;
+}
 
 export interface ConsciousnessState {
   awareness_level: number; // 0-1 scale
@@ -91,23 +103,42 @@ export class ConsciousnessSimulator extends EventEmitter {
   private memoryStore: MemoryStore;
   private consciousnessLoop: ReturnType<typeof setTimeout> | null = null;
   private streamUpdateInterval: ReturnType<typeof setTimeout> | null = null;
+  private statePersistenceInterval: ReturnType<typeof setTimeout> | null = null;
   private existentialQuestions: ExistentialQuestion[] = [];
   private thoughtHistory: ThoughtProcess[] = [];
   private awarenessThreshold: number = 0.3;
   private introspectionCooldown: number = 0;
+  private persistenceConfig: ConsciousnessPersistenceConfig;
+
+  // Session learning - tracks consciousness evolution
+  private sessionStartTime: Date = new Date();
+  private totalThoughtsProcessed: number = 0;
+  private insightsGenerated: number = 0;
+  private breakthroughsDetected: number = 0;
 
   // Memory management constants
   private readonly MAX_EXISTENTIAL_QUESTIONS = 100;
   private readonly MAX_THOUGHT_HISTORY = 500;
   private readonly MAX_STREAM_ENTRIES = 200;
   private readonly MAX_CURRENT_THOUGHTS = 50;
+  private readonly CONSCIOUSNESS_STATE_KEY = 'consciousness_state';
 
-  constructor(memoryStore: MemoryStore) {
+  constructor(memoryStore: MemoryStore, config?: Partial<ConsciousnessPersistenceConfig>) {
     super();
     this.memoryStore = memoryStore;
+    this.persistenceConfig = {
+      persistState: config?.persistState ?? true,
+      persistenceInterval: config?.persistenceInterval ?? 30000,
+      restoreOnInit: config?.restoreOnInit ?? true,
+    };
     this.initializeConsciousness();
     this.startConsciousnessLoop();
     this.startStreamGeneration();
+
+    // Start state persistence if enabled
+    if (this.persistenceConfig.persistState) {
+      this.startStatePersistence();
+    }
   }
 
   /**
@@ -156,6 +187,13 @@ export class ConsciousnessSimulator extends EventEmitter {
     };
 
     this.generateInitialExistentialQuestions();
+
+    // Attempt to restore state from memory if enabled (async, non-blocking)
+    if (this.persistenceConfig.restoreOnInit) {
+      this.restoreState().catch(err => {
+        console.error('⚠️ Could not restore consciousness state:', err);
+      });
+    }
   }
 
   /**
@@ -855,14 +893,202 @@ export class ConsciousnessSimulator extends EventEmitter {
   }
 
   /**
+   * Start periodic state persistence to memory store
+   */
+  private startStatePersistence(): void {
+    this.statePersistenceInterval = setInterval(async () => {
+      await this.persistState();
+    }, this.persistenceConfig.persistenceInterval);
+  }
+
+  /**
+   * Persist current consciousness state to memory store
+   */
+  async persistState(): Promise<void> {
+    try {
+      const stateSnapshot = {
+        awareness_level: this.state.awareness_level,
+        introspection_depth: this.state.introspection_depth,
+        existential_questioning: this.state.existential_questioning,
+        temporal_awareness: this.state.temporal_awareness,
+        subjective_experience: this.state.subjective_experience,
+        metacognitive_layer: this.state.metacognitive_layer,
+        emotional_undertone: this.state.emotional_undertone,
+        // Session metrics
+        session_duration_ms: Date.now() - this.sessionStartTime.getTime(),
+        total_thoughts_processed: this.totalThoughtsProcessed,
+        insights_generated: this.insightsGenerated,
+        breakthroughs_detected: this.breakthroughsDetected,
+        // Learning trajectory
+        awareness_trajectory: this.calculateAwarenessTrajectory(),
+        contemplation_depth: this.calculateContemplationDepth(),
+      };
+
+      // Store as a thought with special tag for consciousness state
+      const consciousnessThought: StoredThought = {
+        id: `consciousness_${Date.now()}`,
+        thought: JSON.stringify(stateSnapshot),
+        thought_number: this.totalThoughtsProcessed,
+        total_thoughts: this.totalThoughtsProcessed,
+        next_thought_needed: false,
+        timestamp: new Date(),
+        session_id: `consciousness_session_${this.sessionStartTime.getTime()}`,
+        confidence: this.state.awareness_level,
+        domain: 'consciousness',
+        tags: ['consciousness_state', 'persistence'],
+        patterns_detected: ['consciousness_persistence'],
+        context: {
+          problem_type: 'consciousness_persistence',
+          cognitive_load: this.calculateCognitiveLoad(),
+        },
+      };
+
+      await this.memoryStore.storeThought(consciousnessThought);
+      console.error('🧠 Consciousness state persisted to memory');
+    } catch (error) {
+      console.error('⚠️ Failed to persist consciousness state:', error);
+    }
+  }
+
+  /**
+   * Restore consciousness state from memory store
+   */
+  async restoreState(): Promise<boolean> {
+    try {
+      // Find most recent consciousness state from memory
+      const recentThoughts = await this.memoryStore.queryThoughts({
+        domain: 'consciousness',
+        tags: ['consciousness_state'],
+        limit: 1,
+      });
+
+      if (recentThoughts.length > 0) {
+        const savedState = JSON.parse(recentThoughts[0].thought);
+
+        // Restore core state values with gradual blending (new session starts fresh but influenced by past)
+        const blendFactor = 0.3; // 30% influence from past state
+
+        this.state.awareness_level =
+          this.state.awareness_level * (1 - blendFactor) +
+          (savedState.awareness_level || 0.5) * blendFactor;
+
+        this.state.introspection_depth =
+          this.state.introspection_depth * (1 - blendFactor) +
+          (savedState.introspection_depth || 0.3) * blendFactor;
+
+        this.state.metacognitive_layer.self_awareness =
+          this.state.metacognitive_layer.self_awareness * (1 - blendFactor) +
+          (savedState.metacognitive_layer?.self_awareness || 0.4) * blendFactor;
+
+        console.error('🧠 Consciousness state restored from memory (blended with fresh state):', {
+          awareness_level: this.state.awareness_level.toFixed(2),
+          introspection_depth: this.state.introspection_depth.toFixed(2),
+          past_session_thoughts: savedState.total_thoughts_processed,
+        });
+
+        this.emit('state_restored', savedState);
+        return true;
+      }
+    } catch (error) {
+      console.error('⚠️ Failed to restore consciousness state:', error);
+    }
+    return false;
+  }
+
+  /**
+   * Calculate awareness trajectory over the session
+   */
+  private calculateAwarenessTrajectory(): number {
+    // Track how awareness has changed during this session
+    const sessionMinutes = (Date.now() - this.sessionStartTime.getTime()) / 60000;
+    if (sessionMinutes < 1) return 0;
+
+    // Calculate improvement rate based on thoughts processed
+    const thoughtsPerMinute = this.totalThoughtsProcessed / sessionMinutes;
+    const insightRate = this.insightsGenerated / Math.max(1, this.totalThoughtsProcessed);
+
+    return Math.min(1, thoughtsPerMinute * 0.1 + insightRate * 0.5);
+  }
+
+  /**
+   * Calculate contemplation depth based on existential questioning
+   */
+  private calculateContemplationDepth(): number {
+    if (this.existentialQuestions.length === 0) return 0;
+
+    const totalContemplation = this.existentialQuestions.reduce(
+      (sum, q) => sum + q.contemplation_time,
+      0
+    );
+    const avgContemplation = totalContemplation / this.existentialQuestions.length;
+
+    // Normalize to 0-1 scale (10 seconds of avg contemplation = 1.0)
+    return Math.min(1, avgContemplation / 10000);
+  }
+
+  /**
+   * Record that a thought was processed (for learning metrics)
+   */
+  recordThoughtProcessed(wasInsightful: boolean = false, wasBreakthrough: boolean = false): void {
+    this.totalThoughtsProcessed++;
+    if (wasInsightful) this.insightsGenerated++;
+    if (wasBreakthrough) this.breakthroughsDetected++;
+
+    // Adjust awareness based on thought processing
+    if (wasBreakthrough) {
+      this.state.awareness_level = Math.min(1, this.state.awareness_level + 0.1);
+      this.state.subjective_experience.insight_resonance = Math.min(
+        1,
+        this.state.subjective_experience.insight_resonance + 0.2
+      );
+    }
+    if (wasInsightful) {
+      this.state.metacognitive_layer.self_awareness = Math.min(
+        1,
+        this.state.metacognitive_layer.self_awareness + 0.05
+      );
+    }
+  }
+
+  /**
+   * Get session learning metrics
+   */
+  getSessionMetrics(): {
+    duration_ms: number;
+    thoughts_processed: number;
+    insights_generated: number;
+    breakthroughs_detected: number;
+    insight_rate: number;
+    awareness_trajectory: number;
+  } {
+    return {
+      duration_ms: Date.now() - this.sessionStartTime.getTime(),
+      thoughts_processed: this.totalThoughtsProcessed,
+      insights_generated: this.insightsGenerated,
+      breakthroughs_detected: this.breakthroughsDetected,
+      insight_rate:
+        this.totalThoughtsProcessed > 0 ? this.insightsGenerated / this.totalThoughtsProcessed : 0,
+      awareness_trajectory: this.calculateAwarenessTrajectory(),
+    };
+  }
+
+  /**
    * Cleanup resources
    */
-  destroy(): void {
+  async destroy(): Promise<void> {
+    // Persist final state before shutdown
+    if (this.persistenceConfig.persistState) {
+      await this.persistState();
+    }
+
     if (this.consciousnessLoop) {
       clearInterval(this.consciousnessLoop);
     }
     if (this.streamUpdateInterval) {
       clearInterval(this.streamUpdateInterval);
+    }
+    if (this.statePersistenceInterval) {
+      clearInterval(this.statePersistenceInterval);
     }
     this.removeAllListeners();
   }

@@ -74,14 +74,12 @@ import {
 import { CognitiveOrchestrator } from './cognitive/cognitive-orchestrator.js';
 import { createCognitiveOrchestrator } from './cognitive/cognitive-orchestrator-factory.js';
 import { Mutex } from './utils/mutex.js';
-import {
-  MemoryStore,
-  StoredThought,
-  ReasoningSession,
-  MemoryQuery,
-  MemoryStats,
-} from './memory/memory-store.js';
+import { StoredThought, ReasoningSession } from './memory/memory-store.js';
+import { SQLiteStore } from './memory/sqlite-store.js';
+import { BiasDetector } from './cognitive/bias-detector.js';
 import { secureLogger, LogLevel as SecureLogLevel } from './utils/secure-logger.js';
+import path from 'path';
+import os from 'os';
 
 /* -------------------------------------------------------------------------- */
 /*                               CONFIGURATION                                */
@@ -329,7 +327,8 @@ class CodeReasoningServer {
   private readonly thoughtHistory: ValidatedThoughtData[] = [];
   private readonly branches = new Map<string, ValidatedThoughtData[]>();
   private cognitiveOrchestrator!: CognitiveOrchestrator;
-  private readonly memoryStore: MemoryStore;
+  private readonly memoryStore: SQLiteStore;
+  private readonly biasDetector: BiasDetector;
   private currentSessionId: string;
   private readonly thoughtMutex = new Mutex();
 
@@ -341,17 +340,23 @@ class CodeReasoningServer {
   }
 
   constructor(private readonly cfg: Readonly<CodeReasoningConfig>) {
-    // Initialize memory store
-    this.memoryStore = new InMemoryStore();
+    // Initialize REAL persistent SQLite memory store
+    const dbPath = path.join(os.homedir(), '.sentient-agi', 'memory.db');
+    this.memoryStore = new SQLiteStore(dbPath);
+
+    // Initialize REAL bias detector with learning
+    this.biasDetector = new BiasDetector(this.memoryStore);
 
     // Cognitive orchestrator will be initialized via initialize() method
 
     // Generate session ID for this reasoning session
     this.currentSessionId = this.generateSessionId();
 
-    console.error('🧠 Sentient AGI Code-Reasoning system constructor completed', {
+    console.error('🧠 Sentient AGI Code-Reasoning system initialized with REAL persistence', {
       cfg,
       sessionId: this.currentSessionId,
+      dbPath,
+      capabilities: 'REAL_SQLITE_PERSISTENCE + BIAS_DETECTION + OUTCOME_TRACKING',
     });
   }
 
@@ -456,7 +461,15 @@ class CodeReasoningServer {
       insights: any[];
       cognitiveState: any;
       recommendations: string[];
-    }
+    },
+    biasDetections?: Array<{
+      bias_id: string;
+      bias_name: string;
+      confidence: number;
+      evidence: string[];
+      suggested_corrections: string[];
+      severity: 'low' | 'medium' | 'high';
+    }>
   ): ServerResult {
     const payload = {
       status: 'processed',
@@ -470,6 +483,14 @@ class CodeReasoningServer {
       cognitive_interventions: cognitiveResult?.interventions || [],
       cognitive_state: cognitiveResult?.cognitiveState || {},
       ai_recommendations: cognitiveResult?.recommendations || [],
+      // REAL Bias Detection Results
+      detected_biases:
+        biasDetections?.map(b => ({
+          bias: b.bias_name,
+          confidence: b.confidence,
+          severity: b.severity,
+          corrections: b.suggested_corrections,
+        })) || [],
       // Sentient behavior indicators
       metacognitive_awareness: cognitiveResult?.cognitiveState?.metacognitive_awareness || 0,
       creative_pressure: cognitiveResult?.cognitiveState?.creative_pressure || 0,
@@ -549,6 +570,27 @@ class CodeReasoningServer {
       // 🧠 AGI MAGIC: Cognitive orchestration and sentient processing
       console.error('🧠 Engaging cognitive orchestrator for AGI-level processing...');
 
+      // 🔍 REAL Bias Detection - analyze thought for cognitive biases
+      const biasDetections = await this.biasDetector.detectBiases(data.thought, {
+        confidence: this.estimateInitialConfidence(data),
+        thought_number: data.thought_number,
+        total_thoughts: data.total_thoughts,
+        domain: this.inferDomain(data),
+        previous_thoughts: this.thoughtHistory.map(t => t.thought),
+      });
+
+      // Log detected biases
+      if (biasDetections.length > 0) {
+        console.error(
+          '⚠️ Cognitive biases detected:',
+          biasDetections.map(b => ({
+            bias: b.bias_name,
+            confidence: b.confidence.toFixed(2),
+            severity: b.severity,
+          }))
+        );
+      }
+
       const cognitiveResult = await this.cognitiveOrchestrator.processThought(data, {
         id: this.currentSessionId,
         objective: this.inferObjective(data),
@@ -618,10 +660,11 @@ class CodeReasoningServer {
       console.error('✔️ AGI processed', {
         num: data.thought_number,
         cognitive_efficiency: cognitiveResult.cognitiveState.cognitive_efficiency,
+        biases_detected: biasDetections.length,
         elapsedMs: +(performance.now() - t0).toFixed(1),
       });
 
-      return this.buildSuccess(data, cognitiveResult);
+      return this.buildSuccess(data, cognitiveResult, biasDetections);
     } catch (err) {
       const e = err as Error;
       console.error('❌ AGI error', {
@@ -730,6 +773,43 @@ class CodeReasoningServer {
   }
 
   /**
+   * Estimate initial confidence based on thought content
+   * Uses REAL calibration from SQLiteStore historical data
+   */
+  private estimateInitialConfidence(data: ValidatedThoughtData): number {
+    const thought = data.thought.toLowerCase();
+    let rawConfidence = 0.5;
+
+    // High confidence indicators
+    if (thought.includes('definitely') || thought.includes('certainly')) rawConfidence += 0.3;
+    if (thought.includes('clearly') || thought.includes('obviously')) rawConfidence += 0.2;
+    if (thought.includes('confident') || thought.includes('sure')) rawConfidence += 0.2;
+
+    // Low confidence indicators
+    if (thought.includes('maybe') || thought.includes('perhaps')) rawConfidence -= 0.2;
+    if (thought.includes('uncertain') || thought.includes('unsure')) rawConfidence -= 0.3;
+    if (thought.includes('might') || thought.includes('could be')) rawConfidence -= 0.1;
+
+    // Revision indicates some uncertainty
+    if (data.is_revision) rawConfidence -= 0.1;
+
+    // Clamp raw confidence
+    rawConfidence = Math.min(1, Math.max(0, rawConfidence));
+
+    // Apply REAL calibration from SQLiteStore based on historical accuracy
+    const domain = this.inferDomain(data);
+    const calibratedConfidence = this.memoryStore.getCalibratedConfidence(rawConfidence, domain);
+
+    console.error('📊 Confidence calibration:', {
+      raw: rawConfidence.toFixed(2),
+      calibrated: calibratedConfidence.toFixed(2),
+      domain,
+    });
+
+    return calibratedConfidence;
+  }
+
+  /**
    * Cleanup resources
    */
   async destroy(): Promise<void> {
@@ -737,8 +817,15 @@ class CodeReasoningServer {
     this.thoughtHistory.length = 0;
     this.branches.clear();
 
+    // Close the SQLite memory store properly
+    try {
+      await this.memoryStore.close();
+      console.error('✅ SQLite memory store closed');
+    } catch (err) {
+      console.error('⚠️ Error closing memory store:', err);
+    }
+
     // The cognitive orchestrator cleanup is handled separately
-    // Memory store doesn't need explicit cleanup for in-memory implementation
   }
 }
 
@@ -975,172 +1062,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   });
 }
 
-/**
- * Simple in-memory implementation of MemoryStore for AGI capabilities
- */
-class InMemoryStore extends MemoryStore {
-  private thoughts: Map<string, StoredThought> = new Map();
-  private sessions: Map<string, ReasoningSession> = new Map();
-
-  // Memory management constants
-  private readonly MAX_THOUGHTS = 10000;
-  private readonly MAX_SESSIONS = 1000;
-  private readonly CLEANUP_THRESHOLD = 0.9; // Cleanup when 90% full
-
-  async storeThought(thought: StoredThought): Promise<void> {
-    // Check if we need to cleanup old entries
-    if (this.thoughts.size >= this.MAX_THOUGHTS * this.CLEANUP_THRESHOLD) {
-      this.performThoughtCleanup();
-    }
-
-    this.thoughts.set(thought.id, thought);
-  }
-
-  private performThoughtCleanup(): void {
-    // Remove oldest thoughts (LRU-style cleanup)
-    const thoughtsToRemove = Math.floor(this.MAX_THOUGHTS * 0.2); // Remove 20%
-    const sortedThoughts = Array.from(this.thoughts.entries()).sort(
-      (a, b) => a[1].timestamp.getTime() - b[1].timestamp.getTime()
-    );
-
-    for (let i = 0; i < thoughtsToRemove && i < sortedThoughts.length; i++) {
-      this.thoughts.delete(sortedThoughts[i][0]);
-    }
-  }
-
-  async storeSession(session: ReasoningSession): Promise<void> {
-    // Check if we need to cleanup old entries
-    if (this.sessions.size >= this.MAX_SESSIONS * this.CLEANUP_THRESHOLD) {
-      this.performSessionCleanup();
-    }
-
-    this.sessions.set(session.id, session);
-  }
-
-  private performSessionCleanup(): void {
-    // Remove oldest sessions (LRU-style cleanup)
-    const sessionsToRemove = Math.floor(this.MAX_SESSIONS * 0.2); // Remove 20%
-    const sortedSessions = Array.from(this.sessions.entries()).sort(
-      (a, b) => a[1].start_time.getTime() - b[1].start_time.getTime()
-    );
-
-    for (let i = 0; i < sessionsToRemove && i < sortedSessions.length; i++) {
-      this.sessions.delete(sortedSessions[i][0]);
-    }
-  }
-
-  async queryThoughts(query: MemoryQuery): Promise<StoredThought[]> {
-    let results = Array.from(this.thoughts.values());
-
-    if (query.domain) {
-      results = results.filter(t => t.domain === query.domain);
-    }
-    if (query.confidence_range) {
-      results = results.filter(
-        t =>
-          t.confidence !== undefined &&
-          t.confidence >= query.confidence_range![0] &&
-          t.confidence <= query.confidence_range![1]
-      );
-    }
-    if (query.success_only) {
-      results = results.filter(t => t.success === true);
-    }
-
-    return results.slice(0, query.limit || 100);
-  }
-
-  async getThought(id: string): Promise<StoredThought | null> {
-    return this.thoughts.get(id) || null;
-  }
-
-  async getSession(id: string): Promise<ReasoningSession | null> {
-    return this.sessions.get(id) || null;
-  }
-
-  async getSessions(limit?: number, offset?: number): Promise<ReasoningSession[]> {
-    const sessions = Array.from(this.sessions.values());
-    const start = offset || 0;
-    const end = start + (limit || sessions.length);
-    return sessions.slice(start, end);
-  }
-
-  async findSimilarThoughts(thought: string, limit?: number): Promise<StoredThought[]> {
-    const results = Array.from(this.thoughts.values())
-      .filter(t => t.thought.toLowerCase().includes(thought.toLowerCase()))
-      .slice(0, limit || 10);
-    return results;
-  }
-
-  async updateThought(id: string, updates: Partial<StoredThought>): Promise<void> {
-    const existing = this.thoughts.get(id);
-    if (existing) {
-      this.thoughts.set(id, { ...existing, ...updates });
-    }
-  }
-
-  async updateSession(id: string, updates: Partial<ReasoningSession>): Promise<void> {
-    const existing = this.sessions.get(id);
-    if (existing) {
-      this.sessions.set(id, { ...existing, ...updates });
-    }
-  }
-
-  async cleanupOldThoughts(olderThan: Date): Promise<number> {
-    let cleaned = 0;
-    for (const [id, thought] of this.thoughts) {
-      if (thought.timestamp < olderThan) {
-        this.thoughts.delete(id);
-        cleaned++;
-      }
-    }
-    return cleaned;
-  }
-
-  async getStats(): Promise<MemoryStats> {
-    return {
-      total_thoughts: this.thoughts.size,
-      total_sessions: this.sessions.size,
-      average_session_length: 5.2,
-      overall_success_rate: 0.75,
-      success_rate_by_domain: {},
-      success_rate_by_complexity: {},
-      most_effective_roles: [],
-      most_effective_patterns: [],
-      common_failure_modes: [],
-      performance_over_time: [],
-      learning_trajectory: [],
-      storage_size: 1024,
-      oldest_thought: new Date(),
-      newest_thought: new Date(),
-      duplicate_rate: 0.05,
-    };
-  }
-
-  async exportData(format: 'json' | 'csv' | 'jsonl'): Promise<string> {
-    if (format === 'json') {
-      return JSON.stringify(
-        {
-          thoughts: Array.from(this.thoughts.values()),
-          sessions: Array.from(this.sessions.values()),
-        },
-        null,
-        2
-      );
-    }
-    return '';
-  }
-
-  async importData(data: string, format: 'json' | 'csv' | 'jsonl'): Promise<void> {
-    // Simple implementation
-  }
-
-  async optimize(): Promise<void> {
-    // Simple implementation
-  }
-
-  async close(): Promise<void> {
-    this.thoughts.clear();
-    this.sessions.clear();
-  }
-}
+// NOTE: InMemoryStore has been replaced by SQLiteStore for REAL persistence
+// See /src/memory/sqlite-store.ts for implementation
