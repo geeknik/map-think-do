@@ -10,10 +10,12 @@ import { runSecureLoggerTests } from './secure-logger.test.js';
 import { runStateManagerTests } from './state-manager.test.js';
 import { runTests as runSQLiteStoreTests } from './sqlite-store.test.js';
 import { runTests as runBiasDetectorTests } from './bias-detector.test.js';
+import { runLearningManagerTests } from './learning-manager.test.js';
+import { runCognitiveOrchestratorTests } from './cognitive-orchestrator.test.js';
 
 interface TestSuite {
   name: string;
-  runner: () => Promise<void>;
+  runner: () => Promise<void | { passed: number; failed: number }>;
 }
 
 const testSuites: TestSuite[] = [
@@ -23,6 +25,8 @@ const testSuites: TestSuite[] = [
   { name: 'StateManager', runner: runStateManagerTests },
   { name: 'SQLiteStore', runner: runSQLiteStoreTests },
   { name: 'BiasDetector', runner: runBiasDetectorTests },
+  { name: 'LearningManager', runner: runLearningManagerTests },
+  { name: 'CognitiveOrchestrator', runner: runCognitiveOrchestratorTests },
 ];
 
 async function runAllUnitTests() {
@@ -36,9 +40,17 @@ async function runAllUnitTests() {
   for (const suite of testSuites) {
     try {
       console.log(`📦 Running ${suite.name} tests...`);
-      await suite.runner();
-      passedSuites++;
-      console.log(`✅ ${suite.name} tests completed successfully\n`);
+      const result = await suite.runner();
+
+      // Check if result includes failure count (new test format)
+      if (result && typeof result === 'object' && 'failed' in result && result.failed > 0) {
+        failedSuites++;
+        failures.push(`${suite.name}: ${result.failed} test(s) failed`);
+        console.error(`❌ ${suite.name} tests had ${result.failed} failure(s)\n`);
+      } else {
+        passedSuites++;
+        console.log(`✅ ${suite.name} tests completed successfully\n`);
+      }
     } catch (error) {
       failedSuites++;
       const errorMessage = error instanceof Error ? error.message : String(error);
