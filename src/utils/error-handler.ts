@@ -1,5 +1,5 @@
 /**
- * Centralized error handling utility for the Sentient AGI system
+ * Centralized error handling utility for Map. Think. Do.
  */
 
 export enum ErrorSeverity {

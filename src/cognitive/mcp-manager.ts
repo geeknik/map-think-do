@@ -60,8 +60,8 @@ export class MCPIntegrationManager extends EventEmitter {
     this.memoryStore = memoryStore;
     this.config = {
       serversConfigPath:
-        config.serversConfigPath || path.join(os.homedir(), '.sentient-agi', 'mcp-servers.json'),
-      pluginsDir: config.pluginsDir || path.join(os.homedir(), '.sentient-agi', 'plugins'),
+        config.serversConfigPath || path.join(os.homedir(), '.map-think-do', 'mcp-servers.json'),
+      pluginsDir: config.pluginsDir || path.join(os.homedir(), '.map-think-do', 'plugins'),
       autoConnect: config.autoConnect ?? true,
       watchPlugins: config.watchPlugins ?? true,
       healthCheckInterval: config.healthCheckInterval ?? 30000,

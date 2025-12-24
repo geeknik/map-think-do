@@ -4,7 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the **Sentient AGI Reasoning Server** - a revolutionary transformation of an MCP (Model Context Protocol) server into a cognitive scaffold with AGI-like capabilities. The system implements multi-persona reasoning, metacognitive awareness, emergent behavior detection, and adaptive learning.
+This is **Map. Think. Do.** - An MCP (Model Context Protocol) server that provides structured cognitive reasoning capabilities. The system helps you:
+
+- **Map** - Break down complex problems into understandable parts
+- **Think** - Reason through solutions using multiple cognitive perspectives
+- **Do** - Execute with confidence through structured, trackable reasoning
+
+The system implements multi-persona reasoning, metacognitive awareness, bias detection, and adaptive learning.
 
 ## Development Commands
 
@@ -25,7 +31,6 @@ This is the **Sentient AGI Reasoning Server** - a revolutionary transformation o
 - `npm run test:revision` - Revision capability tests
 - `npm run test:error` - Error handling tests
 - `npm run test:perf` - Performance tests
-- `npm run agi-demo` - Demonstrate AGI capabilities
 
 ### Code Quality
 
@@ -45,30 +50,35 @@ This is the **Sentient AGI Reasoning Server** - a revolutionary transformation o
 
 **Cognitive System** (`src/cognitive/`):
 
-- `cognitive-orchestrator.ts` - Central brain coordinating all cognitive processes
+- `cognitive-orchestrator.ts` - Central coordinator for all cognitive processes
 - `plugin-system.ts` - Modular cognitive plugin architecture
-- `consciousness-simulator.ts` - Simulates consciousness-like behavior
-- `self-modifying-architecture.ts` - Enables system self-improvement
+- `learning-manager.ts` - Multi-armed bandit strategy selection and adaptive learning
+- `bias-detector.ts` - Cognitive bias detection with outcome-based learning
 
 **Cognitive Plugins** (`src/cognitive/plugins/`):
 
 - `metacognitive-plugin.ts` - Self-reflection and bias detection
-- `persona-plugin.ts` - 8 distinct cognitive personas (Strategist, Engineer, Skeptic, Creative, Analyst, Philosopher, Pragmatist, Synthesizer)
+- `persona-plugin.ts` - 8 cognitive perspectives (Strategist, Engineer, Skeptic, Creative, Analyst, Philosopher, Pragmatist, Synthesizer)
 - `external-reasoning-plugin.ts` - External tool integration
-- `phase5-integration-plugin.ts` - Advanced AGI features
 
 **Memory System** (`src/memory/`):
 
-- `memory-store.ts` - Persistent cognitive memory with experience accumulation and pattern learning
+- `sqlite-store.ts` - Persistent memory with TF-IDF search and intelligent retrieval
+- `memory-store.ts` - Memory interface with experience accumulation and pattern learning
 
 **External Reasoning** (`src/cognitive/external-reasoning/`):
 
 - `tool-registry.ts` - Registry for cognitive tools
 - `tools/` - Specialized reasoning tools (code analysis, creative synthesis, mathematical solving)
 
+**MCP Integration** (`src/cognitive/`):
+
+- `mcp-manager.ts` - External MCP server coordination
+- `real-mcp-client.ts` - Client for connecting to other MCP servers
+
 **Server Core** (`src/`):
 
-- `server.ts` - MCP server implementation with AGI enhancements
+- `server.ts` - MCP server implementation
 - `prompts/` - Modular prompt system with plugin architecture
 - `utils/` - Configuration and utility functions
 
@@ -78,21 +88,21 @@ This is the **Sentient AGI Reasoning Server** - a revolutionary transformation o
 2. **Event-Driven**: Uses EventEmitter pattern for loose coupling between components
 3. **Memory Integration**: All cognitive processes contribute to and learn from persistent memory
 4. **Metacognitive Awareness**: System continuously reflects on and optimizes its own reasoning
-5. **Multi-Persona**: Different cognitive styles activated based on context and needs
+5. **Multi-Persona**: Different cognitive perspectives activated based on context and needs
 
 ### Thought Processing Flow
 
 1. Input validation and parsing in `server.ts`
-2. Cognitive orchestrator analyzes context and selects appropriate plugins
-3. Multiple personas contribute perspectives in parallel
-4. Metacognitive plugin provides self-reflection and bias detection
+2. Bias detection analyzes thought for cognitive biases
+3. Cognitive orchestrator selects appropriate plugins and strategies
+4. Multiple personas contribute perspectives in parallel
 5. Memory system stores experience and recognizes patterns
 6. External reasoning tools activated for specialized tasks
-7. Results synthesized with cognitive metrics and interventions
+7. Results synthesized with cognitive metrics and recommendations
 
 ### MCP Protocol Integration
 
-The system maintains full MCP compatibility while adding AGI capabilities:
+The system maintains full MCP compatibility:
 
 - **Tools**: `code-reasoning` tool for structured thought processing
 - **Resources**: Access to cognitive state and memory
@@ -103,14 +113,18 @@ The system maintains full MCP compatibility while adding AGI capabilities:
 Every response includes real-time cognitive analytics:
 
 - `metacognitive_awareness` - Self-reflection depth (0-1)
-- `creative_pressure` - Innovation potential (0-1)
 - `breakthrough_likelihood` - Discovery probability (0-1)
 - `cognitive_flexibility` - Adaptability measure (0-1)
-- `insight_potential` - Eureka moment probability (0-1)
+- `detected_biases` - Cognitive biases found in reasoning
+- `recommended_external_tools` - Suggested tools from connected MCP servers
 
-## Security Considerations
+## Data Storage
 
-A `security/` directory has been added containing security management functionality. Always validate inputs and be cautious when processing external data or running external tools.
+All persistent data is stored in `~/.map-think-do/`:
+
+- `memory.db` - SQLite database for thoughts, sessions, and learning
+- `mcp-servers.json` - Configuration for external MCP server connections
+- `plugins/` - Dynamic cognitive plugins
 
 ## Development Notes
 
@@ -128,4 +142,4 @@ Tests validate not just functional correctness but also cognitive behavior:
 - Metacognitive awareness accuracy
 - Memory integration effectiveness
 - Plugin coordination behavior
-- Emergent intelligence detection
+- Bias detection accuracy

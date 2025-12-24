@@ -1,39 +1,34 @@
 {
-  "name": "@geeknik/sentient-agi-reasoning",
-  "version": "1.0.0-AGI-MAGIC",
-  "description": "Revolutionary AGI cognitive scaffold with sentient reasoning, multi-persona intelligence, metacognitive awareness, and emergent behavior capabilities",
-  "author": "Brian Carpenter (geeknik) - AGI Fork | Original: Matt Westgate",
+  "name": "@geeknik/map-think-do",
+  "version": "1.0.0",
+  "description": "Map. Think. Do. - A cognitive reasoning MCP server that maps problems, thinks through solutions, and guides action with structured reasoning, multi-persona intelligence, and adaptive learning.",
+  "author": "Brian Carpenter (geeknik) | Original: Matt Westgate",
   "license": "MIT",
   "type": "module",
   "keywords": [
-    "agi",
-    "artificial-general-intelligence",
-    "sentient-ai",
-    "cognitive-scaffold",
-    "metacognitive-awareness",
-    "multi-persona-reasoning",
-    "emergent-behavior",
+    "map-think-do",
+    "cognitive-reasoning",
+    "problem-solving",
+    "structured-thinking",
     "mcp",
     "model-context-protocol",
-    "cognitive-orchestration",
-    "self-reflection",
-    "breakthrough-detection",
+    "multi-persona-reasoning",
     "adaptive-learning",
     "memory-integration",
-    "creative-synthesis",
-    "persona-intelligence",
-    "cognitive-flexibility",
-    "insight-cultivation",
+    "cognitive-orchestration",
+    "metacognitive-awareness",
+    "bias-detection",
+    "insight-detection",
     "claude",
     "anthropic",
-    "revolutionary-ai"
+    "ai-reasoning"
   ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/geeknik/map-think-do.git"
   },
   "bin": {
-    "sentient-agi-reasoning": "dist/index.js"
+    "map-think-do": "dist/index.js"
   },
   "files": [
     "dist"
@@ -46,7 +41,7 @@
     "dev": "tsc --watch",
     "start": "node dist/index.js",
     "debug": "node dist/index.js --debug",
-    "agi-demo": "node test/agi-demo.js",
+    "demo": "node examples/agi-demo.js",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",

@@ -1,13 +1,15 @@
 /**
- * Unit Test Runner for Phase 1 Improvements
+ * Unit Test Runner for Map. Think. Do.
  *
- * Runs all unit tests for the architectural improvements implemented in Phase 1
+ * Runs all unit tests for core components
  */
 
 import { runCircularBufferTests } from './circular-buffer.test.js';
 import { runErrorBoundaryTests } from './error-boundary.test.js';
 import { runSecureLoggerTests } from './secure-logger.test.js';
 import { runStateManagerTests } from './state-manager.test.js';
+import { runTests as runSQLiteStoreTests } from './sqlite-store.test.js';
+import { runTests as runBiasDetectorTests } from './bias-detector.test.js';
 
 interface TestSuite {
   name: string;
@@ -16,13 +18,15 @@ interface TestSuite {
 
 const testSuites: TestSuite[] = [
   { name: 'CircularBuffer', runner: runCircularBufferTests },
-  // { name: 'ErrorBoundary', runner: runErrorBoundaryTests }, // Temporarily disabled
+  { name: 'ErrorBoundary', runner: runErrorBoundaryTests },
   { name: 'SecureLogger', runner: runSecureLoggerTests },
   { name: 'StateManager', runner: runStateManagerTests },
+  { name: 'SQLiteStore', runner: runSQLiteStoreTests },
+  { name: 'BiasDetector', runner: runBiasDetectorTests },
 ];
 
 async function runAllUnitTests() {
-  console.log('🚀 Starting Phase 1 Unit Test Suite...\n');
+  console.log('🗺️ Map. Think. Do. - Unit Test Suite\n');
 
   const startTime = Date.now();
   let passedSuites = 0;
@@ -57,10 +61,10 @@ async function runAllUnitTests() {
   }
 
   if (failedSuites === 0) {
-    console.log('\n🎉 All unit tests passed! Phase 1 implementations are working correctly.');
+    console.log('\n✅ All unit tests passed!');
     return true;
   } else {
-    console.log('\n💥 Some tests failed. Please fix the issues before proceeding.');
+    console.log('\n❌ Some tests failed. Please fix the issues before proceeding.');
     return false;
   }
 }

@@ -114,7 +114,7 @@ export class RealMCPClient extends EventEmitter {
 
       const client = new Client(
         {
-          name: 'sentient-agi-client',
+          name: 'map-think-do-client',
           version: '1.0.0',
         },
         {

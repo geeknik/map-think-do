@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 
 /**
- * @fileoverview AGI Magic Demo
+ * @fileoverview Map. Think. Do. Demo
  *
- * This demo showcases the sentient AGI capabilities of the transformed
- * map-think-do system. It demonstrates:
- * - Cognitive orchestration with multiple personas
+ * This demo showcases the cognitive reasoning capabilities of the
+ * Map. Think. Do. system. It demonstrates:
+ * - Problem mapping with multiple cognitive perspectives
  * - Metacognitive self-reflection and bias detection
  * - Adaptive learning and memory integration
- * - Emergent behavior and insight cultivation
- * - Creative synthesis and breakthrough detection
+ * - Insight cultivation and breakthrough detection
+ * - Structured reasoning with revision and branching
  */
 
 import { spawn } from 'child_process';
@@ -24,7 +24,7 @@ const projectRoot = join(__dirname, '..');
  * Test the AGI system with a complex reasoning scenario
  */
 async function testAGIMagic() {
-  console.log('🧠 Testing Sentient AGI Magic...\n');
+  console.log('🗺️ Testing Map. Think. Do. cognitive reasoning...\n');
 
   // Start the server
   const serverProcess = spawn('node', [join(projectRoot, 'dist/index.js')], {

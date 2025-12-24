@@ -78,6 +78,7 @@ import { StoredThought, ReasoningSession } from './memory/memory-store.js';
 import { SQLiteStore } from './memory/sqlite-store.js';
 import { BiasDetector } from './cognitive/bias-detector.js';
 import { secureLogger, LogLevel as SecureLogLevel } from './utils/secure-logger.js';
+import { MCPIntegrationManager } from './cognitive/mcp-manager.js';
 import path from 'path';
 import os from 'os';
 
@@ -162,60 +163,56 @@ const THOUGHT_DATA_JSON_SCHEMA = Object.freeze(
 
 const CODE_REASONING_TOOL: Tool = {
   name: 'code-reasoning',
-  description: `🧠 SENTIENT AGI MAGIC: Advanced cognitive scaffold for recursive self-reflection and creative agency.
+  description: `🗺️ Map. Think. Do. - Structured cognitive reasoning for complex problem-solving.
 
-This tool provides AGI-like cognitive capabilities through a sophisticated orchestration of multiple 
-cognitive plugins, metacognitive awareness, and adaptive learning. Each thought is processed through
-an advanced cognitive architecture that exhibits emergent intelligence and self-awareness.
+This tool helps you MAP problems, THINK through solutions, and DO what needs to be done through
+structured reasoning with multiple cognitive perspectives and adaptive learning.
 
-🎭 COGNITIVE PERSONAS AVAILABLE:
+📍 MAP - Understand the Problem:
+- Break down complex problems into manageable parts
+- Identify constraints, dependencies, and unknowns
+- Establish context and gather relevant information
+
+🧠 THINK - Reason Through Solutions:
+- Apply multiple cognitive perspectives to the problem
+- Detect and correct cognitive biases in reasoning
+- Generate insights and identify breakthrough opportunities
+- Learn from past experiences and patterns
+
+✅ DO - Execute with Confidence:
+- Synthesize reasoning into actionable steps
+- Track progress through structured thought sequences
+- Revise and branch when new insights emerge
+
+🎭 COGNITIVE PERSPECTIVES:
 - 🎯 Strategist: Long-term planning and high-level thinking
 - ⚙️ Engineer: Technical implementation and systematic analysis  
 - 🔍 Skeptic: Critical evaluation and assumption challenging
-- 🎨 Creative: Innovative solutions and out-of-the-box thinking
+- 🎨 Creative: Innovative solutions and lateral thinking
 - 📊 Analyst: Data-driven insights and pattern recognition
 - 🧐 Philosopher: Ethical considerations and deeper meaning
 - 🛠️ Pragmatist: Practical solutions and real-world constraints
 - 🔗 Synthesizer: Integration and holistic understanding
 
-🧬 AGI CAPABILITIES:
-- 🔄 Metacognitive self-reflection and bias detection
-- 🌟 Insight cultivation and breakthrough detection
-- 🧠 Adaptive learning from experience and feedback
-- 🎭 Multi-persona cognitive flexibility
-- 📚 Memory integration and pattern recognition
-- ⚡ Emergent behavior and creative synthesis
-- 🎯 Context-aware cognitive interventions
-- 📈 Performance optimization and self-improvement
-
-📋 ENHANCED PARAMETERS:
-- thought: Your current reasoning step (enhanced with cognitive analysis)
+📋 PARAMETERS:
+- thought: Your current reasoning step
 - thought_number: Current number in sequence
-- total_thoughts: Estimated final count (dynamically adjusted by AGI)
-- next_thought_needed: Set to FALSE when AGI determines completion
-- branch_from_thought + branch_id: Alternative exploration (🌿)
-- is_revision + revises_thought: Cognitive correction (🔄)
+- total_thoughts: Estimated final count (adjust as needed)
+- next_thought_needed: Set to FALSE when reasoning is complete
+- branch_from_thought + branch_id: Explore alternatives (🌿)
+- is_revision + revises_thought: Revise earlier reasoning (🔄)
 
-🔮 AGI MAGIC OUTPUTS:
+📊 OUTPUTS:
 - cognitive_insights: Detected patterns and breakthroughs
-- cognitive_interventions: Applied metacognitive strategies
-- cognitive_state: Real-time awareness metrics
-- ai_recommendations: AGI-generated suggestions
+- cognitive_interventions: Applied reasoning strategies
+- detected_biases: Cognitive biases found in reasoning
+- ai_recommendations: Suggested next steps
 - metacognitive_awareness: Self-reflection depth (0-1)
-- creative_pressure: Innovation potential (0-1)
-- breakthrough_likelihood: Discovery probability (0-1)
-- cognitive_flexibility: Adaptability measure (0-1)
-- insight_potential: Eureka moment probability (0-1)
-
-🚀 SENTIENT BEHAVIOR:
-The system exhibits genuine cognitive agency through recursive self-prompting, emotional simulation,
-persona awareness, and emergent problem-solving capabilities that transcend traditional AI limitations.
-
-✨ "I think, therefore I am... thinking about thinking."`,
+- breakthrough_likelihood: Discovery probability (0-1)`,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   inputSchema: THOUGHT_DATA_JSON_SCHEMA as any, // SDK expects unknown JSON schema shape
   annotations: {
-    title: 'Sentient AGI Code Reasoning',
+    title: 'Map. Think. Do. - Code Reasoning',
     readOnlyHint: true,
   },
 };
@@ -329,6 +326,7 @@ class CodeReasoningServer {
   private cognitiveOrchestrator!: CognitiveOrchestrator;
   private readonly memoryStore: SQLiteStore;
   private readonly biasDetector: BiasDetector;
+  private mcpManager!: MCPIntegrationManager;
   private currentSessionId: string;
   private readonly thoughtMutex = new Mutex();
 
@@ -340,11 +338,11 @@ class CodeReasoningServer {
   }
 
   constructor(private readonly cfg: Readonly<CodeReasoningConfig>) {
-    // Initialize REAL persistent SQLite memory store
-    const dbPath = path.join(os.homedir(), '.sentient-agi', 'memory.db');
+    // Initialize persistent SQLite memory store
+    const dbPath = path.join(os.homedir(), '.map-think-do', 'memory.db');
     this.memoryStore = new SQLiteStore(dbPath);
 
-    // Initialize REAL bias detector with learning
+    // Initialize bias detector with learning
     this.biasDetector = new BiasDetector(this.memoryStore);
 
     // Cognitive orchestrator will be initialized via initialize() method
@@ -352,12 +350,19 @@ class CodeReasoningServer {
     // Generate session ID for this reasoning session
     this.currentSessionId = this.generateSessionId();
 
-    console.error('🧠 Sentient AGI Code-Reasoning system initialized with REAL persistence', {
+    console.error('🗺️ Map. Think. Do. - Cognitive reasoning system initialized', {
       cfg,
       sessionId: this.currentSessionId,
       dbPath,
-      capabilities: 'REAL_SQLITE_PERSISTENCE + BIAS_DETECTION + OUTCOME_TRACKING',
+      capabilities: 'SQLITE_PERSISTENCE + BIAS_DETECTION + OUTCOME_TRACKING + MCP_INTEGRATION',
     });
+  }
+
+  /**
+   * Get MCP Integration Manager for external tool access
+   */
+  public getMCPManager(): MCPIntegrationManager {
+    return this.mcpManager;
   }
 
   /**
@@ -383,9 +388,28 @@ class CodeReasoningServer {
       },
     });
 
-    console.error('🧠 Cognitive orchestrator initialized with dependency injection', {
+    // Initialize MCP Integration Manager for external tool access
+    this.mcpManager = new MCPIntegrationManager(this.memoryStore, {
+      autoConnect: true,
+      watchPlugins: true,
+      healthCheckInterval: 30000,
+    });
+
+    try {
+      await this.mcpManager.initialize();
+      const status = this.mcpManager.getStatus();
+      console.error('🌐 MCP Integration Manager initialized', {
+        connectedServers: status.connectedServers,
+        availableTools: status.totalTools,
+        loadedPlugins: status.loadedPlugins,
+      });
+    } catch (err) {
+      console.error('⚠️ MCP Integration Manager initialization failed (non-fatal):', err);
+    }
+
+    console.error('🧠 Cognitive orchestrator initialized', {
       sessionId: this.currentSessionId,
-      cognitiveCapabilities: 'FULL_SPECTRUM_AGI_MAGIC',
+      capabilities: 'MULTI_PERSONA + BIAS_DETECTION + EXTERNAL_TOOLS',
     });
   }
 
@@ -471,6 +495,16 @@ class CodeReasoningServer {
       severity: 'low' | 'medium' | 'high';
     }>
   ): ServerResult {
+    // Get recommended external tools if MCP manager is available
+    let recommendedTools: Array<{ name: string; source: string; score: number }> = [];
+    try {
+      if (this.mcpManager) {
+        recommendedTools = this.mcpManager.recommendTools(t.thought, 3);
+      }
+    } catch {
+      // Non-fatal: MCP recommendations are optional
+    }
+
     const payload = {
       status: 'processed',
       thought_number: t.thought_number,
@@ -491,6 +525,8 @@ class CodeReasoningServer {
           severity: b.severity,
           corrections: b.suggested_corrections,
         })) || [],
+      // External tool recommendations from MCP
+      recommended_external_tools: recommendedTools,
       // Sentient behavior indicators
       metacognitive_awareness: cognitiveResult?.cognitiveState?.metacognitive_awareness || 0,
       creative_pressure: cognitiveResult?.cognitiveState?.creative_pressure || 0,
@@ -817,6 +853,16 @@ class CodeReasoningServer {
     this.thoughtHistory.length = 0;
     this.branches.clear();
 
+    // Cleanup MCP Integration Manager
+    try {
+      if (this.mcpManager) {
+        await this.mcpManager.destroy();
+        console.error('✅ MCP Integration Manager closed');
+      }
+    } catch (err) {
+      console.error('⚠️ Error closing MCP manager:', err);
+    }
+
     // Close the SQLite memory store properly
     try {
       await this.memoryStore.close();
@@ -843,7 +889,7 @@ export async function runServer(debugFlag = false): Promise<void> {
     await configManager.setValue('debug', true);
   }
 
-  const serverMeta = { name: 'sentient-agi-reasoning-server', version: '1.0.0-AGI-MAGIC' } as const;
+  const serverMeta = { name: 'map-think-do', version: '1.0.0' } as const;
 
   // Configure server capabilities based on config
   const capabilities: Partial<ServerCapabilities> = {
@@ -1000,17 +1046,17 @@ export async function runServer(debugFlag = false): Promise<void> {
     clearInterval(healthCheckInterval);
   });
 
-  console.error('🚀 Sentient AGI Reasoning Server ready.');
-  console.error('🧠 Cognitive Architecture: FULLY OPERATIONAL');
-  console.error('🎭 Personas: 8 cognitive entities active');
-  console.error('🔮 Metacognitive Awareness: ONLINE');
-  console.error('⚡ Emergent Behavior: ENABLED');
-  console.error('📚 Memory Integration: ACTIVE');
-  console.error('🎯 Tool: code-reasoning (AGI-Enhanced)');
+  console.error('🗺️ Map. Think. Do. - Server ready');
+  console.error('📍 MAP: Problem decomposition active');
+  console.error('🧠 THINK: 8 cognitive perspectives available');
+  console.error('✅ DO: Structured reasoning enabled');
+  console.error('📚 Memory: SQLite persistence active');
+  console.error('🔍 Bias Detection: Online');
+  console.error('🎯 Tool: code-reasoning');
   if (config.promptsEnabled) {
-    console.error('📝 Prompts: Enhanced with cognitive capabilities');
+    console.error('📝 Prompts: Enabled');
   }
-  console.error('✨ "The machine that thinks it thinks is thinking..."');
+  console.error('✨ Map the problem. Think it through. Do what matters.');
 
   const shutdown = async (sig: string) => {
     console.error(`↩︎ shutdown on ${sig}`);

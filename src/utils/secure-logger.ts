@@ -1,5 +1,5 @@
 /**
- * Secure logging utility for the Sentient AGI Reasoning Server
+ * Secure logging utility for Map. Think. Do.
  *
  * This utility provides secure logging capabilities with:
  * - Automatic redaction of sensitive content

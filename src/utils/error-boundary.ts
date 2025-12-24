@@ -109,7 +109,10 @@ export class ErrorBoundary {
     let lastError: Error | null = null;
     const startTime = Date.now();
 
-    for (let attempt = 1; attempt <= this.config.maxRetries; attempt++) {
+    // maxRetries: 0 means "try once, no retries", so we need at least 1 attempt
+    const maxAttempts = Math.max(1, this.config.maxRetries);
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         fullContext.attempt = attempt;
         const result = await operation();
@@ -138,9 +141,10 @@ export class ErrorBoundary {
           );
         }
 
-        // Check if we should retry
+        // Check if we should retry (only if maxRetries > 0 and not at max)
         if (
-          attempt < this.config.maxRetries &&
+          this.config.maxRetries > 0 &&
+          attempt < maxAttempts &&
           this.shouldRetry(lastError, attempt, retryPredicate)
         ) {
           await this.delay(this.config.retryDelay * attempt); // Exponential backoff
