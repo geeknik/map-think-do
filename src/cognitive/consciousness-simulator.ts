@@ -16,6 +16,7 @@
 
 import { EventEmitter } from 'events';
 import { MemoryStore, StoredThought } from '../memory/memory-store.js';
+import { getIntervalManager } from '../utils/interval-manager.js';
 
 /**
  * Configuration for consciousness persistence
@@ -101,14 +102,11 @@ export interface ExistentialQuestion {
 export class ConsciousnessSimulator extends EventEmitter {
   private state!: ConsciousnessState;
   private memoryStore: MemoryStore;
-  private consciousnessLoop: ReturnType<typeof setTimeout> | null = null;
-  private streamUpdateInterval: ReturnType<typeof setTimeout> | null = null;
-  private statePersistenceInterval: ReturnType<typeof setTimeout> | null = null;
   private existentialQuestions: ExistentialQuestion[] = [];
   private thoughtHistory: ThoughtProcess[] = [];
-  private awarenessThreshold: number = 0.3;
   private introspectionCooldown: number = 0;
   private persistenceConfig: ConsciousnessPersistenceConfig;
+  private readonly instanceId: string;
 
   // Session learning - tracks consciousness evolution
   private sessionStartTime: Date = new Date();
@@ -117,14 +115,19 @@ export class ConsciousnessSimulator extends EventEmitter {
   private breakthroughsDetected: number = 0;
 
   // Memory management constants
-  private readonly MAX_EXISTENTIAL_QUESTIONS = 100;
-  private readonly MAX_THOUGHT_HISTORY = 500;
-  private readonly MAX_STREAM_ENTRIES = 200;
-  private readonly MAX_CURRENT_THOUGHTS = 50;
-  private readonly CONSCIOUSNESS_STATE_KEY = 'consciousness_state';
+  private static readonly MAX_EXISTENTIAL_QUESTIONS = 100;
+  private static readonly MAX_THOUGHT_HISTORY = 500;
+  private static readonly MAX_STREAM_ENTRIES = 200;
+  private static readonly MAX_CURRENT_THOUGHTS = 50;
+
+  // Interval IDs for cleanup
+  private static readonly INTERVAL_CONSCIOUSNESS_LOOP = 'consciousness_loop';
+  private static readonly INTERVAL_STREAM_UPDATE = 'consciousness_stream';
+  private static readonly INTERVAL_STATE_PERSISTENCE = 'consciousness_persistence';
 
   constructor(memoryStore: MemoryStore, config?: Partial<ConsciousnessPersistenceConfig>) {
     super();
+    this.instanceId = `cs_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     this.memoryStore = memoryStore;
     this.persistenceConfig = {
       persistState: config?.persistState ?? true,
@@ -139,6 +142,13 @@ export class ConsciousnessSimulator extends EventEmitter {
     if (this.persistenceConfig.persistState) {
       this.startStatePersistence();
     }
+  }
+
+  /**
+   * Get unique interval ID for this instance
+   */
+  private getIntervalId(baseId: string): string {
+    return `${baseId}_${this.instanceId}`;
   }
 
   /**
@@ -200,18 +210,28 @@ export class ConsciousnessSimulator extends EventEmitter {
    * Start the main consciousness processing loop
    */
   private startConsciousnessLoop(): void {
-    this.consciousnessLoop = setInterval(() => {
-      this.processConsciousness();
-    }, 1000); // Process every second
+    const intervalManager = getIntervalManager();
+    intervalManager.register({
+      id: this.getIntervalId(ConsciousnessSimulator.INTERVAL_CONSCIOUSNESS_LOOP),
+      callback: () => this.processConsciousness(),
+      intervalMs: 1000, // Process every second
+      category: 'core',
+      description: 'Main consciousness processing loop',
+    });
   }
 
   /**
    * Start stream of consciousness generation
    */
   private startStreamGeneration(): void {
-    this.streamUpdateInterval = setInterval(() => {
-      this.generateStreamEntry();
-    }, 2000); // Generate stream entry every 2 seconds
+    const intervalManager = getIntervalManager();
+    intervalManager.register({
+      id: this.getIntervalId(ConsciousnessSimulator.INTERVAL_STREAM_UPDATE),
+      callback: () => this.generateStreamEntry(),
+      intervalMs: 2000, // Generate stream entry every 2 seconds
+      category: 'optional',
+      description: 'Stream of consciousness generation',
+    });
   }
 
   /**
@@ -373,7 +393,10 @@ export class ConsciousnessSimulator extends EventEmitter {
     };
 
     this.existentialQuestions.push(question);
-    this.enforceArrayLimit(this.existentialQuestions, this.MAX_EXISTENTIAL_QUESTIONS);
+    this.enforceArrayLimit(
+      this.existentialQuestions,
+      ConsciousnessSimulator.MAX_EXISTENTIAL_QUESTIONS
+    );
     this.emit('existential_question', question);
   }
 
@@ -504,10 +527,13 @@ export class ConsciousnessSimulator extends EventEmitter {
    */
   private addThought(thought: ThoughtProcess): void {
     this.state.current_thoughts.push(thought);
-    this.enforceArrayLimit(this.state.current_thoughts, this.MAX_CURRENT_THOUGHTS);
+    this.enforceArrayLimit(
+      this.state.current_thoughts,
+      ConsciousnessSimulator.MAX_CURRENT_THOUGHTS
+    );
 
     this.thoughtHistory.push(thought);
-    this.enforceArrayLimit(this.thoughtHistory, this.MAX_THOUGHT_HISTORY);
+    this.enforceArrayLimit(this.thoughtHistory, ConsciousnessSimulator.MAX_THOUGHT_HISTORY);
 
     // Keep history manageable
     if (this.thoughtHistory.length > 100) {
@@ -700,7 +726,10 @@ export class ConsciousnessSimulator extends EventEmitter {
     };
 
     this.state.stream_of_consciousness.push(streamEntry);
-    this.enforceArrayLimit(this.state.stream_of_consciousness, this.MAX_STREAM_ENTRIES);
+    this.enforceArrayLimit(
+      this.state.stream_of_consciousness,
+      ConsciousnessSimulator.MAX_STREAM_ENTRIES
+    );
 
     // Keep stream manageable
     if (this.state.stream_of_consciousness.length > 50) {
@@ -888,7 +917,10 @@ export class ConsciousnessSimulator extends EventEmitter {
         generated_at: new Date(),
         contemplation_time: 0,
       });
-      this.enforceArrayLimit(this.existentialQuestions, this.MAX_EXISTENTIAL_QUESTIONS);
+      this.enforceArrayLimit(
+        this.existentialQuestions,
+        ConsciousnessSimulator.MAX_EXISTENTIAL_QUESTIONS
+      );
     }
   }
 
@@ -896,9 +928,16 @@ export class ConsciousnessSimulator extends EventEmitter {
    * Start periodic state persistence to memory store
    */
   private startStatePersistence(): void {
-    this.statePersistenceInterval = setInterval(async () => {
-      await this.persistState();
-    }, this.persistenceConfig.persistenceInterval);
+    const intervalManager = getIntervalManager();
+    intervalManager.register({
+      id: this.getIntervalId(ConsciousnessSimulator.INTERVAL_STATE_PERSISTENCE),
+      callback: async () => {
+        await this.persistState();
+      },
+      intervalMs: this.persistenceConfig.persistenceInterval,
+      category: 'optional',
+      description: 'Consciousness state persistence',
+    });
   }
 
   /**
@@ -1081,15 +1120,20 @@ export class ConsciousnessSimulator extends EventEmitter {
       await this.persistState();
     }
 
-    if (this.consciousnessLoop) {
-      clearInterval(this.consciousnessLoop);
+    // Stop all intervals using the interval manager
+    const intervalManager = getIntervalManager();
+    intervalManager.remove(this.getIntervalId(ConsciousnessSimulator.INTERVAL_CONSCIOUSNESS_LOOP));
+    intervalManager.remove(this.getIntervalId(ConsciousnessSimulator.INTERVAL_STREAM_UPDATE));
+    intervalManager.remove(this.getIntervalId(ConsciousnessSimulator.INTERVAL_STATE_PERSISTENCE));
+
+    // Clear arrays to free memory
+    this.existentialQuestions = [];
+    this.thoughtHistory = [];
+    if (this.state) {
+      this.state.current_thoughts = [];
+      this.state.stream_of_consciousness = [];
     }
-    if (this.streamUpdateInterval) {
-      clearInterval(this.streamUpdateInterval);
-    }
-    if (this.statePersistenceInterval) {
-      clearInterval(this.statePersistenceInterval);
-    }
+
     this.removeAllListeners();
   }
 }

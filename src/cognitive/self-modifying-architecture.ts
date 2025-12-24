@@ -16,6 +16,7 @@
 
 import { EventEmitter } from 'events';
 import { MemoryStore } from '../memory/memory-store.js';
+import { getIntervalManager } from '../utils/interval-manager.js';
 
 export interface ArchitecturalComponent {
   id: string;
@@ -118,17 +119,38 @@ export class SelfModifyingArchitecture extends EventEmitter {
   private pathways: Map<string, CognitivePathway> = new Map();
   private patterns: Map<string, ReasoningPattern> = new Map();
   private mutations: Map<string, ArchitecturalMutation> = new Map();
-  private memoryStore: MemoryStore;
-  private adaptationInterval: NodeJS.Timeout | null = null;
   private evolutionCycle: number = 0;
   private stabilityThreshold: number = 0.6;
   private innovationPressure: number = 0.3;
+  private readonly instanceId: string;
+  private isInitialized: boolean = false;
+
+  // Memory limits
+  private static readonly MAX_MUTATIONS = 100;
+  private static readonly INTERVAL_ADAPTATION = 'sma_adaptation';
 
   constructor(memoryStore: MemoryStore) {
     super();
-    this.memoryStore = memoryStore;
+    this.instanceId = `sma_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     this.initializeArchitecture();
+    // Lazy initialization - don't start interval in constructor
+    // Call startAdaptationLoop() explicitly when needed
+  }
+
+  /**
+   * Get unique interval ID for this instance
+   */
+  private getIntervalId(baseId: string): string {
+    return `${baseId}_${this.instanceId}`;
+  }
+
+  /**
+   * Start the adaptation loop - call explicitly to enable
+   */
+  enableAdaptation(): void {
+    if (this.isInitialized) return;
     this.startAdaptationLoop();
+    this.isInitialized = true;
   }
 
   /**
@@ -316,9 +338,14 @@ export class SelfModifyingArchitecture extends EventEmitter {
    * Start adaptation loop
    */
   private startAdaptationLoop(): void {
-    this.adaptationInterval = setInterval(() => {
-      this.performAdaptationCycle();
-    }, 5000); // Adapt every 5 seconds
+    const intervalManager = getIntervalManager();
+    intervalManager.register({
+      id: this.getIntervalId(SelfModifyingArchitecture.INTERVAL_ADAPTATION),
+      callback: () => this.performAdaptationCycle(),
+      intervalMs: 5000, // Adapt every 5 seconds
+      category: 'optional',
+      description: 'Self-modifying architecture adaptation',
+    });
   }
 
   /**
@@ -765,9 +792,23 @@ export class SelfModifyingArchitecture extends EventEmitter {
    * Cleanup resources
    */
   destroy(): void {
-    if (this.adaptationInterval) {
-      clearInterval(this.adaptationInterval);
+    const intervalManager = getIntervalManager();
+    intervalManager.remove(this.getIntervalId(SelfModifyingArchitecture.INTERVAL_ADAPTATION));
+
+    // Clear maps to free memory
+    this.components.clear();
+    this.pathways.clear();
+    this.patterns.clear();
+
+    // Limit mutations history
+    if (this.mutations.size > SelfModifyingArchitecture.MAX_MUTATIONS) {
+      const mutationEntries = Array.from(this.mutations.entries());
+      mutationEntries.sort((a, b) => b[1].created_at.getTime() - a[1].created_at.getTime());
+      this.mutations = new Map(mutationEntries.slice(0, SelfModifyingArchitecture.MAX_MUTATIONS));
     }
+    this.mutations.clear();
+
     this.removeAllListeners();
+    this.isInitialized = false;
   }
 }

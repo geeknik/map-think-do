@@ -14,6 +14,7 @@
 
 import { EventEmitter } from 'events';
 import { MemoryStore } from '../memory/memory-store.js';
+import { getIntervalManager } from '../utils/interval-manager.js';
 
 export interface MCPServer {
   id: string;
@@ -96,43 +97,77 @@ export class MCPIntegrationSystem extends EventEmitter {
   private tools: Map<string, MCPTool> = new Map();
   private resources: Map<string, MCPResource> = new Map();
   private prompts: Map<string, MCPPrompt> = new Map();
-  private memoryStore: MemoryStore;
-  private discoveryInterval: NodeJS.Timeout | null = null;
-  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private readonly instanceId: string;
+  private isInitialized: boolean = false;
+
+  // Interval IDs
+  private static readonly INTERVAL_DISCOVERY = 'mcp_discovery';
+  private static readonly INTERVAL_HEARTBEAT = 'mcp_heartbeat';
 
   constructor(memoryStore: MemoryStore) {
     super();
-    this.memoryStore = memoryStore;
+    this.instanceId = `mcp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    // Lazy initialization - don't start intervals in constructor
+    // Call initialize() explicitly when needed
+  }
+
+  /**
+   * Get unique interval ID for this instance
+   */
+  private getIntervalId(baseId: string): string {
+    return `${baseId}_${this.instanceId}`;
+  }
+
+  /**
+   * Initialize the MCP system - call this to start discovery and heartbeat
+   */
+  initialize(): void {
+    if (this.isInitialized) return;
     this.startDiscovery();
     this.startHeartbeat();
+    this.isInitialized = true;
   }
 
   /**
    * Start automatic server discovery
    */
   private startDiscovery(): void {
-    this.discoveryInterval = setInterval(async () => {
-      try {
-        await this.discoverServers();
-      } catch (error) {
-        console.error('Error during server discovery:', error);
-        this.emit('discovery_error', error);
-      }
-    }, 30000); // Discover every 30 seconds
+    const intervalManager = getIntervalManager();
+    intervalManager.register({
+      id: this.getIntervalId(MCPIntegrationSystem.INTERVAL_DISCOVERY),
+      callback: async () => {
+        try {
+          await this.discoverServers();
+        } catch (error) {
+          console.error('Error during server discovery:', error);
+          this.emit('discovery_error', error);
+        }
+      },
+      intervalMs: 30000, // Discover every 30 seconds
+      category: 'optional',
+      description: 'MCP server discovery',
+    });
   }
 
   /**
    * Start heartbeat monitoring
    */
   private startHeartbeat(): void {
-    this.heartbeatInterval = setInterval(async () => {
-      try {
-        await this.performHealthChecks();
-      } catch (error) {
-        console.error('Error during health check:', error);
-        this.emit('health_check_error', error);
-      }
-    }, 10000); // Health check every 10 seconds
+    const intervalManager = getIntervalManager();
+    intervalManager.register({
+      id: this.getIntervalId(MCPIntegrationSystem.INTERVAL_HEARTBEAT),
+      callback: async () => {
+        try {
+          await this.performHealthChecks();
+        } catch (error) {
+          console.error('Error during health check:', error);
+          this.emit('health_check_error', error);
+        }
+      },
+      intervalMs: 10000, // Health check every 10 seconds
+      category: 'optional',
+      description: 'MCP server heartbeat',
+    });
   }
 
   /**
@@ -569,12 +604,17 @@ export class MCPIntegrationSystem extends EventEmitter {
    * Cleanup resources
    */
   destroy(): void {
-    if (this.discoveryInterval) {
-      clearInterval(this.discoveryInterval);
-    }
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-    }
+    const intervalManager = getIntervalManager();
+    intervalManager.remove(this.getIntervalId(MCPIntegrationSystem.INTERVAL_DISCOVERY));
+    intervalManager.remove(this.getIntervalId(MCPIntegrationSystem.INTERVAL_HEARTBEAT));
+
+    // Clear maps to free memory
+    this.servers.clear();
+    this.tools.clear();
+    this.resources.clear();
+    this.prompts.clear();
+
     this.removeAllListeners();
+    this.isInitialized = false;
   }
 }

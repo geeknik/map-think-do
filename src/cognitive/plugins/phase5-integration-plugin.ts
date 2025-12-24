@@ -94,15 +94,23 @@ export interface QuantumState {
 }
 
 export class Phase5IntegrationPlugin extends CognitivePlugin {
-  private mcpSystem: MCPIntegrationSystem;
-  private consciousnessSimulator: ConsciousnessSimulator;
-  private selfModifyingArchitecture: SelfModifyingArchitecture;
+  private mcpSystem: MCPIntegrationSystem | null = null;
+  private consciousnessSimulator: ConsciousnessSimulator | null = null;
+  private selfModifyingArchitecture: SelfModifyingArchitecture | null = null;
+  private memoryStore: MemoryStore;
   private state!: Phase5State;
   private recursivePrompts: RecursivePrompt[] = [];
   private temporalPredictions: TemporalPrediction[] = [];
   private ethicalEvaluations: EthicalEvaluation[] = [];
   private quantumStates: QuantumState[] = [];
   private integrationInterval: NodeJS.Timeout | null = null;
+  private isInitialized: boolean = false;
+
+  // Memory limits to prevent unbounded growth
+  private static readonly MAX_RECURSIVE_PROMPTS = 50;
+  private static readonly MAX_TEMPORAL_PREDICTIONS = 30;
+  private static readonly MAX_ETHICAL_EVALUATIONS = 20;
+  private static readonly MAX_QUANTUM_STATES = 25;
 
   constructor(memoryStore: MemoryStore) {
     super(
@@ -113,14 +121,44 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
       {}
     );
 
-    // Initialize Phase 5 systems
-    this.mcpSystem = new MCPIntegrationSystem(memoryStore);
-    this.consciousnessSimulator = new ConsciousnessSimulator(memoryStore);
-    this.selfModifyingArchitecture = new SelfModifyingArchitecture(memoryStore);
-
+    this.memoryStore = memoryStore;
     this.initializeState();
+    // Defer heavy subsystem initialization - use lazy initialization
+    // Subsystems will be created on first use via ensureInitialized()
+  }
+
+  /**
+   * Lazy initialization of subsystems - only creates them when needed
+   */
+  private ensureInitialized(): void {
+    if (this.isInitialized) return;
+
+    // Initialize Phase 5 systems lazily
+    this.mcpSystem = new MCPIntegrationSystem(this.memoryStore);
+    this.consciousnessSimulator = new ConsciousnessSimulator(this.memoryStore);
+    this.selfModifyingArchitecture = new SelfModifyingArchitecture(this.memoryStore);
+
     this.setupEventListeners();
     this.startIntegrationLoop();
+    this.isInitialized = true;
+  }
+
+  /**
+   * Enforce array size limits to prevent memory leaks
+   */
+  private enforceArrayLimits(): void {
+    while (this.recursivePrompts.length > Phase5IntegrationPlugin.MAX_RECURSIVE_PROMPTS) {
+      this.recursivePrompts.shift();
+    }
+    while (this.temporalPredictions.length > Phase5IntegrationPlugin.MAX_TEMPORAL_PREDICTIONS) {
+      this.temporalPredictions.shift();
+    }
+    while (this.ethicalEvaluations.length > Phase5IntegrationPlugin.MAX_ETHICAL_EVALUATIONS) {
+      this.ethicalEvaluations.shift();
+    }
+    while (this.quantumStates.length > Phase5IntegrationPlugin.MAX_QUANTUM_STATES) {
+      this.quantumStates.shift();
+    }
   }
 
   /**
@@ -160,6 +198,10 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    * Setup event listeners for subsystems
    */
   private setupEventListeners(): void {
+    if (!this.mcpSystem || !this.consciousnessSimulator || !this.selfModifyingArchitecture) {
+      return;
+    }
+
     // MCP System Events
     this.mcpSystem.on('server_connected', server => {
       this.state.mcp_status.servers_connected++;
@@ -241,25 +283,34 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    */
   private updateSystemStatus(): void {
     // Update MCP status
-    const mcpStatus = this.mcpSystem.getSystemStatus();
-    this.state.mcp_status.servers_connected = mcpStatus.servers.total;
-    this.state.mcp_status.tools_available = mcpStatus.tools.total;
-    this.state.mcp_status.resources_accessible = mcpStatus.resources.total;
-    this.state.mcp_status.integration_health = mcpStatus.performance.success_rate;
+    if (this.mcpSystem) {
+      const mcpStatus = this.mcpSystem.getSystemStatus();
+      this.state.mcp_status.servers_connected = mcpStatus.servers.total;
+      this.state.mcp_status.tools_available = mcpStatus.tools.total;
+      this.state.mcp_status.resources_accessible = mcpStatus.resources.total;
+      this.state.mcp_status.integration_health = mcpStatus.performance.success_rate;
+    }
 
     // Update architectural evolution
-    const archStatus = this.selfModifyingArchitecture.getArchitecturalStatus();
-    this.state.architectural_evolution = {
-      evolution_cycle: archStatus.evolution_cycle,
-      components_created: archStatus.components.total,
-      mutations_applied: archStatus.mutations.applied,
-      performance_improvement: archStatus.performance.overall_performance,
-      stability_score: archStatus.performance.system_stability,
-    };
+    if (this.selfModifyingArchitecture) {
+      const archStatus = this.selfModifyingArchitecture.getArchitecturalStatus();
+      this.state.architectural_evolution = {
+        evolution_cycle: archStatus.evolution_cycle,
+        components_created: archStatus.components.total,
+        mutations_applied: archStatus.mutations.applied,
+        performance_improvement: archStatus.performance.overall_performance,
+        stability_score: archStatus.performance.system_stability,
+      };
+    }
 
     // Update consciousness level
-    const consciousnessSnapshot = this.consciousnessSimulator.getConsciousnessSnapshot();
-    this.state.consciousness_level = consciousnessSnapshot.awareness_level;
+    if (this.consciousnessSimulator) {
+      const consciousnessSnapshot = this.consciousnessSimulator.getConsciousnessSnapshot();
+      this.state.consciousness_level = consciousnessSnapshot.awareness_level;
+    }
+
+    // Enforce array limits
+    this.enforceArrayLimits();
   }
 
   /**
@@ -267,7 +318,7 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    */
   private generateRecursivePrompts(): void {
     // Generate from consciousness simulator
-    if (Math.random() < 0.3) {
+    if (Math.random() < 0.3 && this.consciousnessSimulator) {
       // 30% chance
       const recursivePrompt = this.consciousnessSimulator.generateRecursiveSelfPrompt();
       this.generateRecursivePrompt(recursivePrompt, 'consciousness');
@@ -652,6 +703,10 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    * Leverage MCP tools
    */
   private async leverageMCPTools(context: CognitiveContext): Promise<any> {
+    if (!this.mcpSystem) {
+      return { error: 'MCP system not initialized', tools_used: 0 };
+    }
+
     try {
       // Recommend tools based on context
       const thoughtContext = context.current_thought || 'general reasoning task';
@@ -686,6 +741,17 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    * Apply consciousness insights
    */
   private applyConsciousnessInsights(context: CognitiveContext): any {
+    if (!this.consciousnessSimulator) {
+      return {
+        awareness_level: 0.5,
+        stream_of_consciousness: [],
+        existential_insights: [],
+        current_thoughts: 0,
+        introspection_depth: 0,
+        subjective_experience: {},
+      };
+    }
+
     const consciousnessSnapshot = this.consciousnessSimulator.getConsciousnessSnapshot();
     const existentialInsights = this.consciousnessSimulator.getExistentialInsights();
 
@@ -860,19 +926,22 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    * Update plugin configuration based on learning
    */
   async adapt(learningData: any): Promise<void> {
-    if (learningData.consciousness_insights) {
+    // Ensure subsystems are initialized before adapting
+    this.ensureInitialized();
+
+    if (learningData.consciousness_insights && this.consciousnessSimulator) {
       this.consciousnessSimulator.adaptParameters(learningData.consciousness_insights);
       this.state.consciousness_level =
         this.consciousnessSimulator.getConsciousnessSnapshot().awareness_level;
     }
 
-    if (learningData.architectural_feedback) {
+    if (learningData.architectural_feedback && this.selfModifyingArchitecture) {
       this.selfModifyingArchitecture.incorporateFeedback(learningData.architectural_feedback);
       const archStatus = this.selfModifyingArchitecture.getArchitecturalStatus();
       this.state.architectural_evolution.stability_score = archStatus.performance.system_stability;
     }
 
-    if (learningData.mcp_performance) {
+    if (learningData.mcp_performance && this.mcpSystem) {
       if (learningData.mcp_performance.serverId) {
         this.mcpSystem.optimizeIntegration(learningData.mcp_performance);
       }
@@ -897,22 +966,40 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
   async destroy(): Promise<void> {
     if (this.integrationInterval) {
       clearInterval(this.integrationInterval);
+      this.integrationInterval = null;
     }
 
-    // Remove event listeners from subsystems
-    this.mcpSystem.removeAllListeners('server_connected');
-    this.mcpSystem.removeAllListeners('tool_executed');
-    this.consciousnessSimulator.removeAllListeners('consciousness_update');
-    this.consciousnessSimulator.removeAllListeners('existential_question');
-    this.selfModifyingArchitecture.removeAllListeners('mutation_applied');
-    this.selfModifyingArchitecture.removeAllListeners('adaptation_cycle');
+    // Remove event listeners and destroy subsystems if they exist
+    if (this.mcpSystem) {
+      this.mcpSystem.removeAllListeners('server_connected');
+      this.mcpSystem.removeAllListeners('tool_executed');
+      this.mcpSystem.destroy();
+      this.mcpSystem = null;
+    }
+
+    if (this.consciousnessSimulator) {
+      this.consciousnessSimulator.removeAllListeners('consciousness_update');
+      this.consciousnessSimulator.removeAllListeners('existential_question');
+      await this.consciousnessSimulator.destroy();
+      this.consciousnessSimulator = null;
+    }
+
+    if (this.selfModifyingArchitecture) {
+      this.selfModifyingArchitecture.removeAllListeners('mutation_applied');
+      this.selfModifyingArchitecture.removeAllListeners('adaptation_cycle');
+      this.selfModifyingArchitecture.destroy();
+      this.selfModifyingArchitecture = null;
+    }
 
     // Remove all listeners from this plugin
     this.removeAllListeners();
 
-    this.mcpSystem.destroy();
-    this.consciousnessSimulator.destroy();
-    this.selfModifyingArchitecture.destroy();
-    // Note: super.destroy() doesn't exist in the base class, removing the call
+    // Clear arrays
+    this.recursivePrompts = [];
+    this.temporalPredictions = [];
+    this.ethicalEvaluations = [];
+    this.quantumStates = [];
+
+    this.isInitialized = false;
   }
 }

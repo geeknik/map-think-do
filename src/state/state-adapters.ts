@@ -11,6 +11,7 @@ import { CognitiveOrchestrator } from '../cognitive/cognitive-orchestrator.js';
 import { CognitiveState } from '../cognitive/state-tracker.js';
 import { PluginMetrics, CognitivePluginManager } from '../cognitive/plugin-system.js';
 import { MemoryStore, MemoryStats } from '../memory/memory-store.js';
+import { getIntervalManager } from '../utils/interval-manager.js';
 
 /**
  * Cognitive State Adapter
@@ -88,25 +89,29 @@ export class CognitiveStateAdapter {
  * Synchronizes plugin metrics and health status with state manager
  */
 export class PluginStateAdapter {
-  private metricsUpdateInterval?: NodeJS.Timeout;
   private readonly UPDATE_INTERVAL = 5000; // 5 seconds
+  private readonly intervalId: string;
 
   constructor(
     private stateManager: StateManager,
     private orchestrator: CognitiveOrchestrator
-  ) {}
+  ) {
+    this.intervalId = `plugin_adapter_${Date.now()}`;
+  }
 
   /**
    * Initialize plugin state monitoring
    */
   initialize(): void {
-    // Set up periodic metrics updates
-    this.metricsUpdateInterval = setInterval(() => {
-      this.syncPluginMetrics();
-    }, this.UPDATE_INTERVAL);
-
-    // Initial sync
-    this.syncPluginMetrics();
+    const intervalManager = getIntervalManager();
+    intervalManager.register({
+      id: this.intervalId,
+      callback: () => this.syncPluginMetrics(),
+      intervalMs: this.UPDATE_INTERVAL,
+      immediate: true,
+      category: 'monitoring',
+      description: 'Plugin metrics sync',
+    });
 
     console.error('🔌 Plugin state adapter initialized');
   }
@@ -162,9 +167,8 @@ export class PluginStateAdapter {
    * Cleanup adapter
    */
   dispose(): void {
-    if (this.metricsUpdateInterval) {
-      clearInterval(this.metricsUpdateInterval);
-    }
+    const intervalManager = getIntervalManager();
+    intervalManager.remove(this.intervalId);
     console.error('🔌 Plugin state adapter disposed');
   }
 }
@@ -175,25 +179,29 @@ export class PluginStateAdapter {
  * Synchronizes memory statistics and health with state manager
  */
 export class MemoryStateAdapter {
-  private statsUpdateInterval?: NodeJS.Timeout;
   private readonly UPDATE_INTERVAL = 10000; // 10 seconds
+  private readonly intervalId: string;
 
   constructor(
     private stateManager: StateManager,
     private memoryStore: MemoryStore
-  ) {}
+  ) {
+    this.intervalId = `memory_adapter_${Date.now()}`;
+  }
 
   /**
    * Initialize memory state monitoring
    */
   initialize(): void {
-    // Set up periodic stats updates
-    this.statsUpdateInterval = setInterval(() => {
-      this.syncMemoryStats();
-    }, this.UPDATE_INTERVAL);
-
-    // Initial sync
-    this.syncMemoryStats();
+    const intervalManager = getIntervalManager();
+    intervalManager.register({
+      id: this.intervalId,
+      callback: () => this.syncMemoryStats(),
+      intervalMs: this.UPDATE_INTERVAL,
+      immediate: true,
+      category: 'monitoring',
+      description: 'Memory stats sync',
+    });
 
     console.error('💾 Memory state adapter initialized');
   }
@@ -271,9 +279,8 @@ export class MemoryStateAdapter {
    * Cleanup adapter
    */
   dispose(): void {
-    if (this.statsUpdateInterval) {
-      clearInterval(this.statsUpdateInterval);
-    }
+    const intervalManager = getIntervalManager();
+    intervalManager.remove(this.intervalId);
     console.error('💾 Memory state adapter disposed');
   }
 }
@@ -291,23 +298,27 @@ export class PerformanceStateAdapter {
     startTime: Date.now(),
   };
 
-  private metricsUpdateInterval?: NodeJS.Timeout;
   private readonly UPDATE_INTERVAL = 5000; // 5 seconds
   private readonly MAX_RESPONSE_TIME_SAMPLES = 100;
+  private readonly intervalId: string;
 
-  constructor(private stateManager: StateManager) {}
+  constructor(private stateManager: StateManager) {
+    this.intervalId = `performance_adapter_${Date.now()}`;
+  }
 
   /**
    * Initialize performance monitoring
    */
   initialize(): void {
-    // Set up periodic performance updates
-    this.metricsUpdateInterval = setInterval(() => {
-      this.updatePerformanceMetrics();
-    }, this.UPDATE_INTERVAL);
-
-    // Initial update
-    this.updatePerformanceMetrics();
+    const intervalManager = getIntervalManager();
+    intervalManager.register({
+      id: this.intervalId,
+      callback: () => this.updatePerformanceMetrics(),
+      intervalMs: this.UPDATE_INTERVAL,
+      immediate: true,
+      category: 'monitoring',
+      description: 'Performance metrics update',
+    });
 
     console.error('⚡ Performance state adapter initialized');
   }
@@ -390,9 +401,8 @@ export class PerformanceStateAdapter {
    * Cleanup adapter
    */
   dispose(): void {
-    if (this.metricsUpdateInterval) {
-      clearInterval(this.metricsUpdateInterval);
-    }
+    const intervalManager = getIntervalManager();
+    intervalManager.remove(this.intervalId);
     console.error('⚡ Performance state adapter disposed');
   }
 }
