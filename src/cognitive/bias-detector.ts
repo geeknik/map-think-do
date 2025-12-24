@@ -491,7 +491,7 @@ export class BiasDetector extends EventEmitter {
   /**
    * Select most relevant debiasing strategies
    */
-  private selectDebisingStrategies(definition: BiasDefinition, evidence: string[]): string[] {
+  private selectDebisingStrategies(definition: BiasDefinition, _evidence: string[]): string[] {
     // For now, return top 2 strategies
     // In future, could use evidence to select most relevant
     return definition.debiasing_strategies.slice(0, 2);
@@ -569,7 +569,7 @@ export class BiasDetector extends EventEmitter {
   /**
    * Get debiasing recommendations for a domain
    */
-  getDebisingRecommendations(domain?: string): string[] {
+  getDebisingRecommendations(_domain?: string): string[] {
     // Find most common biases for domain (or overall)
     const recentByBias = new Map<string, number>();
 
@@ -593,5 +593,454 @@ export class BiasDetector extends EventEmitter {
     }
 
     return recommendations;
+  }
+
+  // ============================================================================
+  // Outcome-Based Learning - NEW
+  // ============================================================================
+
+  /**
+   * Track outcome for bias-related reasoning
+   */
+  recordOutcome(
+    thoughtId: string,
+    detectedBiases: BiasDetectionResult[],
+    outcome: {
+      success: boolean;
+      quality_score: number; // 0-1
+      debiasing_applied: boolean;
+      strategy_used?: string;
+    }
+  ): void {
+    for (const bias of detectedBiases) {
+      const record = this.learningRecords.get(bias.bias_id);
+      if (!record) continue;
+
+      // Track outcome correlation
+      if (!this.outcomeCorrelations.has(bias.bias_id)) {
+        this.outcomeCorrelations.set(bias.bias_id, {
+          detected_success: 0,
+          detected_failure: 0,
+          debiased_success: 0,
+          debiased_failure: 0,
+          undetected_success: 0,
+          undetected_failure: 0,
+        });
+      }
+
+      const correlation = this.outcomeCorrelations.get(bias.bias_id)!;
+
+      if (outcome.debiasing_applied) {
+        if (outcome.success) {
+          correlation.debiased_success++;
+        } else {
+          correlation.debiased_failure++;
+        }
+      } else {
+        if (outcome.success) {
+          correlation.detected_success++;
+        } else {
+          correlation.detected_failure++;
+        }
+      }
+
+      // Store experience for learning
+      this.addOutcomeExperience({
+        bias_id: bias.bias_id,
+        thought_id: thoughtId,
+        bias_confidence: bias.confidence,
+        outcome_success: outcome.success,
+        quality_score: outcome.quality_score,
+        debiasing_applied: outcome.debiasing_applied,
+        strategy_used: outcome.strategy_used,
+        timestamp: new Date(),
+      });
+    }
+
+    this.emit('outcome_recorded', { thoughtId, biases: detectedBiases.length, outcome });
+  }
+
+  private outcomeCorrelations = new Map<
+    string,
+    {
+      detected_success: number;
+      detected_failure: number;
+      debiased_success: number;
+      debiased_failure: number;
+      undetected_success: number;
+      undetected_failure: number;
+    }
+  >();
+
+  private outcomeExperiences: Array<{
+    bias_id: string;
+    thought_id: string;
+    bias_confidence: number;
+    outcome_success: boolean;
+    quality_score: number;
+    debiasing_applied: boolean;
+    strategy_used?: string;
+    timestamp: Date;
+  }> = [];
+
+  private addOutcomeExperience(experience: {
+    bias_id: string;
+    thought_id: string;
+    bias_confidence: number;
+    outcome_success: boolean;
+    quality_score: number;
+    debiasing_applied: boolean;
+    strategy_used?: string;
+    timestamp: Date;
+  }): void {
+    this.outcomeExperiences.push(experience);
+    if (this.outcomeExperiences.length > 500) {
+      this.outcomeExperiences.shift();
+    }
+  }
+
+  /**
+   * Calculate debiasing effectiveness for a specific bias
+   */
+  getDebisingEffectiveness(biasId: string): {
+    effectiveness: number;
+    sample_size: number;
+    confidence_interval: [number, number];
+    recommendation: string;
+  } | null {
+    const correlation = this.outcomeCorrelations.get(biasId);
+    if (!correlation) return null;
+
+    const withDebiasing = correlation.debiased_success + correlation.debiased_failure;
+    const withoutDebiasing = correlation.detected_success + correlation.detected_failure;
+
+    if (withDebiasing < 3 || withoutDebiasing < 3) {
+      return {
+        effectiveness: 0.5,
+        sample_size: withDebiasing + withoutDebiasing,
+        confidence_interval: [0, 1],
+        recommendation: 'Insufficient data to assess effectiveness',
+      };
+    }
+
+    const debiasedSuccessRate = correlation.debiased_success / withDebiasing;
+    const undebiasedSuccessRate = correlation.detected_success / withoutDebiasing;
+
+    // Effectiveness = improvement from debiasing
+    const effectiveness = debiasedSuccessRate - undebiasedSuccessRate;
+
+    // Simple confidence interval (Wilson score for binomial)
+    const n = withDebiasing;
+    const p = debiasedSuccessRate;
+    const z = 1.96;
+    const denominator = 1 + (z * z) / n;
+    const centre = (p + (z * z) / (2 * n)) / denominator;
+    const interval = (z * Math.sqrt((p * (1 - p) + (z * z) / (4 * n)) / n)) / denominator;
+
+    let recommendation: string;
+    if (effectiveness > 0.2) {
+      recommendation = 'Debiasing is highly effective - continue applying';
+    } else if (effectiveness > 0) {
+      recommendation = 'Debiasing shows moderate improvement';
+    } else if (effectiveness > -0.1) {
+      recommendation = 'Debiasing shows no significant effect';
+    } else {
+      recommendation = 'Debiasing may be counterproductive - review strategy';
+    }
+
+    return {
+      effectiveness,
+      sample_size: withDebiasing + withoutDebiasing,
+      confidence_interval: [Math.max(0, centre - interval), Math.min(1, centre + interval)],
+      recommendation,
+    };
+  }
+
+  /**
+   * Get adaptive detection threshold based on outcomes
+   */
+  getAdaptiveThreshold(biasId: string): number {
+    const experiences = this.outcomeExperiences.filter(e => e.bias_id === biasId);
+    if (experiences.length < 10) {
+      return 0.5; // Default threshold
+    }
+
+    // Find threshold that maximizes true positive rate while minimizing false positives
+    const confidenceLevels = experiences.map(e => e.bias_confidence).sort((a, b) => a - b);
+    let bestThreshold = 0.5;
+    let bestScore = 0;
+
+    for (const threshold of confidenceLevels) {
+      const aboveThreshold = experiences.filter(e => e.bias_confidence >= threshold);
+      const belowThreshold = experiences.filter(e => e.bias_confidence < threshold);
+
+      // True positives: high confidence, low quality (bias was real)
+      const tp = aboveThreshold.filter(e => e.quality_score < 0.5).length;
+      // False positives: high confidence, high quality (bias wasn't affecting quality)
+      const fp = aboveThreshold.filter(e => e.quality_score >= 0.5 && !e.debiasing_applied).length;
+      // False negatives: low confidence, low quality (missed bias)
+      const fn = belowThreshold.filter(e => e.quality_score < 0.5).length;
+
+      const precision = tp + fp > 0 ? tp / (tp + fp) : 0;
+      const recall = tp + fn > 0 ? tp / (tp + fn) : 0;
+      const f1 = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
+
+      if (f1 > bestScore) {
+        bestScore = f1;
+        bestThreshold = threshold;
+      }
+    }
+
+    return bestThreshold;
+  }
+
+  /**
+   * Learn pattern weights from outcomes
+   */
+  updatePatternWeights(): void {
+    // Group experiences by bias and outcome
+    const biasOutcomes = new Map<string, { success: number[]; failure: number[] }>();
+
+    for (const exp of this.outcomeExperiences) {
+      if (!biasOutcomes.has(exp.bias_id)) {
+        biasOutcomes.set(exp.bias_id, { success: [], failure: [] });
+      }
+
+      const outcomes = biasOutcomes.get(exp.bias_id)!;
+      if (exp.outcome_success) {
+        outcomes.success.push(exp.bias_confidence);
+      } else {
+        outcomes.failure.push(exp.bias_confidence);
+      }
+    }
+
+    // Adjust pattern weights based on correlation with failures
+    for (const [biasId, outcomes] of biasOutcomes) {
+      const definition = this.biasDefinitions.get(biasId);
+      if (!definition || outcomes.failure.length < 5) continue;
+
+      const avgFailureConfidence =
+        outcomes.failure.reduce((a, b) => a + b, 0) / outcomes.failure.length;
+      const avgSuccessConfidence =
+        outcomes.success.length > 0
+          ? outcomes.success.reduce((a, b) => a + b, 0) / outcomes.success.length
+          : 0.5;
+
+      // If high confidence correlates with failures, increase pattern weights
+      if (avgFailureConfidence > avgSuccessConfidence + 0.1) {
+        for (const pattern of definition.detection_patterns) {
+          pattern.weight = Math.min(1.0, pattern.weight * 1.1);
+        }
+      }
+      // If high confidence correlates with successes, decrease weights (false positive)
+      else if (avgSuccessConfidence > avgFailureConfidence + 0.1) {
+        for (const pattern of definition.detection_patterns) {
+          pattern.weight = Math.max(0.1, pattern.weight * 0.9);
+        }
+      }
+    }
+
+    this.emit('pattern_weights_updated');
+  }
+
+  /**
+   * Get comprehensive bias analytics
+   */
+  getBiasAnalytics(): {
+    overall_detection_rate: number;
+    overall_precision: number;
+    bias_breakdown: Array<{
+      id: string;
+      name: string;
+      detection_count: number;
+      precision: number;
+      debiasing_effectiveness: number;
+      recommended_action: string;
+    }>;
+    temporal_trends: Array<{
+      period: string;
+      detection_count: number;
+      avg_severity: number;
+    }>;
+    recommendations: string[];
+  } {
+    const breakdown: Array<{
+      id: string;
+      name: string;
+      detection_count: number;
+      precision: number;
+      debiasing_effectiveness: number;
+      recommended_action: string;
+    }> = [];
+
+    let totalDetections = 0;
+    let totalTruePositives = 0;
+
+    for (const [biasId, record] of this.learningRecords) {
+      const definition = this.biasDefinitions.get(biasId)!;
+      const effectiveness = this.getDebisingEffectiveness(biasId);
+
+      totalDetections += record.detection_count;
+      totalTruePositives += record.true_positive_count;
+
+      let recommendedAction = 'Continue monitoring';
+      if (record.precision < 0.3 && record.detection_count > 10) {
+        recommendedAction = 'Reduce sensitivity - high false positive rate';
+      } else if (
+        record.precision > 0.8 &&
+        effectiveness?.effectiveness &&
+        effectiveness.effectiveness > 0.2
+      ) {
+        recommendedAction = 'Increase prominence - highly effective debiasing';
+      }
+
+      breakdown.push({
+        id: biasId,
+        name: definition.name,
+        detection_count: record.detection_count,
+        precision: record.precision,
+        debiasing_effectiveness: effectiveness?.effectiveness || 0,
+        recommended_action: recommendedAction,
+      });
+    }
+
+    // Generate temporal trends from recent detections
+    const now = new Date();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const trends: Array<{ period: string; detection_count: number; avg_severity: number }> = [];
+
+    for (let i = 6; i >= 0; i--) {
+      const dayStart = new Date(now.getTime() - (i + 1) * dayMs);
+      const dayEnd = new Date(now.getTime() - i * dayMs);
+
+      const dayDetections = this.recentDetections.filter(d => {
+        // Detections don't have timestamps in current structure, use proxy
+        return true; // Simplified for now
+      });
+
+      const severityMap = { low: 1, medium: 2, high: 3 };
+      const avgSeverity =
+        dayDetections.length > 0
+          ? dayDetections.reduce((sum, d) => sum + severityMap[d.severity], 0) /
+            dayDetections.length
+          : 0;
+
+      trends.push({
+        period: dayStart.toISOString().split('T')[0],
+        detection_count: Math.floor(this.recentDetections.length / 7), // Approximation
+        avg_severity: avgSeverity,
+      });
+    }
+
+    // Generate recommendations
+    const recommendations: string[] = [];
+
+    const highFalsePositives = breakdown.filter(b => b.precision < 0.4 && b.detection_count > 5);
+    if (highFalsePositives.length > 0) {
+      recommendations.push(
+        `Consider reducing sensitivity for: ${highFalsePositives.map(b => b.name).join(', ')}`
+      );
+    }
+
+    const effectiveDebiasing = breakdown.filter(b => b.debiasing_effectiveness > 0.2);
+    if (effectiveDebiasing.length > 0) {
+      recommendations.push(
+        `Debiasing is particularly effective for: ${effectiveDebiasing.map(b => b.name).join(', ')}`
+      );
+    }
+
+    const mostCommon = breakdown.sort((a, b) => b.detection_count - a.detection_count)[0];
+    if (mostCommon && mostCommon.detection_count > 20) {
+      recommendations.push(
+        `Most frequently detected bias: ${mostCommon.name} - consider targeted training`
+      );
+    }
+
+    return {
+      overall_detection_rate: totalDetections / Math.max(1, this.outcomeExperiences.length),
+      overall_precision: totalDetections > 0 ? totalTruePositives / totalDetections : 0.5,
+      bias_breakdown: breakdown.sort((a, b) => b.detection_count - a.detection_count),
+      temporal_trends: trends,
+      recommendations,
+    };
+  }
+
+  /**
+   * Export learning state for persistence
+   */
+  exportLearningState(): {
+    learningRecords: Record<string, BiasLearningRecord>;
+    outcomeCorrelations: Record<
+      string,
+      {
+        detected_success: number;
+        detected_failure: number;
+        debiased_success: number;
+        debiased_failure: number;
+      }
+    >;
+    patternWeights: Record<string, Array<{ type: string; weight: number }>>;
+  } {
+    const patternWeights: Record<string, Array<{ type: string; weight: number }>> = {};
+    for (const [id, def] of this.biasDefinitions) {
+      patternWeights[id] = def.detection_patterns.map(p => ({
+        type: p.type,
+        weight: p.weight,
+      }));
+    }
+
+    return {
+      learningRecords: Object.fromEntries(this.learningRecords),
+      outcomeCorrelations: Object.fromEntries(this.outcomeCorrelations),
+      patternWeights,
+    };
+  }
+
+  /**
+   * Import learning state from persistence
+   */
+  importLearningState(state: {
+    learningRecords: Record<string, BiasLearningRecord>;
+    outcomeCorrelations: Record<
+      string,
+      {
+        detected_success: number;
+        detected_failure: number;
+        debiased_success: number;
+        debiased_failure: number;
+      }
+    >;
+    patternWeights: Record<string, Array<{ type: string; weight: number }>>;
+  }): void {
+    // Import learning records
+    for (const [id, record] of Object.entries(state.learningRecords)) {
+      if (this.learningRecords.has(id)) {
+        this.learningRecords.set(id, record);
+      }
+    }
+
+    // Import outcome correlations
+    for (const [id, correlation] of Object.entries(state.outcomeCorrelations)) {
+      this.outcomeCorrelations.set(id, {
+        ...correlation,
+        undetected_success: 0,
+        undetected_failure: 0,
+      });
+    }
+
+    // Import pattern weights
+    for (const [biasId, weights] of Object.entries(state.patternWeights)) {
+      const definition = this.biasDefinitions.get(biasId);
+      if (definition) {
+        for (const { type, weight } of weights) {
+          const pattern = definition.detection_patterns.find(p => p.type === type);
+          if (pattern) {
+            pattern.weight = weight;
+          }
+        }
+      }
+    }
+
+    this.emit('learning_state_imported');
   }
 }

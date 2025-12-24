@@ -1018,62 +1018,537 @@ export class SQLiteStore extends MemoryStore {
   }
 
   private extractKeywords(text: string): string[] {
-    const stopWords = new Set([
-      'the',
-      'a',
-      'an',
-      'and',
-      'or',
-      'but',
-      'in',
-      'on',
-      'at',
-      'to',
-      'for',
-      'of',
-      'with',
-      'by',
-      'from',
-      'is',
-      'are',
-      'was',
-      'were',
-      'be',
-      'been',
-      'being',
-      'have',
-      'has',
-      'had',
-      'do',
-      'does',
-      'did',
-      'will',
-      'would',
-      'could',
-      'should',
-      'may',
-      'might',
-      'must',
-      'that',
-      'which',
-      'who',
-      'whom',
-      'this',
-      'these',
-      'those',
-      'it',
-      'its',
-      'i',
-      'me',
-      'my',
-      'we',
-    ]);
-
     return text
       .toLowerCase()
       .replace(/[^\w\s]/g, ' ')
       .split(/\s+/)
-      .filter(word => word.length > 3 && !stopWords.has(word))
+      .filter(word => word.length > 3 && !this.stopWords.has(word))
       .slice(0, 10);
+  }
+
+  // ============================================================================
+  // Intelligent Memory Retrieval - NEW
+  // ============================================================================
+
+  private readonly stopWords = new Set([
+    'the',
+    'a',
+    'an',
+    'and',
+    'or',
+    'but',
+    'in',
+    'on',
+    'at',
+    'to',
+    'for',
+    'of',
+    'with',
+    'by',
+    'from',
+    'is',
+    'are',
+    'was',
+    'were',
+    'be',
+    'been',
+    'being',
+    'have',
+    'has',
+    'had',
+    'do',
+    'does',
+    'did',
+    'will',
+    'would',
+    'could',
+    'should',
+    'may',
+    'might',
+    'must',
+    'that',
+    'which',
+    'who',
+    'whom',
+    'this',
+    'these',
+    'those',
+    'it',
+    'its',
+    'i',
+    'me',
+    'my',
+    'we',
+    'you',
+    'your',
+    'they',
+    'them',
+    'their',
+    'what',
+    'when',
+    'where',
+    'how',
+    'why',
+    'can',
+    'just',
+    'more',
+    'some',
+    'any',
+    'each',
+    'every',
+    'both',
+    'few',
+    'most',
+    'other',
+    'into',
+    'over',
+    'such',
+    'than',
+    'then',
+    'only',
+    'also',
+    'back',
+    'after',
+    'use',
+    'way',
+    'even',
+    'new',
+    'want',
+    'because',
+    'good',
+    'give',
+  ]);
+
+  // TF-IDF document frequency cache
+  private documentFrequency = new Map<string, number>();
+  private totalDocuments = 0;
+  private idfCacheValid = false;
+
+  /**
+   * Build TF-IDF index for intelligent search
+   */
+  private buildTFIDFIndex(): void {
+    if (this.idfCacheValid) return;
+
+    const allThoughts = this.db.prepare('SELECT thought FROM thoughts').all() as Array<{
+      thought: string;
+    }>;
+    this.totalDocuments = allThoughts.length;
+    this.documentFrequency.clear();
+
+    for (const { thought } of allThoughts) {
+      const terms = new Set(this.tokenize(thought));
+      for (const term of terms) {
+        this.documentFrequency.set(term, (this.documentFrequency.get(term) || 0) + 1);
+      }
+    }
+
+    this.idfCacheValid = true;
+  }
+
+  /**
+   * Tokenize text for TF-IDF
+   */
+  private tokenize(text: string): string[] {
+    return text
+      .toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter(word => word.length > 2 && !this.stopWords.has(word));
+  }
+
+  /**
+   * Calculate TF-IDF score for a term in a document
+   */
+  private calculateTFIDF(term: string, document: string): number {
+    const tokens = this.tokenize(document);
+    const termCount = tokens.filter(t => t === term).length;
+    const tf = termCount / Math.max(1, tokens.length);
+
+    const df = this.documentFrequency.get(term) || 1;
+    const idf = Math.log((this.totalDocuments + 1) / (df + 1)) + 1;
+
+    return tf * idf;
+  }
+
+  /**
+   * Calculate document similarity using TF-IDF cosine similarity
+   */
+  private calculateTFIDFSimilarity(query: string, document: string): number {
+    const queryTerms = this.tokenize(query);
+    const docTerms = this.tokenize(document);
+
+    if (queryTerms.length === 0 || docTerms.length === 0) return 0;
+
+    // Build term vectors
+    const allTerms = new Set([...queryTerms, ...docTerms]);
+    let dotProduct = 0;
+    let queryMagnitude = 0;
+    let docMagnitude = 0;
+
+    for (const term of allTerms) {
+      const queryTF = queryTerms.filter(t => t === term).length / queryTerms.length;
+      const docTFIDF = this.calculateTFIDF(term, document);
+
+      dotProduct += queryTF * docTFIDF;
+      queryMagnitude += queryTF * queryTF;
+      docMagnitude += docTFIDF * docTFIDF;
+    }
+
+    const magnitude = Math.sqrt(queryMagnitude) * Math.sqrt(docMagnitude);
+    return magnitude > 0 ? dotProduct / magnitude : 0;
+  }
+
+  /**
+   * Intelligent semantic search using TF-IDF
+   */
+  async intelligentSearch(
+    query: string,
+    options: {
+      limit?: number;
+      domain?: string;
+      minSimilarity?: number;
+      recencyWeight?: number;
+      successWeight?: number;
+    } = {}
+  ): Promise<
+    Array<StoredThought & { relevance_score: number; relevance_breakdown: Record<string, number> }>
+  > {
+    const {
+      limit = 10,
+      domain,
+      minSimilarity = 0.1,
+      recencyWeight = 0.2,
+      successWeight = 0.3,
+    } = options;
+
+    // Ensure TF-IDF index is built
+    this.buildTFIDFIndex();
+
+    // Get candidate thoughts
+    let sql = 'SELECT * FROM thoughts WHERE 1=1';
+    const params: unknown[] = [];
+
+    if (domain) {
+      sql += ' AND domain = ?';
+      params.push(domain);
+    }
+
+    sql += ' ORDER BY timestamp DESC LIMIT 1000'; // Limit search space
+
+    const candidates = this.db.prepare(sql).all(...params) as Record<string, unknown>[];
+
+    // Score each candidate
+    const scored: Array<{
+      thought: StoredThought;
+      similarity: number;
+      recency: number;
+      success: number;
+      combined: number;
+    }> = [];
+
+    const now = Date.now();
+    const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+    for (const row of candidates) {
+      const thought = this.rowToThought(row);
+      const similarity = this.calculateTFIDFSimilarity(query, thought.thought);
+
+      if (similarity < minSimilarity) continue;
+
+      // Recency score (exponential decay)
+      const age = now - new Date(thought.timestamp).getTime();
+      const recency = Math.exp(-age / maxAge);
+
+      // Success score
+      const success = thought.success ? 1 : 0;
+
+      // Combined score with weights
+      const contentWeight = 1 - recencyWeight - successWeight;
+      const combined =
+        similarity * contentWeight + recency * recencyWeight + success * successWeight;
+
+      scored.push({ thought, similarity, recency, success, combined });
+    }
+
+    // Sort by combined score and take top results
+    scored.sort((a, b) => b.combined - a.combined);
+
+    return scored.slice(0, limit).map(s => ({
+      ...s.thought,
+      relevance_score: s.combined,
+      relevance_breakdown: {
+        content_similarity: s.similarity,
+        recency_score: s.recency,
+        success_factor: s.success,
+      },
+    }));
+  }
+
+  /**
+   * Context-aware retrieval - finds thoughts relevant to current reasoning context
+   */
+  async contextAwareRetrieval(
+    context: {
+      current_thought?: string;
+      domain?: string;
+      complexity?: number;
+      objective?: string;
+      recent_thoughts?: string[];
+    },
+    limit: number = 5
+  ): Promise<StoredThought[]> {
+    this.buildTFIDFIndex();
+
+    // Build composite query from context
+    const queryParts: string[] = [];
+
+    if (context.current_thought) {
+      queryParts.push(context.current_thought);
+    }
+    if (context.objective) {
+      queryParts.push(context.objective);
+    }
+    if (context.recent_thoughts) {
+      queryParts.push(...context.recent_thoughts.slice(-3));
+    }
+
+    const query = queryParts.join(' ');
+    if (!query) return [];
+
+    // Get similar thoughts with domain and complexity boost
+    let sql = 'SELECT * FROM thoughts WHERE 1=1';
+    const params: unknown[] = [];
+
+    if (context.domain) {
+      sql += ' AND (domain = ? OR domain IS NULL)';
+      params.push(context.domain);
+    }
+
+    sql += ' ORDER BY timestamp DESC LIMIT 500';
+
+    const candidates = this.db.prepare(sql).all(...params) as Record<string, unknown>[];
+
+    const scored: Array<{ thought: StoredThought; score: number }> = [];
+
+    for (const row of candidates) {
+      const thought = this.rowToThought(row);
+      let score = this.calculateTFIDFSimilarity(query, thought.thought);
+
+      // Boost for same domain
+      if (context.domain && thought.domain === context.domain) {
+        score *= 1.3;
+      }
+
+      // Boost for similar complexity
+      if (context.complexity !== undefined && thought.complexity !== undefined) {
+        const complexityDiff = Math.abs(context.complexity - thought.complexity);
+        score *= Math.max(0.5, 1 - complexityDiff / 10);
+      }
+
+      // Boost for successful thoughts
+      if (thought.success) {
+        score *= 1.2;
+      }
+
+      scored.push({ thought, score });
+    }
+
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, limit).map(s => s.thought);
+  }
+
+  /**
+   * Find analogous problems - searches for structurally similar reasoning
+   */
+  async findAnalogousProblems(
+    problem: {
+      description: string;
+      domain?: string;
+      type?: 'analysis' | 'synthesis' | 'evaluation' | 'debugging' | 'design';
+    },
+    limit: number = 5
+  ): Promise<
+    Array<{
+      session: ReasoningSession;
+      similarity: number;
+      transferable_insights: string[];
+    }>
+  > {
+    this.buildTFIDFIndex();
+
+    // Get successful sessions with high effectiveness
+    const sessions = this.db
+      .prepare(
+        `
+      SELECT * FROM sessions 
+      WHERE goal_achieved = 1 AND effectiveness_score > 0.6
+      ORDER BY effectiveness_score DESC
+      LIMIT 100
+    `
+      )
+      .all() as Record<string, unknown>[];
+
+    const results: Array<{
+      session: ReasoningSession;
+      similarity: number;
+      transferable_insights: string[];
+    }> = [];
+
+    for (const sessionRow of sessions) {
+      const session = this.rowToSession(sessionRow);
+
+      // Get thoughts from this session
+      const thoughts = this.db
+        .prepare(
+          `
+        SELECT thought FROM thoughts 
+        WHERE session_id = ?
+        ORDER BY thought_number
+      `
+        )
+        .all(session.id) as Array<{ thought: string }>;
+
+      const sessionText = thoughts.map(t => t.thought).join(' ');
+      let similarity = this.calculateTFIDFSimilarity(problem.description, sessionText);
+
+      // Boost for same domain
+      if (problem.domain && session.domain === problem.domain) {
+        similarity *= 1.4;
+      }
+
+      if (similarity < 0.1) continue;
+
+      // Extract transferable insights
+      const insights: string[] = [];
+      if (session.lessons_learned && session.lessons_learned.length > 0) {
+        insights.push(...session.lessons_learned.slice(0, 3));
+      }
+      if (session.successful_strategies && session.successful_strategies.length > 0) {
+        insights.push(...session.successful_strategies.slice(0, 2));
+      }
+
+      results.push({ session, similarity, transferable_insights: insights });
+    }
+
+    results.sort((a, b) => b.similarity - a.similarity);
+    return results.slice(0, limit);
+  }
+
+  /**
+   * Retrieve thoughts by reasoning pattern
+   */
+  async findByPattern(
+    pattern: string,
+    options: {
+      domain?: string;
+      minSuccessRate?: number;
+      limit?: number;
+    } = {}
+  ): Promise<StoredThought[]> {
+    const { domain, minSuccessRate = 0.5, limit = 20 } = options;
+
+    // Get thoughts with the specified pattern
+    let sql = `
+      SELECT t.* FROM thoughts t
+      WHERE t.patterns_detected LIKE ?
+    `;
+    const params: unknown[] = [`%${pattern}%`];
+
+    if (domain) {
+      sql += ' AND t.domain = ?';
+      params.push(domain);
+    }
+
+    sql += ' ORDER BY t.timestamp DESC LIMIT ?';
+    params.push(limit * 2); // Get more to filter by success
+
+    const rows = this.db.prepare(sql).all(...params) as Record<string, unknown>[];
+    const thoughts = rows.map(this.rowToThought);
+
+    // Filter by success rate if we have enough data
+    if (thoughts.length > 5) {
+      const successRate = thoughts.filter(t => t.success).length / thoughts.length;
+      if (successRate >= minSuccessRate) {
+        return thoughts.filter(t => t.success).slice(0, limit);
+      }
+    }
+
+    return thoughts.slice(0, limit);
+  }
+
+  /**
+   * Get thoughts that led to breakthroughs
+   */
+  async getBreakthroughThoughts(
+    domain?: string,
+    limit: number = 10
+  ): Promise<Array<StoredThought & { session_effectiveness: number }>> {
+    let sql = `
+      SELECT t.*, s.effectiveness_score as session_effectiveness
+      FROM thoughts t
+      JOIN sessions s ON t.session_id = s.id
+      WHERE s.goal_achieved = 1 
+        AND s.effectiveness_score >= 0.8
+        AND t.success = 1
+    `;
+    const params: unknown[] = [];
+
+    if (domain) {
+      sql += ' AND t.domain = ?';
+      params.push(domain);
+    }
+
+    sql += ' ORDER BY s.effectiveness_score DESC, t.confidence DESC LIMIT ?';
+    params.push(limit);
+
+    const rows = this.db.prepare(sql).all(...params) as Array<Record<string, unknown>>;
+
+    return rows.map(row => ({
+      ...this.rowToThought(row),
+      session_effectiveness: row.session_effectiveness as number,
+    }));
+  }
+
+  /**
+   * Invalidate TF-IDF cache when new data is added
+   */
+  private invalidateTFIDFCache(): void {
+    this.idfCacheValid = false;
+  }
+
+  // Override storeThought to invalidate cache
+  async storeThoughtWithCacheInvalidation(thought: StoredThought): Promise<void> {
+    await this.storeThought(thought);
+    this.invalidateTFIDFCache();
+  }
+
+  /**
+   * Get retrieval quality metrics
+   */
+  getRetrievalMetrics(): {
+    indexed_documents: number;
+    vocabulary_size: number;
+    avg_document_length: number;
+    cache_valid: boolean;
+  } {
+    const docCount = (
+      this.db.prepare('SELECT COUNT(*) as count FROM thoughts').get() as { count: number }
+    ).count;
+
+    let avgLength = 0;
+    if (docCount > 0) {
+      const result = this.db.prepare('SELECT AVG(LENGTH(thought)) as avg FROM thoughts').get() as {
+        avg: number;
+      };
+      avgLength = result.avg || 0;
+    }
+
+    return {
+      indexed_documents: this.totalDocuments,
+      vocabulary_size: this.documentFrequency.size,
+      avg_document_length: avgLength,
+      cache_valid: this.idfCacheValid,
+    };
   }
 }
