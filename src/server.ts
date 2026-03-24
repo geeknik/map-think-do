@@ -69,6 +69,7 @@ import {
   CONFIG_DIR,
   MAX_THOUGHT_LENGTH,
   MAX_THOUGHTS,
+  MAX_PREVIOUS_THOUGHTS_CONTEXT,
   CUSTOM_PROMPTS_DIR,
 } from './utils/config.js';
 import { CognitiveOrchestrator } from './cognitive/cognitive-orchestrator.js';
@@ -321,7 +322,10 @@ class FilteredStdioServerTransport extends StdioServerTransport {
 /* -------------------------------------------------------------------------- */
 
 class CodeReasoningServer {
+  /** Bounded ring of the most-recent thoughts (capped at MAX_THOUGHTS). */
   private readonly thoughtHistory: ValidatedThoughtData[] = [];
+  /** Cached count of revision thoughts — avoids O(N) .filter() scan. */
+  private revisionCount = 0;
   private readonly branches = new Map<string, ValidatedThoughtData[]>();
   private cognitiveOrchestrator!: CognitiveOrchestrator;
   private readonly memoryStore: SQLiteStore;
@@ -612,7 +616,9 @@ class CodeReasoningServer {
         thought_number: data.thought_number,
         total_thoughts: data.total_thoughts,
         domain: this.inferDomain(data),
-        previous_thoughts: this.thoughtHistory.map(t => t.thought),
+        previous_thoughts: this.thoughtHistory
+          .slice(-MAX_PREVIOUS_THOUGHTS_CONTEXT)
+          .map(t => t.thought),
       });
 
       // Log detected biases
@@ -635,7 +641,7 @@ class CodeReasoningServer {
         goal_achieved: false,
         confidence_level: 0.5,
         total_thoughts: data.total_thoughts,
-        revision_count: this.thoughtHistory.filter(t => t.is_revision).length,
+        revision_count: this.revisionCount,
         branch_count: this.branches.size,
       });
 
@@ -674,7 +680,19 @@ class CodeReasoningServer {
       // Stats & storage -----------------------------------------------------
       // Use mutex to prevent race conditions in shared state mutations
       await this.thoughtMutex.withLock(async () => {
+        // Bounded history: evict the oldest entry when at capacity so that the
+        // array never grows beyond MAX_THOUGHTS elements and the evicted entry's
+        // contribution to revisionCount is subtracted.
+        if (this.thoughtHistory.length >= MAX_THOUGHTS) {
+          const evicted = this.thoughtHistory.shift();
+          if (evicted?.is_revision) {
+            this.revisionCount = Math.max(0, this.revisionCount - 1);
+          }
+        }
         this.thoughtHistory.push(data);
+        if (data.is_revision) {
+          this.revisionCount++;
+        }
         if (data.branch_id) {
           const arr = this.branches.get(data.branch_id) ?? [];
           arr.push(data);
@@ -851,6 +869,7 @@ class CodeReasoningServer {
   async destroy(): Promise<void> {
     // Clear data structures
     this.thoughtHistory.length = 0;
+    this.revisionCount = 0;
     this.branches.clear();
 
     // Cleanup MCP Integration Manager
