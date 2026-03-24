@@ -20,4 +20,9 @@ WORKDIR /app
 
 RUN npm ci --ignore-scripts --omit-dev
 
-ENTRYPOINT ["node", "dist/index.js"]
+USER node
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "process.exit(0)" || exit 1
+
+ENTRYPOINT ["node", "--max-old-space-size=512", "dist/index.js"]
