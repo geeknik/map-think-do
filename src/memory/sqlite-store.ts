@@ -200,6 +200,29 @@ export class SQLiteStore extends MemoryStore {
       CREATE INDEX IF NOT EXISTS idx_outcomes_domain ON outcomes(domain);
       CREATE INDEX IF NOT EXISTS idx_patterns_type ON learning_patterns(pattern_type);
     `);
+
+    // FTS5 virtual table for disk-based full-text search (avoids in-memory vocabulary bloat)
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS thoughts_fts USING fts5(
+        thought,
+        content=thoughts,
+        content_rowid=rowid
+      );
+    `);
+
+    // Triggers to keep FTS5 index in sync with the thoughts table
+    this.db.exec(`
+      CREATE TRIGGER IF NOT EXISTS thoughts_fts_insert AFTER INSERT ON thoughts BEGIN
+        INSERT INTO thoughts_fts(rowid, thought) VALUES (new.rowid, new.thought);
+      END;
+      CREATE TRIGGER IF NOT EXISTS thoughts_fts_delete AFTER DELETE ON thoughts BEGIN
+        INSERT INTO thoughts_fts(thoughts_fts, rowid, thought) VALUES('delete', old.rowid, old.thought);
+      END;
+      CREATE TRIGGER IF NOT EXISTS thoughts_fts_update AFTER UPDATE ON thoughts BEGIN
+        INSERT INTO thoughts_fts(thoughts_fts, rowid, thought) VALUES('delete', old.rowid, old.thought);
+        INSERT INTO thoughts_fts(rowid, thought) VALUES (new.rowid, new.thought);
+      END;
+    `);
   }
 
   // ============================================================================
@@ -1124,19 +1147,32 @@ export class SQLiteStore extends MemoryStore {
   private totalDocuments = 0;
   private idfCacheValid = false;
 
+  /** Maximum number of documents indexed in-memory for TF-IDF IDF estimates */
+  private static readonly TFIDF_INDEX_DOC_LIMIT = 10_000;
+  /** Evict the vocabulary cache when it exceeds this many unique terms */
+  private static readonly TFIDF_VOCAB_LIMIT = 50_000;
+
   /**
-   * Build TF-IDF index for intelligent search
+   * Build TF-IDF index for intelligent search.
+   * Only indexes the most recent TFIDF_INDEX_DOC_LIMIT documents to avoid
+   * unbounded memory growth as the persistent SQLite DB accumulates rows.
    */
   private buildTFIDFIndex(): void {
     if (this.idfCacheValid) return;
 
-    const allThoughts = this.db.prepare('SELECT thought FROM thoughts').all() as Array<{
-      thought: string;
-    }>;
-    this.totalDocuments = allThoughts.length;
+    // Guard: if vocabulary already exceeds limit, clear and rebuild fresh
+    if (this.documentFrequency.size > SQLiteStore.TFIDF_VOCAB_LIMIT) {
+      this.documentFrequency.clear();
+    }
+
+    const recentThoughts = this.db
+      .prepare('SELECT thought FROM thoughts ORDER BY timestamp DESC LIMIT ?')
+      .all(SQLiteStore.TFIDF_INDEX_DOC_LIMIT) as Array<{ thought: string }>;
+
+    this.totalDocuments = recentThoughts.length;
     this.documentFrequency.clear();
 
-    for (const { thought } of allThoughts) {
+    for (const { thought } of recentThoughts) {
       const terms = new Set(this.tokenize(thought));
       for (const term of terms) {
         this.documentFrequency.set(term, (this.documentFrequency.get(term) || 0) + 1);
@@ -1234,7 +1270,7 @@ export class SQLiteStore extends MemoryStore {
       params.push(domain);
     }
 
-    sql += ' ORDER BY timestamp DESC LIMIT 1000'; // Limit search space
+    sql += ' ORDER BY timestamp DESC LIMIT 200'; // Limit search space to avoid large in-memory arrays
 
     const candidates = this.db.prepare(sql).all(...params) as Record<string, unknown>[];
 
@@ -1325,7 +1361,7 @@ export class SQLiteStore extends MemoryStore {
       params.push(context.domain);
     }
 
-    sql += ' ORDER BY timestamp DESC LIMIT 500';
+    sql += ' ORDER BY timestamp DESC LIMIT 200'; // Cap candidate set to avoid large in-memory arrays
 
     const candidates = this.db.prepare(sql).all(...params) as Record<string, unknown>[];
 
