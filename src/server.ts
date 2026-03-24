@@ -1053,31 +1053,19 @@ export async function runServer(debugFlag = false): Promise<void> {
     if (!transport.isReady()) {
       const error = transport.getError();
       console.error('🚨 Transport health check failed:', error?.message || 'Unknown error');
-      clearInterval(healthCheckInterval);
       shutdown('transport_failure');
     }
   }, 5000); // Check every 5 seconds
 
-  await srv.connect(transport);
-
-  // Clear health check on clean shutdown
-  process.on('beforeExit', () => {
-    clearInterval(healthCheckInterval);
-  });
-
-  console.error('🗺️ Map. Think. Do. - Server ready');
-  console.error('📍 MAP: Problem decomposition active');
-  console.error('🧠 THINK: 8 cognitive perspectives available');
-  console.error('✅ DO: Structured reasoning enabled');
-  console.error('📚 Memory: SQLite persistence active');
-  console.error('🔍 Bias Detection: Online');
-  console.error('🎯 Tool: code-reasoning');
-  if (config.promptsEnabled) {
-    console.error('📝 Prompts: Enabled');
-  }
-  console.error('✨ Map the problem. Think it through. Do what matters.');
-
+  // Idempotent shutdown — safe to call from any exit path.
+  let shuttingDown = false;
   const shutdown = async (sig: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+
+    // Always clear the health-check interval first so it cannot re-enter shutdown.
+    clearInterval(healthCheckInterval);
+
     console.error(`↩︎ shutdown on ${sig}`);
 
     // Cleanup cognitive components
@@ -1107,6 +1095,20 @@ export async function runServer(debugFlag = false): Promise<void> {
 
     process.exit(0);
   };
+
+  await srv.connect(transport);
+
+  console.error('🗺️ Map. Think. Do. - Server ready');
+  console.error('📍 MAP: Problem decomposition active');
+  console.error('🧠 THINK: 8 cognitive perspectives available');
+  console.error('✅ DO: Structured reasoning enabled');
+  console.error('📚 Memory: SQLite persistence active');
+  console.error('🔍 Bias Detection: Online');
+  console.error('🎯 Tool: code-reasoning');
+  if (config.promptsEnabled) {
+    console.error('📝 Prompts: Enabled');
+  }
+  console.error('✨ Map the problem. Think it through. Do what matters.');
 
   ['SIGINT', 'SIGTERM'].forEach(s => process.on(s, () => shutdown(s)));
   process.on('uncaughtException', (err: Error) => {
