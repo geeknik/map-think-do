@@ -39,7 +39,7 @@
     "clean": "rm -rf dist",
     "clean:build": "npm run clean && npm run build",
     "dev": "tsc --watch",
-    "start": "node dist/index.js",
+    "start": "node --max-old-space-size=512 dist/index.js",
     "debug": "node dist/index.js --debug",
     "demo": "node examples/agi-demo.js",
     "lint": "eslint . --ext .ts",

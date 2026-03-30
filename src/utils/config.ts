@@ -22,3 +22,6 @@ export const CUSTOM_PROMPTS_DIR = path.join(CONFIG_DIR, 'prompts');
 // Application defaults (used by the in-memory configuration)
 export const MAX_THOUGHT_LENGTH = 20000;
 export const MAX_THOUGHTS = 20;
+// Maximum number of recent thoughts passed as context to bias detection.
+// Keeping this small avoids cloning large strings on every processThought call.
+export const MAX_PREVIOUS_THOUGHTS_CONTEXT = 5;
