@@ -1,16 +1,16 @@
 /**
- * @fileoverview Prompt templates for code reasoning.
+ * @fileoverview Prompt templates for map-think-do.
  *
  * This file defines a set of prompt templates specifically designed for
- * code reasoning tasks.
+ * structured reasoning tasks.
  */
 
 import { Prompt, PromptResult } from './types.js';
 
 /**
- * Collection of code reasoning prompts.
+ * Collection of map-think-do prompts.
  */
-export const CODE_REASONING_PROMPTS: Record<string, Prompt> = {
+export const MAP_THINK_DO_PROMPTS: Record<string, Prompt> = {
   'architecture-decision': {
     name: 'architecture-decision',
     description: 'Framework for making and documenting architecture decisions',
@@ -151,6 +151,8 @@ export const CODE_REASONING_PROMPTS: Record<string, Prompt> = {
   },
 };
 
+export const CODE_REASONING_PROMPTS = MAP_THINK_DO_PROMPTS;
+
 /**
  * Template implementation functions.
  * Each function takes a record of argument values and returns a prompt result.
@@ -166,7 +168,7 @@ export const PROMPT_TEMPLATES: Record<string, (args: Record<string, string>) => 
 
 ${args.working_directory ? `Working Directory: ${args.working_directory}\n` : ''}
 
-Please use reflective problem-solving through sequential thinking to analyze this architectural decision. Use the code-reasoning mcp tool to break down your analysis into structured steps.
+Please use reflective problem-solving through sequential thinking to analyze this architectural decision. Use the map-think-do MCP tool to break down your analysis into structured steps.
 
 Note: You can access and modify files using the filesystem tool mcp.
 
@@ -201,7 +203,7 @@ Note: You can access and modify files using the filesystem tool mcp.
    - What new constraints does this create?
    - What follow-up decisions will be needed?
 
-This critical architectural decision deserves thorough analysis. Use the code-reasoning mcp tool to structure your thinking and explore different perspectives step by step.`,
+This critical architectural decision deserves thorough analysis. Use the map-think-do MCP tool to structure your thinking and explore different perspectives step by step.`,
         },
       },
     ],
@@ -216,7 +218,7 @@ This critical architectural decision deserves thorough analysis. Use the code-re
 
 ${args.working_directory ? `Working Directory: ${args.working_directory}\n` : ''}
 
-Please use reflective problem-solving through sequential thinking to analyze this bug thoroughly. Use the code-reasoning mcp tool to break down your analysis into structured steps.
+Please use reflective problem-solving through sequential thinking to analyze this bug thoroughly. Use the map-think-do MCP tool to break down your analysis into structured steps.
 
 Note: You can access and modify files using the filesystem tool mcp.
 
@@ -247,7 +249,7 @@ Note: You can access and modify files using the filesystem tool mcp.
    - How can we verify the fix works?
    - Provide specific code changes if appropriate
 
-Remember to use the code-reasoning mcp tool to structure your thinking through this complex debugging task.`,
+Remember to use the map-think-do MCP tool to structure your thinking through this complex debugging task.`,
         },
       },
     ],
@@ -262,7 +264,7 @@ Remember to use the code-reasoning mcp tool to structure your thinking through t
 
 ${args.working_directory ? `Working Directory: ${args.working_directory}\n` : ''}
 
-Please use reflective problem-solving through sequential thinking to perform this code review. Use the code-reasoning mcp tool to break down your analysis into structured steps.
+Please use reflective problem-solving through sequential thinking to perform this code review. Use the map-think-do MCP tool to break down your analysis into structured steps.
 
 Note: You can access and modify files using the filesystem tool mcp.
 
@@ -310,7 +312,7 @@ ${args.requirements || 'No specific requirements provided.'}
    - Suggestions for improvement
    - Specific code changes to consider
 
-For this complex code analysis, use the code-reasoning mcp tool to structure your thinking and document your review process step by step.`,
+For this complex code analysis, use the map-think-do MCP tool to structure your thinking and document your review process step by step.`,
         },
       },
     ],
@@ -325,7 +327,7 @@ For this complex code analysis, use the code-reasoning mcp tool to structure you
 
 ${args.working_directory ? `Working Directory: ${args.working_directory}\n` : ''}
 
-Please use reflective problem-solving through sequential thinking to develop this feature plan. Use the code-reasoning mcp tool to break down your planning process into structured steps.
+Please use reflective problem-solving through sequential thinking to develop this feature plan. Use the map-think-do MCP tool to break down your planning process into structured steps.
 
 Note: You can access and modify files using the filesystem tool mcp.
 
@@ -365,7 +367,7 @@ Note: You can access and modify files using the filesystem tool mcp.
    - Include performance and quality expectations
    - Specify key files/components that must pass review
 
-This complex planning task will benefit from using the code-reasoning mcp tool to structure your thinking process.`,
+This complex planning task will benefit from using the map-think-do MCP tool to structure your thinking process.`,
         },
       },
     ],
@@ -380,7 +382,7 @@ This complex planning task will benefit from using the code-reasoning mcp tool t
 
 ${args.working_directory ? `Working Directory: ${args.working_directory}\n` : ''}
 
-Please use reflective problem-solving through sequential thinking to develop this refactoring plan. Use the code-reasoning mcp tool to break down your analysis into structured steps.
+Please use reflective problem-solving through sequential thinking to develop this refactoring plan. Use the map-think-do MCP tool to break down your analysis into structured steps.
 
 Note: You can access and modify files using the filesystem tool mcp.
 
@@ -414,7 +416,7 @@ Note: You can access and modify files using the filesystem tool mcp.
    - Estimated effort
    - Verification points
 
-This complex refactoring task requires careful analysis. Use the code-reasoning mcp tool to structure your thought process for developing a safe and effective approach.`,
+This complex refactoring task requires careful analysis. Use the map-think-do MCP tool to structure your thought process for developing a safe and effective approach.`,
         },
       },
     ],

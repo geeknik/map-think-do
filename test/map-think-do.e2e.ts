@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Integrated Test Runner for Code-Reasoning
+ * Integrated Test Runner for Map. Think. Do.
  *
  * A streamlined testing solution that manages server and client processes
  * while ensuring proper JSON-RPC protocol implementation. Key features:
@@ -193,7 +193,7 @@ const options: TestOptions = {
 };
 
 // Log startup information
-log(`Code-Reasoning E2E Test Runner starting`);
+log(`Map. Think. Do. E2E Test Runner starting`);
 log(`Log file: ${logFile}`);
 log(`Result file: ${resultFile}`);
 log(`Running scenario: ${options.scenario}`);
@@ -497,17 +497,17 @@ async function runTestScenario(
 
   log(`Tools response: ${JSON.stringify(toolsResponse)}`);
 
-  // Check for code-reasoning tool
+  // Check for map-think-do tool
   const tools = Array.isArray(toolsResponse?.result?.tools) ? toolsResponse.result.tools : [];
-  const codeReasoningTool = tools.find((tool: Tool) => tool.name === 'code-reasoning');
+  const mapThinkDoTool = tools.find((tool: Tool) => tool.name === 'map-think-do');
 
-  if (!codeReasoningTool) {
-    log('Error: code-reasoning tool not found!');
+  if (!mapThinkDoTool) {
+    log('Error: map-think-do tool not found!');
     results.successful = false;
     return results;
   }
 
-  log('Found code-reasoning tool, running thoughts...');
+  log('Found map-think-do tool, running thoughts...');
 
   // Run each thought
   for (let index = 0; index < scenario.thoughts.length; index++) {
@@ -522,7 +522,7 @@ async function runTestScenario(
         id: index + 2, // Start from id 2 (after initialize and tools/list)
         method: 'tools/call',
         params: {
-          name: 'code-reasoning',
+          name: 'map-think-do',
           arguments: thought,
         },
       });

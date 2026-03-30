@@ -1,5 +1,5 @@
 /**
- * @fileoverview Central configuration constants for code-reasoning
+ * @fileoverview Central configuration constants for map-think-do
  *
  * This file defines:
  * 1. Filesystem paths for components that need filesystem access (prompts)
@@ -10,12 +10,28 @@
  * defined here are only used for prompt-related functionality.
  */
 
-import path from 'path';
 import os from 'os';
+import path from 'path';
+import fs from 'fs';
 
 // Filesystem paths for prompt-related functionality
 export const USER_HOME = os.homedir();
-export const CONFIG_DIR = path.join(USER_HOME, '.code-reasoning');
+export const DEFAULT_CONFIG_DIR = path.join(USER_HOME, '.map-think-do');
+export const LEGACY_CONFIG_DIR = path.join(USER_HOME, '.code-reasoning');
+
+function resolveConfigDir(): string {
+  if (fs.existsSync(DEFAULT_CONFIG_DIR)) {
+    return DEFAULT_CONFIG_DIR;
+  }
+
+  if (fs.existsSync(LEGACY_CONFIG_DIR)) {
+    return LEGACY_CONFIG_DIR;
+  }
+
+  return DEFAULT_CONFIG_DIR;
+}
+
+export const CONFIG_DIR = resolveConfigDir();
 export const PROMPT_VALUES_FILE = path.join(CONFIG_DIR, 'prompt_values.json');
 export const CUSTOM_PROMPTS_DIR = path.join(CONFIG_DIR, 'prompts');
 

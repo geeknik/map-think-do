@@ -16,6 +16,7 @@ import { runFileSystemStoreTests } from './file-system-store.test.js';
 import { runPathValidatorTests } from './path-validator.test.js';
 import { runServerToolTests } from './server-tool.test.js';
 import { runReasoningPluginTests } from './reasoning-plugins.test.js';
+import { runInsightDetectorTests } from './insight-detector.test.js';
 
 interface TestSuite {
   name: string;
@@ -31,6 +32,7 @@ const testSuites: TestSuite[] = [
   { name: 'FileSystemStore', runner: runFileSystemStoreTests },
   { name: 'ServerTool', runner: runServerToolTests },
   { name: 'ReasoningPlugins', runner: runReasoningPluginTests },
+  { name: 'InsightDetector', runner: runInsightDetectorTests },
   { name: 'SQLiteStore', runner: runSQLiteStoreTests },
   { name: 'BiasDetector', runner: runBiasDetectorTests },
   { name: 'LearningManager', runner: runLearningManagerTests },

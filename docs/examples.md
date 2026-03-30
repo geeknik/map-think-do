@@ -1,6 +1,6 @@
-# Code-Reasoning MCP Server Usage Examples
+# Map. Think. Do. MCP Server Usage Examples
 
-This document provides detailed usage examples for the Code-Reasoning MCP Server. These examples demonstrate how to use the sequential thinking capabilities for programming tasks and complex problem-solving.
+This document provides detailed usage examples for the Map. Think. Do. MCP Server. These examples demonstrate how to use the sequential thinking capabilities for programming tasks and complex problem-solving.
 
 ## Table of Contents
 
@@ -233,7 +233,7 @@ This example demonstrates how to use thought revision to correct errors in reaso
 
 ### Claude Desktop Integration
 
-To use `map-think-do` with Claude Desktop, configure the MCP server entry to launch the executable while keeping the tool name `code-reasoning`.
+To use `map-think-do` with Claude Desktop, configure the MCP server entry to launch the executable and use `map-think-do` as the MCP tool name.
 
 #### Example Configuration (Basic)
 
@@ -265,18 +265,18 @@ To use `map-think-do` with Claude Desktop, configure the MCP server entry to lau
 
 #### Example Prompt for Claude
 
-When using Claude Desktop with `map-think-do`, ask Claude to use the `code-reasoning` tool for stepwise reasoning, revisions, or branches.
+When using Claude Desktop with `map-think-do`, ask Claude to use the `map-think-do` tool for stepwise reasoning, revisions, or branches.
 
 Example prompts to use with Claude:
 
 ```
-Please help me design a simple REST API for a todo application. Use code-reasoning to break down the design process into steps.
+Please help me design a simple REST API for a todo application. Use map-think-do to break down the design process into steps.
 ```
 
 Or more specifically for code-related tasks:
 
 ```
-Please analyze this algorithm implementation and identify any bugs or inefficiencies. Use code-reasoning to break down your analysis step by step.
+Please analyze this algorithm implementation and identify any bugs or inefficiencies. Use map-think-do to break down your analysis step by step.
 ```
 
 ### VS Code Integration
@@ -290,7 +290,7 @@ For VS Code integration, you can configure the MCP server in your VS Code settin
 {
   "mcp": {
     "servers": {
-      "code-reasoning": {
+      "map-think-do": {
         "command": "map-think-do",
         "args": ["--debug"]
       }
@@ -312,12 +312,12 @@ map-think-do --debug
 #### Example Log Output
 
 ```
-Starting Code-Reasoning MCP Server (streamlined v0.5.0)... {
+Starting Map. Think. Do. MCP Server (streamlined v0.5.0)... {
   "logLevel": "INFO",
   "debug": true,
   "pid": 12345
 }
-Code Reasoning Server logic handler initialized {
+Map. Think. Do. Server logic handler initialized {
   "config": {
     "maxThoughtLength": 20000,
     "timeoutMs": 30000,

@@ -23,7 +23,7 @@ function createMockContext(overrides: Partial<CognitiveContext> = {}): Cognitive
     complexity: 5,
     urgency: 'medium',
     confidence_level: 0.6,
-    available_tools: ['code-reasoning'],
+    available_tools: ['map-think-do'],
     time_constraints: undefined,
     similar_past_sessions: [],
     success_patterns: [],

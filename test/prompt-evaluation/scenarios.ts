@@ -12,9 +12,9 @@
  */
 
 /**
- * Defines a scenario for evaluating the code reasoning tool.
+ * Defines a scenario for evaluating the map-think-do tool.
  *
- * Each scenario targets a specific skill or capability of the code reasoning tool
+ * Each scenario targets a specific skill or capability of the map-think-do tool
  * and provides a problem designed to test that capability.
  */
 export interface PromptScenario {

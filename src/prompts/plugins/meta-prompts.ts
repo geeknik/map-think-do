@@ -231,7 +231,7 @@ ${args.thought_history ? `**Thought History:** ${args.thought_history}` : ''}
 - What evidence would change my current thinking?
 - How can I improve my reasoning process?
 
-Please use the code-reasoning tool to work through this reflection systematically.`,
+Please use the map-think-do tool to work through this reflection systematically.`,
             },
           },
         ],
@@ -262,7 +262,7 @@ ${args.alternative_perspectives ? `**Alternative Perspectives:** ${args.alternat
 - What would experts in different fields think about these assumptions?
 - How have similar assumptions been challenged historically?
 
-Use the code-reasoning tool to systematically examine each assumption.`,
+Use the map-think-do tool to systematically examine each assumption.`,
             },
           },
         ],
@@ -296,7 +296,7 @@ ${args.improvement_suggestions ? `**Improvement Ideas:** ${args.improvement_sugg
 - How could I make this reasoning more rigorous?
 - What additional information would strengthen my position?
 
-Use the code-reasoning tool to conduct this quality evaluation systematically.`,
+Use the map-think-do tool to conduct this quality evaluation systematically.`,
             },
           },
         ],
@@ -336,7 +336,7 @@ Let's calibrate your confidence in your current reasoning:
 - Am I being overconfident due to confirmation bias?
 - Am I being underconfident due to imposter syndrome?
 
-Use the code-reasoning tool to work through this calibration process.`,
+Use the map-think-do tool to work through this calibration process.`,
             },
           },
         ],
@@ -377,7 +377,7 @@ ${args.approach_comparison ? `**Approach Comparison:** ${args.approach_compariso
 - Which approach provides the best learning opportunity?
 - Which approach is most reversible if it doesn't work?
 
-Use the code-reasoning tool to systematically explore and evaluate these alternatives.`,
+Use the map-think-do tool to systematically explore and evaluate these alternatives.`,
             },
           },
         ],

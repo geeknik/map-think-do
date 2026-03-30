@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * @fileoverview Code Reasoning MCP Server Implementation.
+ * @fileoverview Map. Think. Do. MCP Server implementation.
  *
  * This server provides a tool for reflective problem-solving in software development,
  * allowing decomposition of tasks into sequential, revisable, and branchable thoughts.
@@ -20,7 +20,7 @@
  *
  * ## Usage in Claude Desktop
  * - In your Claude Desktop settings, add a "tool" definition referencing this server
- * - Ensure the tool name is "code-reasoning"
+ * - Use the "map-think-do" tool name for new integrations
  * - Configure Claude to use this tool for complex reasoning and problem-solving tasks
  * - Upon connecting, Claude can call the tool with an argument schema matching the
  *   `ThoughtDataSchema` defined in this file
@@ -51,6 +51,7 @@ import {
   CallToolRequestSchema,
   CompleteRequestSchema,
   GetPromptRequestSchema,
+  JSONRPCMessageSchema,
   ListPromptsRequestSchema,
   ListResourcesRequestSchema,
   ListToolsRequestSchema,
@@ -64,9 +65,11 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z, ZodError } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { PromptManager } from './prompts/manager.js';
-import { configManager, type CodeReasoningConfig } from './utils/config-manager.js';
+import { configManager, type MapThinkDoConfig } from './utils/config-manager.js';
 import {
   CONFIG_DIR,
+  DEFAULT_CONFIG_DIR,
+  LEGACY_CONFIG_DIR,
   MAX_THOUGHT_LENGTH,
   MAX_THOUGHTS,
   MAX_PREVIOUS_THOUGHTS_CONTEXT,
@@ -162,8 +165,11 @@ const THOUGHT_DATA_JSON_SCHEMA = Object.freeze(
 /*                                  TOOL DEF                                  */
 /* -------------------------------------------------------------------------- */
 
-export const CODE_REASONING_TOOL: Tool = {
-  name: 'code-reasoning',
+export const MAP_THINK_DO_TOOL_NAME = 'map-think-do';
+export const LEGACY_TOOL_NAME = 'code-reasoning';
+
+export const MAP_THINK_DO_TOOL: Tool = {
+  name: MAP_THINK_DO_TOOL_NAME,
   description: `🗺️ Map. Think. Do. - Structured cognitive reasoning for complex problem-solving.
 
 This tool helps you MAP problems, THINK through solutions, and DO what needs to be done through
@@ -212,19 +218,59 @@ structured reasoning with multiple cognitive perspectives, persisted state, and 
 - breakthrough_likelihood: Heuristic novelty potential score (0-1)`,
   inputSchema: THOUGHT_DATA_JSON_SCHEMA as any, // SDK expects unknown JSON schema shape
   annotations: {
-    title: 'Map. Think. Do. - Code Reasoning',
+    title: 'Map. Think. Do.',
     readOnlyHint: true,
   },
 };
+
+// Deprecated export retained for compatibility with existing internal imports/tests.
+export const CODE_REASONING_TOOL = MAP_THINK_DO_TOOL;
+
+function isSupportedToolName(name: string): boolean {
+  return name === MAP_THINK_DO_TOOL_NAME || name === LEGACY_TOOL_NAME;
+}
 
 /* -------------------------------------------------------------------------- */
 /*                        STDIO TRANSPORT WITH FILTERING                      */
 /* -------------------------------------------------------------------------- */
 
 class FilteredStdioServerTransport extends StdioServerTransport {
+  private static readonly MAX_INPUT_BUFFER_BYTES = 1024 * 1024;
+
   private originalStdoutWrite: typeof process.stdout.write;
+  private directStdoutWrite: typeof process.stdout.write;
   private isTransportClosed: boolean = false;
   private transportError: Error | null = null;
+  private started = false;
+  private inputBuffer = '';
+  private readonly handleStdoutError = (err: Error): void => {
+    console.error('📡 Stdout error:', err.message);
+    this.transportError = err;
+    if (err.message.includes('EPIPE') || err.message.includes('ECONNRESET')) {
+      this.isTransportClosed = true;
+    }
+  };
+  private readonly handleStdinError = (err: Error): void => {
+    this.transportError = err;
+    if (err.message.includes('EPIPE') || err.message.includes('ECONNRESET')) {
+      this.isTransportClosed = true;
+    }
+    this.onerror?.(err);
+  };
+  private readonly handleStdinData = (chunk: Buffer): void => {
+    this.inputBuffer += chunk.toString('utf8');
+
+    if (
+      Buffer.byteLength(this.inputBuffer, 'utf8') >
+      FilteredStdioServerTransport.MAX_INPUT_BUFFER_BYTES
+    ) {
+      this.inputBuffer = '';
+      void this.sendProtocolError(ErrorCode.ParseError, 'Parse error');
+      return;
+    }
+
+    this.processInputBuffer();
+  };
 
   constructor() {
     super();
@@ -234,6 +280,7 @@ class FilteredStdioServerTransport extends StdioServerTransport {
 
     // Create a bound version that preserves the original context
     const boundOriginalWrite = this.originalStdoutWrite.bind(process.stdout);
+    this.directStdoutWrite = boundOriginalWrite;
 
     // Override with a new function that handles errors gracefully
     process.stdout.write = ((data: string | Uint8Array): boolean => {
@@ -274,13 +321,78 @@ class FilteredStdioServerTransport extends StdioServerTransport {
     }) as any;
 
     // Handle process stdout errors
-    process.stdout.on('error', (err: Error) => {
-      console.error('📡 Stdout error:', err.message);
-      this.transportError = err;
-      if (err.message.includes('EPIPE') || err.message.includes('ECONNRESET')) {
-        this.isTransportClosed = true;
+    process.stdout.on('error', this.handleStdoutError);
+  }
+
+  async start(): Promise<void> {
+    if (this.started) {
+      throw new Error(
+        'FilteredStdioServerTransport already started! Server.connect() should only be called once.'
+      );
+    }
+
+    this.started = true;
+    process.stdin.on('data', this.handleStdinData);
+    process.stdin.on('error', this.handleStdinError);
+  }
+
+  private processInputBuffer(): void {
+    while (true) {
+      const newlineIndex = this.inputBuffer.indexOf('\n');
+      if (newlineIndex === -1) {
+        return;
       }
-    });
+
+      const line = this.inputBuffer.slice(0, newlineIndex).replace(/\r$/, '');
+      this.inputBuffer = this.inputBuffer.slice(newlineIndex + 1);
+
+      if (line.trim().length === 0) {
+        continue;
+      }
+
+      this.processInputLine(line);
+    }
+  }
+
+  private processInputLine(line: string): void {
+    try {
+      const parsed = JSON.parse(line);
+      const message = JSONRPCMessageSchema.parse(parsed);
+      this.onmessage?.(message);
+    } catch (error) {
+      void this.handleInputError(error as Error);
+    }
+  }
+
+  private async handleInputError(error: Error): Promise<void> {
+    if (error instanceof SyntaxError) {
+      await this.sendProtocolError(ErrorCode.ParseError, 'Parse error');
+      return;
+    }
+
+    if (error instanceof ZodError) {
+      await this.sendProtocolError(ErrorCode.InvalidRequest, 'Invalid Request');
+      return;
+    }
+
+    this.onerror?.(error);
+  }
+
+  private async sendProtocolError(code: ErrorCode, message: string): Promise<void> {
+    if (this.isTransportClosed) {
+      return;
+    }
+
+    try {
+      this.directStdoutWrite(
+        `${JSON.stringify({ jsonrpc: '2.0', id: null, error: { code, message } })}\n`
+      );
+    } catch (error) {
+      const transportError = error as Error;
+      this.transportError = transportError;
+      this.isTransportClosed = true;
+      this.onerror?.(transportError);
+    }
   }
 
   // Check if transport is available
@@ -297,14 +409,22 @@ class FilteredStdioServerTransport extends StdioServerTransport {
   async close(): Promise<void> {
     console.error('🔌 Closing FilteredStdioServerTransport');
     this.isTransportClosed = true;
+    this.started = false;
+    this.inputBuffer = '';
 
     // Restore the original stdout.write before closing
     if (this.originalStdoutWrite) {
       process.stdout.write = this.originalStdoutWrite;
     }
 
+    process.stdin.off('data', this.handleStdinData);
+    process.stdin.off('error', this.handleStdinError);
+    if (process.stdin.listenerCount('data') === 0) {
+      process.stdin.pause();
+    }
+
     // Remove error listeners
-    process.stdout.removeAllListeners('error');
+    process.stdout.off('error', this.handleStdoutError);
 
     // Call the parent class's close method only if not already closed
     try {
@@ -340,7 +460,7 @@ class CodeReasoningServer {
     return this.cognitiveOrchestrator;
   }
 
-  constructor(private readonly cfg: Readonly<CodeReasoningConfig>) {
+  constructor(private readonly cfg: Readonly<MapThinkDoConfig>) {
     // Initialize persistent SQLite memory store
     const dbPath = path.join(os.homedir(), '.map-think-do', 'memory.db');
     this.memoryStore = new SQLiteStore(dbPath);
@@ -935,6 +1055,11 @@ export async function runServer(debugFlag = false): Promise<void> {
   if (config.promptsEnabled) {
     promptManager = new PromptManager(CONFIG_DIR);
     console.error('Prompts capability enabled');
+    if (CONFIG_DIR === LEGACY_CONFIG_DIR) {
+      console.error(
+        `Using legacy config directory ${LEGACY_CONFIG_DIR}. Create ${DEFAULT_CONFIG_DIR} to migrate to the new canonical path.`
+      );
+    }
 
     // Load custom prompts from the standard location
     console.error(`Loading custom prompts from ${CUSTOM_PROMPTS_DIR}`);
@@ -1036,9 +1161,9 @@ export async function runServer(debugFlag = false): Promise<void> {
 
   // Existing handlers
   srv.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: [] }));
-  srv.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [CODE_REASONING_TOOL] }));
+  srv.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [MAP_THINK_DO_TOOL] }));
   srv.setRequestHandler(CallToolRequestSchema, async req => {
-    if (req.params.name === CODE_REASONING_TOOL.name) {
+    if (isSupportedToolName(req.params.name)) {
       return logic.processThought(req.params.arguments);
     } else {
       throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${req.params.name}`);
@@ -1103,7 +1228,8 @@ export async function runServer(debugFlag = false): Promise<void> {
   console.error('✅ DO: Structured reasoning enabled');
   console.error('📚 Memory: SQLite persistence active');
   console.error('🔍 Bias Detection: Online');
-  console.error('🎯 Tool: code-reasoning');
+  console.error(`🎯 Tool: ${MAP_THINK_DO_TOOL_NAME}`);
+  console.error(`↩︎ Legacy tool alias accepted: ${LEGACY_TOOL_NAME}`);
   if (config.promptsEnabled) {
     console.error('📝 Prompts: Enabled');
   }

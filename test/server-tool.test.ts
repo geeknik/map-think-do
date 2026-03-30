@@ -1,8 +1,15 @@
 import assert from 'assert/strict';
-import { CODE_REASONING_TOOL } from '../src/server.js';
+import { MAP_THINK_DO_TOOL, LEGACY_TOOL_NAME } from '../src/server.js';
 
 export async function runServerToolTests(): Promise<void> {
-  const description = CODE_REASONING_TOOL.description ?? '';
+  const description = MAP_THINK_DO_TOOL.description ?? '';
+
+  assert.equal(
+    MAP_THINK_DO_TOOL.name,
+    'map-think-do',
+    'server should advertise the map-think-do tool name'
+  );
+  assert.equal(LEGACY_TOOL_NAME, 'code-reasoning', 'legacy tool alias should remain explicit');
 
   assert.match(
     description,

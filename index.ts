@@ -3,14 +3,14 @@
 import { parseArgs } from 'node:util';
 
 /**
- * Code-Reasoning MCP Server Entry Point
+ * Map. Think. Do. MCP Server entry point
  *
- * This is the entry point for the Code-Reasoning MCP Server, which uses sequential thinking
+ * This is the entry point for the Map. Think. Do. MCP server, which uses sequential thinking
  * methodology to help solve programming problems step by step. It delegates to the main
  * server implementation in src/server.ts after parsing command line arguments.
  *
- * Note: The server registers the "code-reasoning" tool, specializing in programming tasks
- * but is now referred to as "code-reasoning" in configuration and documentation.
+ * Note: The server now advertises the "map-think-do" tool name and still accepts the
+ * legacy "code-reasoning" alias for existing clients.
  */
 
 // Parse command line arguments

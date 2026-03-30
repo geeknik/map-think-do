@@ -5,7 +5,7 @@ This directory contains the test sources used by `map-think-do`.
 ## Main Entry Points
 
 - `unit-test-runner.ts`: runs the TypeScript unit suites compiled into `dist/test`.
-- `code-reasoning.e2e.ts`: stdio end-to-end runner for the MCP server.
+- `map-think-do.e2e.ts`: stdio end-to-end runner for the MCP server.
 - `mcp-compliance.test.js`: protocol-level smoke checks.
 - `transport-failure.test.js`: transport and disconnect handling checks.
 - `prompt-evaluation/`: optional prompt-evaluation tooling.

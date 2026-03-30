@@ -1,14 +1,14 @@
 /**
- * @fileoverview Configuration manager for code-reasoning server
+ * @fileoverview Configuration manager for map-think-do.
  *
  * This module provides a singleton configuration manager that handles
- * configuration settings for the code-reasoning server in memory.
+ * runtime configuration settings for the server in memory.
  */
 
 /**
  * Structure of the server configuration
  */
-export interface CodeReasoningConfig {
+export interface MapThinkDoConfig {
   // Server settings
   maxThoughtLength: number;
   timeoutMs: number;
@@ -26,7 +26,7 @@ export interface CodeReasoningConfig {
  * Singleton config manager for the server
  */
 class ConfigManager {
-  private config: CodeReasoningConfig;
+  private config: MapThinkDoConfig;
   private initialized = false;
 
   constructor() {
@@ -54,7 +54,7 @@ class ConfigManager {
   /**
    * Create default configuration
    */
-  private getDefaultConfig(): CodeReasoningConfig {
+  private getDefaultConfig(): MapThinkDoConfig {
     return {
       maxThoughtLength: 20000,
       timeoutMs: 60000,
@@ -67,7 +67,7 @@ class ConfigManager {
   /**
    * Get the entire config
    */
-  async getConfig(): Promise<CodeReasoningConfig> {
+  async getConfig(): Promise<MapThinkDoConfig> {
     await this.init();
     return { ...this.config };
   }
@@ -75,7 +75,7 @@ class ConfigManager {
   /**
    * Get a specific configuration value
    */
-  async getValue<K extends keyof CodeReasoningConfig>(key: K): Promise<CodeReasoningConfig[K]> {
+  async getValue<K extends keyof MapThinkDoConfig>(key: K): Promise<MapThinkDoConfig[K]> {
     await this.init();
     return this.config[key];
   }
@@ -83,9 +83,9 @@ class ConfigManager {
   /**
    * Set a specific configuration value
    */
-  async setValue<K extends keyof CodeReasoningConfig>(
+  async setValue<K extends keyof MapThinkDoConfig>(
     key: K,
-    value: CodeReasoningConfig[K]
+    value: MapThinkDoConfig[K]
   ): Promise<void> {
     await this.init();
     this.config[key] = value;
@@ -94,7 +94,7 @@ class ConfigManager {
   /**
    * Update multiple configuration values at once
    */
-  async updateConfig(updates: Partial<CodeReasoningConfig>): Promise<CodeReasoningConfig> {
+  async updateConfig(updates: Partial<MapThinkDoConfig>): Promise<MapThinkDoConfig> {
     await this.init();
     this.config = { ...this.config, ...updates };
     return { ...this.config };
@@ -103,11 +103,13 @@ class ConfigManager {
   /**
    * Reset configuration to defaults
    */
-  async resetConfig(): Promise<CodeReasoningConfig> {
+  async resetConfig(): Promise<MapThinkDoConfig> {
     this.config = this.getDefaultConfig();
     return { ...this.config };
   }
 }
+
+export type CodeReasoningConfig = MapThinkDoConfig;
 
 // Export singleton instance
 export const configManager = new ConfigManager();

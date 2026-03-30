@@ -382,7 +382,7 @@ ${roleOptions}
 3. What perspective might reveal new insights?
 4. Which role handles this complexity level well?
 
-Choose a role and explain why it's appropriate for this context. Then use the code-reasoning tool to approach the problem from that role's perspective.`,
+Choose a role and explain why it's appropriate for this context. Then use the map-think-do tool to approach the problem from that role's perspective.`,
             },
           },
         ],
@@ -417,7 +417,7 @@ ${args.perspectives_needed ? `Requested Perspectives: ${args.perspectives_needed
 - Identify insights unique to each perspective
 - Synthesize a more complete understanding
 
-Use the code-reasoning tool to systematically work through these perspectives.`,
+Use the map-think-do tool to systematically work through these perspectives.`,
           },
         },
       ],
@@ -446,7 +446,7 @@ ${this.getRoleMindset(role)}
 **Approach Guidelines:**
 ${this.getRoleGuidelines(role)}
 
-Now, fully embody this ${role.name} persona and use the code-reasoning tool to approach the problem from this perspective. Think, speak, and reason as a ${role.name} would.`,
+Now, fully embody this ${role.name} persona and use the map-think-do tool to approach the problem from this perspective. Think, speak, and reason as a ${role.name} would.`,
             },
           },
         ],

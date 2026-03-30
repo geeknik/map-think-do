@@ -173,7 +173,7 @@ async function testErrorCodeCompliance() {
         id: 4,
         method: 'tools/call',
         params: {
-          name: 'code-reasoning',
+          name: 'map-think-do',
           arguments: {
             // Missing required fields
             thought_number: 'invalid',
@@ -201,21 +201,34 @@ async function testInvalidMethodHandling() {
     // Send malformed JSON
     const malformedRequest = '{"jsonrpc":"2.0","id":1,"method":"test"' + '\n'; // Missing closing brace
 
-    let errorReceived = false;
-    serverProcess.stdout.on('data', data => {
-      const response = data.toString();
-      if (response.includes('-32700')) {
-        // ParseError
-        errorReceived = true;
-        console.log('✅ Correctly handled malformed JSON with ParseError (-32700)');
-      }
+    const parseErrorPromise = new Promise(resolve => {
+      serverProcess.stdout.on('data', data => {
+        const response = data
+          .toString()
+          .split('\n')
+          .map(line => line.trim())
+          .filter(Boolean);
+
+        for (const line of response) {
+          try {
+            const parsed = JSON.parse(line);
+            if (parsed?.error?.code === -32700) {
+              console.log('✅ Correctly handled malformed JSON with ParseError (-32700)');
+              resolve(true);
+              return;
+            }
+          } catch {
+            // Ignore non-JSON stdout fragments while waiting for the parse error response.
+          }
+        }
+      });
     });
 
     serverProcess.stdin.write(malformedRequest);
-    await wait(500);
+    const parseErrorReceived = await Promise.race([parseErrorPromise, wait(3000)]);
 
-    if (!errorReceived) {
-      console.log('⚠️ Server may not be handling parse errors correctly');
+    if (!parseErrorReceived) {
+      throw new Error('Server did not return MCP ParseError (-32700) for malformed JSON');
     }
   } finally {
     serverProcess.kill();
@@ -251,7 +264,7 @@ async function testInvalidParamsHandling() {
       {
         name: 'Empty thought',
         params: {
-          name: 'code-reasoning',
+          name: 'map-think-do',
           arguments: {
             thought: '',
             thought_number: 1,
@@ -263,7 +276,7 @@ async function testInvalidParamsHandling() {
       {
         name: 'Invalid thought_number',
         params: {
-          name: 'code-reasoning',
+          name: 'map-think-do',
           arguments: {
             thought: 'Test',
             thought_number: 0,
@@ -275,7 +288,7 @@ async function testInvalidParamsHandling() {
       {
         name: 'Missing required fields',
         params: {
-          name: 'code-reasoning',
+          name: 'map-think-do',
           arguments: {
             thought: 'Test',
             // Missing other required fields

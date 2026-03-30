@@ -1,6 +1,6 @@
 # Prompt Evaluation System
 
-A streamlined, standalone system for evaluating Claude's ability to follow the code reasoning prompts. This system tests parameter adherence and solution quality for different prompts and scenarios.
+A streamlined, standalone system for evaluating Claude's ability to follow the map-think-do prompts. This system tests parameter adherence and solution quality for different prompts and scenarios.
 
 ## Purpose
 
@@ -53,7 +53,7 @@ The interactive CLI will guide you through:
 
 ### Parameter Adherence Testing
 
-Verifies that the model correctly follows the parameter format specified in the code reasoning tool, including:
+Verifies that the model correctly follows the parameter format specified in the map-think-do tool, including:
 
 - Required parameters (thought, thought_number, total_thoughts, next_thought_needed)
 - Sequential thought numbering
@@ -85,9 +85,9 @@ Reports are saved in the `./reports` directory with filenames that include the p
 
 Allows testing different variations of the core prompt:
 
-- DEFAULT - The standard code reasoning prompt
+- DEFAULT - The standard map-think-do prompt
 - SEQUENTIAL - The original sequential thinking prompt.
-- CODE_REASONING_0_30 - The prompt used for the 0.30 version of Code Reasoning
+- CODE_REASONING_0_30 - The prompt used for the 0.30 version of Map. Think. Do.
 - CUSTOM - Create your own custom prompt
 
 ## Examples

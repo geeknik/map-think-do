@@ -1,17 +1,17 @@
 # map-think-do
 
-`map-think-do` is an MCP server that exposes a single `code-reasoning` tool for structured problem solving. It supports linear reasoning, revisions, branching, prompt templates, persisted memory, and a set of heuristic cognitive signals such as bias detection and recommendation generation.
+`map-think-do` is an MCP server that exposes a single `map-think-do` tool for structured problem solving. It supports linear reasoning, revisions, branching, prompt templates, persisted memory, and a set of heuristic cognitive signals such as bias detection and recommendation generation.
 
 This project is experimental software. It uses cognitive and persona-oriented language in parts of the codebase, but it should be understood as a reasoning aid and orchestration layer, not as a claim of sentience or general intelligence.
 
 ## What It Actually Does
 
-- Registers the `code-reasoning` MCP tool over stdio.
+- Registers the `map-think-do` MCP tool over stdio.
 - Validates tool input with a strict schema and rejects extra fields.
 - Tracks ordered thoughts with optional revision and branch metadata.
 - Generates cognitive state metadata such as `metacognitive_awareness` and `breakthrough_likelihood`.
 - Persists reasoning history in SQLite by default, with alternate memory store implementations in the repo.
-- Supports prompt templates and custom prompt files under `~/.code-reasoning/prompts`.
+- Supports prompt templates and custom prompt files under `~/.map-think-do/prompts`.
 - Includes unit tests, end-to-end MCP tests, and transport/compliance test scripts.
 
 ## What It Does Not Do
@@ -40,7 +40,9 @@ If you install the package globally, the executable name is `map-think-do`.
 
 ## MCP Configuration
 
-The executable is `map-think-do`, but the MCP tool name exposed by the server is `code-reasoning`.
+The executable is `map-think-do`, and the MCP tool name exposed by the server is also `map-think-do`.
+
+For backward compatibility, the server still accepts incoming `code-reasoning` tool calls from older MCP clients, but it no longer advertises that legacy name.
 
 Example Claude Desktop configuration for a local checkout:
 
@@ -57,7 +59,7 @@ Example Claude Desktop configuration for a local checkout:
 
 ## Tool Input
 
-The `code-reasoning` tool accepts:
+The `map-think-do` tool accepts:
 
 ```json
 {
@@ -117,7 +119,8 @@ Current runtime behavior:
 - JSON-RPC is written to `stdout`.
 - Logs are written to `stderr`.
 - Debug mode reduces redaction in logs and should not be used in production environments.
-- Prompt data is stored under `~/.code-reasoning`.
+- Prompt data is stored under `~/.map-think-do` by default.
+- If `~/.code-reasoning` already exists and `~/.map-think-do` does not, the server keeps using the legacy directory to avoid orphaning existing prompt data.
 
 ## Testing
 

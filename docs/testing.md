@@ -15,7 +15,7 @@ npm test
 `npm test` currently runs:
 
 1. `dist/test/unit-test-runner.js`
-2. `dist/test/code-reasoning.e2e.js basic`
+2. `dist/test/map-think-do.e2e.js basic`
 3. `dist/tests/plugin-manager.test.js`
 
 The unit runner covers core utilities, state management, memory stores, and orchestrator behavior.

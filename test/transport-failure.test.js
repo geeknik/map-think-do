@@ -65,7 +65,7 @@ async function testAbruptDisconnect() {
         id: 2,
         method: 'tools/call',
         params: {
-          name: 'code-reasoning',
+          name: 'map-think-do',
           arguments: {
             thought: 'Test thought',
             thought_number: 1,
@@ -133,7 +133,7 @@ async function testBrokenPipe() {
         id: 2,
         method: 'tools/call',
         params: {
-          name: 'code-reasoning',
+          name: 'map-think-do',
           arguments: {
             thought: 'This should trigger EPIPE',
             thought_number: 1,

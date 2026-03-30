@@ -4,7 +4,7 @@ This repository uses "cognitive", "persona", and "metacognitive" terminology to 
 
 ## Current Architecture
 
-The main server lives in [`src/server.ts`](/home/geeknik/dev/map-think-do/src/server.ts) and exposes the `code-reasoning` MCP tool.
+The main server lives in [`src/server.ts`](/home/geeknik/dev/map-think-do/src/server.ts) and exposes the `map-think-do` MCP tool.
 
 Important subsystems:
 

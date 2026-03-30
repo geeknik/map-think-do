@@ -11,7 +11,7 @@ export function createPrompt(scenarioPrompt: string): string {
   const prompt = `I'd like you to solve a problem using sequential thinking methodology.
 Break down your reasoning into explicit steps.
 
-Here is the code reasoning tool description that explains the format to use:
+Here is the map-think-do tool description that explains the format to use:
 
 ${toolDescription}
 

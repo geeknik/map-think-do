@@ -560,7 +560,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     const urgency = this.calculateUrgency(thoughtData, sessionContext);
 
     // Get available tools (this would be expanded based on actual system capabilities)
-    const availableTools = ['code-reasoning', 'memory-store', 'pattern-recognition'];
+    const availableTools = ['map-think-do', 'memory-store', 'pattern-recognition'];
 
     const context: CognitiveContext = {
       current_thought: thoughtData.thought,
@@ -659,7 +659,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     // Insight-based recommendations
     if (insights.length > 0) {
       recommendations.push(
-        `${insights.length} cognitive insight(s) detected - validate the highest-confidence insight before expanding further`
+        `${insights.length} cognitive insight(s) detected - validate the highest-priority insight before expanding further`
       );
     }
 

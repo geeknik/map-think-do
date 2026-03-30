@@ -5,13 +5,14 @@ This directory documents the current `map-think-do` MCP server as it exists toda
 Key terminology:
 
 - Package / executable: `map-think-do`
-- MCP tool exposed by the server: `code-reasoning`
-- Default config directory: `~/.code-reasoning`
+- MCP tool exposed by the server: `map-think-do`
+- Default config directory: `~/.map-think-do`
+- Legacy compatibility alias: `code-reasoning`
 
 ## Index
 
 - [Configuration](./configuration.md): supported runtime flags, MCP setup, config storage, and logging behavior.
-- [Examples](./examples.md): prompt and integration examples for the `code-reasoning` tool.
+- [Examples](./examples.md): prompt and integration examples for the `map-think-do` tool.
 - [Prompts](./prompts.md): built-in prompt templates and prompt value persistence.
 - [Testing](./testing.md): default test commands and extra validation scripts.
 - [Architecture Notes](./AGI-TRANSFORMATION.md): implementation notes on the cognitive modules and why the repo uses that language.

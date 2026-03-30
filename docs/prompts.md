@@ -1,6 +1,6 @@
-# Code Reasoning MCP Server Prompts
+# Map. Think. Do. Prompt System
 
-This document provides detailed information about the prompt system in the Code Reasoning MCP server, including available prompts, how to use them, and how the prompt value persistence works.
+This document provides detailed information about the prompt system in the `map-think-do` MCP server, including available prompts, how to use them, and how prompt value persistence works.
 
 ## Table of Contents
 
@@ -14,7 +14,7 @@ This document provides detailed information about the prompt system in the Code 
 
 ## Overview
 
-The Code Reasoning MCP server includes a set of predefined prompts designed for various software development tasks. These prompts utilize the structured, step-by-step reasoning approach to help solve complex programming problems.
+The `map-think-do` MCP server includes a set of predefined prompts designed for software development tasks that benefit from structured, step-by-step reasoning.
 
 Key features of the prompt system:
 
@@ -25,7 +25,7 @@ Key features of the prompt system:
 
 ## Available Prompts
 
-The Code Reasoning MCP server includes the following predefined prompts:
+The server includes the following predefined prompts:
 
 | Prompt Name             | Description                                                 | Key Arguments                                                                    |
 | ----------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------- |
@@ -39,12 +39,12 @@ All prompts also support a `working_directory` parameter that specifies the path
 
 ## Using Prompts with Claude Desktop
 
-To use Code Reasoning prompts with Claude Desktop:
+To use these prompts with Claude Desktop:
 
 1. **Access the Prompts Menu**:
 
    - Click the "+" icon in the Claude Desktop chat window
-   - Select "Code Reasoning Tool" from the available tools
+   - Select the `map-think-do` tool from the available tools
 
 2. **Select a Prompt**:
 
@@ -63,7 +63,7 @@ To use Code Reasoning prompts with Claude Desktop:
 
 5. **Send the Message**:
    - Click the send button to submit the prompt to Claude
-   - Claude will use the Code Reasoning tool to provide a structured analysis
+   - Claude will use the `map-think-do` tool to provide a structured analysis
 
 ## Working Directory Integration
 
@@ -80,14 +80,15 @@ Example working directory values:
 
 ## Prompt Value Persistence
 
-The Code Reasoning MCP server now includes a feature to persist prompt argument values between sessions. This significantly reduces repetitive data entry.
+The server persists prompt argument values between sessions. This reduces repetitive data entry.
 
 ### How It Works
 
 1. **Value Storage**:
 
    - When you use a prompt, the argument values are saved to a JSON file
-   - The file is stored in the `~/.code-reasoning/` directory
+   - By default, the file is stored in the `~/.map-think-do/` directory
+   - If a legacy `~/.code-reasoning/` directory already exists and the new one does not, the server continues using the legacy path
    - Values are organized by prompt name for easy retrieval
 
 2. **Global Values**:
@@ -106,7 +107,7 @@ The Code Reasoning MCP server now includes a feature to persist prompt argument 
 Prompt values are stored in:
 
 ```
-~/.code-reasoning/prompt_values.json
+~/.map-think-do/prompt_values.json
 ```
 
 If you want to reset stored values, you can simply delete this file or modify it directly.
@@ -139,12 +140,12 @@ You can customize the built-in prompts or create your own by adding JSON files t
 
 ### Custom Prompts Directory
 
-Custom prompts are automatically loaded from the `~/.code-reasoning/prompts` directory. To use custom prompts:
+Custom prompts are automatically loaded from `~/.map-think-do/prompts` by default. If the server is operating from the legacy config directory, it loads from `~/.code-reasoning/prompts` instead. To use custom prompts:
 
 1. Create the prompts directory if it doesn't exist:
 
    ```bash
-   mkdir -p ~/.code-reasoning/prompts
+   mkdir -p ~/.map-think-do/prompts
    ```
 
 2. Create JSON files in the specified directory with the following format:

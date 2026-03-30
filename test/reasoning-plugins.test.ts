@@ -12,7 +12,7 @@ function createContext(overrides: Partial<CognitiveContext> = {}): CognitiveCont
     complexity: 7,
     urgency: 'medium',
     confidence_level: 0.5,
-    available_tools: ['code-reasoning'],
+    available_tools: ['map-think-do'],
     time_constraints: undefined,
     similar_past_sessions: [],
     success_patterns: [],

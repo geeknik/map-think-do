@@ -13,7 +13,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { z } from 'zod';
 import { Prompt, PromptResult } from './types.js';
-import { CODE_REASONING_PROMPTS, PROMPT_TEMPLATES } from './templates.js';
+import { MAP_THINK_DO_PROMPTS, PROMPT_TEMPLATES } from './templates.js';
 import { PromptValueManager } from './valueManager.js';
 import { CONFIG_DIR } from '../utils/config.js';
 import {
@@ -127,12 +127,12 @@ export class PromptManager {
     .strict(); // Ensure no unknown properties
 
   /**
-   * Creates a new PromptManager instance with default code reasoning prompts.
+   * Creates a new PromptManager instance with the default map-think-do prompts.
    *
    * @param configDir Optional directory for configuration files. Defaults to the centralized CONFIG_DIR.
    */
   constructor(configDir?: string) {
-    this.prompts = { ...CODE_REASONING_PROMPTS };
+    this.prompts = { ...MAP_THINK_DO_PROMPTS };
     this.templates = { ...PROMPT_TEMPLATES };
 
     // Use provided config directory or default to CONFIG_DIR

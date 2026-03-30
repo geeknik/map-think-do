@@ -5,7 +5,9 @@ This document covers configuration that is supported by the current codebase.
 ## Executable and Tool Names
 
 - Executable / package command: `map-think-do`
-- MCP tool name: `code-reasoning`
+- MCP tool name: `map-think-do`
+
+The server still accepts the legacy `code-reasoning` tool name for older clients, but new integrations should use `map-think-do`.
 
 ## Supported CLI Flags
 
@@ -47,11 +49,17 @@ The server uses `src/utils/config-manager.ts` for in-memory runtime flags. At st
 
 ## Prompt and Config Storage
 
-The default config directory is defined in [`src/utils/config.ts`](/home/geeknik/dev/map-think-do/src/utils/config.ts):
+The default config directory behavior is defined in [`src/utils/config.ts`](/home/geeknik/dev/map-think-do/src/utils/config.ts):
 
-- Config directory: `~/.code-reasoning`
-- Prompt values file: `~/.code-reasoning/prompt_values.json`
-- Custom prompts directory: `~/.code-reasoning/prompts`
+- Default config directory: `~/.map-think-do`
+- Default prompt values file: `~/.map-think-do/prompt_values.json`
+- Default custom prompts directory: `~/.map-think-do/prompts`
+
+Compatibility behavior:
+
+- If `~/.map-think-do` exists, it is used.
+- Otherwise, if `~/.code-reasoning` exists, the server keeps using that legacy directory.
+- If neither exists, the server creates and uses `~/.map-think-do`.
 
 Custom prompt loading is restricted to that base directory.
 
