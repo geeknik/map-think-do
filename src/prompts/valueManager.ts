@@ -8,7 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { PROMPT_VALUES_FILE } from '../utils/config.js';
-import { safeJoin, safeReadFile, safeWriteFile } from '../utils/path-validator.js';
+import { safeJoin, safeWriteFile } from '../utils/path-validator.js';
 
 // Structure for stored prompt values
 interface StoredPromptValues {

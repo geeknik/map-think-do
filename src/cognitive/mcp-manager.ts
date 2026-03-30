@@ -12,12 +12,7 @@ import { EventEmitter } from 'events';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import {
-  RealMCPClient,
-  MCPServerConfig,
-  ToolDefinition,
-  ToolCallResult,
-} from './real-mcp-client.js';
+import { RealMCPClient, MCPServerConfig, ToolCallResult } from './real-mcp-client.js';
 import { DynamicPluginLoader, PluginContext, PluginResult } from './dynamic-plugin-loader.js';
 import { SQLiteStore } from '../memory/sqlite-store.js';
 

@@ -482,7 +482,7 @@ export class MCPIntegrationSystem extends EventEmitter {
    * Perform health checks on all servers
    */
   private async performHealthChecks(): Promise<void> {
-    for (const [serverId, server] of this.servers) {
+    for (const [_serverId, server] of this.servers) {
       try {
         // Simulate health check - in real implementation, send ping/status request
         const isHealthy = Math.random() > 0.05; // 95% uptime simulation

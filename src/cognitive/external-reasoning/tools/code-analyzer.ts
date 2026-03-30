@@ -485,7 +485,7 @@ export class CodeAnalyzer implements ExternalTool {
         case ts.SyntaxKind.CaseClause:
           complexity++;
           break;
-        case ts.SyntaxKind.BinaryExpression:
+        case ts.SyntaxKind.BinaryExpression: {
           const binary = n as ts.BinaryExpression;
           if (
             binary.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
@@ -495,6 +495,7 @@ export class CodeAnalyzer implements ExternalTool {
             complexity++;
           }
           break;
+        }
       }
       ts.forEachChild(n, visit);
     };

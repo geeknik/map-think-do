@@ -54,7 +54,6 @@ export class ExternalReasoningPlugin extends CognitivePlugin {
   }
 
   async intervene(context: CognitiveContext): Promise<PluginIntervention> {
-    const startTime = Date.now();
     const insights: any[] = [];
     const interventions: any[] = [];
     const recommendations: string[] = [];

@@ -7,7 +7,6 @@
 
 import { CognitiveOrchestrator, OrchestratorConfig } from './cognitive-orchestrator.js';
 import { DependencyContainer, ServiceTokens } from './dependency-container.js';
-import { createConfiguredCognitiveContainer } from './dependency-registration.js';
 import { MemoryStore } from '../memory/memory-store.js';
 
 /**

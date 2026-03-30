@@ -233,7 +233,7 @@ This example demonstrates how to use thought revision to correct errors in reaso
 
 ### Claude Desktop Integration
 
-To use the code-reasoning server with Claude Desktop, you'll need to configure Claude Desktop to use the server.
+To use `map-think-do` with Claude Desktop, configure the MCP server entry to launch the executable while keeping the tool name `code-reasoning`.
 
 #### Example Configuration (Basic)
 
@@ -241,8 +241,8 @@ To use the code-reasoning server with Claude Desktop, you'll need to configure C
 // claude_desktop_config.json
 {
   "mcpServers": {
-    "code-reasoning": {
-      "command": "code-reasoning",
+    "map-think-do": {
+      "command": "map-think-do",
       "args": []
     }
   }
@@ -255,8 +255,8 @@ To use the code-reasoning server with Claude Desktop, you'll need to configure C
 // claude_desktop_config.json
 {
   "mcpServers": {
-    "code-reasoning": {
-      "command": "code-reasoning",
+    "map-think-do": {
+      "command": "map-think-do",
       "args": ["--debug"]
     }
   }
@@ -265,21 +265,7 @@ To use the code-reasoning server with Claude Desktop, you'll need to configure C
 
 #### Example Prompt for Claude
 
-When using Claude Desktop with the code-reasoning server, you can use the sequential thinking capability by asking Claude to reason step by step. The current tool description is:
-
-```
-🧠 A reflective problem-solving tool with sequential thinking.
-
-• Break down tasks into numbered thoughts that can BRANCH (🌿) or REVISE (🔄) until a conclusion is reached.
-• Always set 'next_thought_needed' = false when no further reasoning is needed.
-
-✅ Recommended checklist every 3 thoughts:
-1. Need to BRANCH?   → set 'branch_from_thought' + 'branch_id'.
-2. Need to REVISE?   → set 'is_revision' + 'revises_thought'.
-3. Scope changed? → bump 'total_thoughts'.
-
-✍️ End each thought with: "What am I missing?"
-```
+When using Claude Desktop with `map-think-do`, ask Claude to use the `code-reasoning` tool for stepwise reasoning, revisions, or branches.
 
 Example prompts to use with Claude:
 
@@ -305,7 +291,7 @@ For VS Code integration, you can configure the MCP server in your VS Code settin
   "mcp": {
     "servers": {
       "code-reasoning": {
-        "command": "code-reasoning",
+        "command": "map-think-do",
         "args": ["--debug"]
       }
     }
@@ -320,7 +306,7 @@ For VS Code integration, you can configure the MCP server in your VS Code settin
 To enable detailed logging, use the `--debug` flag:
 
 ```bash
-code-reasoning --debug
+map-think-do --debug
 ```
 
 #### Example Log Output
@@ -361,8 +347,8 @@ Thought processed successfully {
 ```json
 {
   "mcpServers": {
-    "code-reasoning": {
-      "command": "code-reasoning",
+    "map-think-do": {
+      "command": "map-think-do",
       "args": ["--debug"]
     },
     "another-server": {
@@ -385,8 +371,8 @@ Thought processed successfully {
   "editor.fontSize": 14,
   "mcp": {
     "servers": {
-      "code-reasoning": {
-        "command": "code-reasoning",
+      "map-think-do": {
+        "command": "map-think-do",
         "args": ["--debug"]
       }
     }
@@ -399,8 +385,8 @@ Thought processed successfully {
 ```json
 {
   "servers": {
-    "code-reasoning": {
-      "command": "code-reasoning",
+    "map-think-do": {
+      "command": "map-think-do",
       "args": ["--debug"]
     }
   }

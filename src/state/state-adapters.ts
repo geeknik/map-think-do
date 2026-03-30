@@ -6,10 +6,10 @@
  * synchronization and event propagation.
  */
 
-import { StateManager, UnifiedState } from './state-manager.js';
+import { StateManager } from './state-manager.js';
 import { CognitiveOrchestrator } from '../cognitive/cognitive-orchestrator.js';
 import { CognitiveState } from '../cognitive/state-tracker.js';
-import { PluginMetrics, CognitivePluginManager } from '../cognitive/plugin-system.js';
+import { PluginMetrics } from '../cognitive/plugin-system.js';
 import { MemoryStore, MemoryStats } from '../memory/memory-store.js';
 import { getIntervalManager } from '../utils/interval-manager.js';
 
@@ -432,6 +432,7 @@ export class SessionStateAdapter {
    * Start a new session
    */
   startSession(sessionId: string): void {
+    this.currentSessionId = sessionId;
     this.totalSessions++;
     this.sessionStartTime = new Date();
 
@@ -474,7 +475,7 @@ export class SessionStateAdapter {
     this.stateManager.updateState(
       {
         session: {
-          currentSessionId: `session_${Date.now()}`,
+          currentSessionId: this.currentSessionId,
           sessionStartTime: this.sessionStartTime,
           totalSessions: this.totalSessions,
           activeConnections: this.activeConnections,

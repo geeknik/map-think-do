@@ -5,6 +5,35 @@
 import path from 'path';
 import { promises as fs } from 'fs';
 
+async function getCanonicalBasePath(allowedBase: string): Promise<string> {
+  const resolvedBase = path.resolve(allowedBase);
+  try {
+    return await fs.realpath(resolvedBase);
+  } catch {
+    return resolvedBase;
+  }
+}
+
+async function findExistingParent(targetPath: string, stopAt: string): Promise<string> {
+  let current = path.resolve(targetPath);
+  const resolvedStopAt = path.resolve(stopAt);
+
+  while (isPathSafe(current, resolvedStopAt)) {
+    try {
+      await fs.lstat(current);
+      return current;
+    } catch {
+      const parent = path.dirname(current);
+      if (parent === current) {
+        break;
+      }
+      current = parent;
+    }
+  }
+
+  return resolvedStopAt;
+}
+
 /**
  * Validates that a path is within the allowed directory
  */
@@ -22,12 +51,18 @@ export function isPathSafe(targetPath: string, allowedBase: string): boolean {
  */
 export function sanitizeFilename(filename: string): string {
   // Remove any path separators and parent directory references
-  return filename
-    .replace(/[\/\\]/g, '_') // Replace slashes with underscores
+  const sanitized = filename
+    .replace(/[\\/]/g, '_') // Replace slashes with underscores
     .replace(/\.\./g, '_') // Replace .. with underscore
     .replace(/^\./, '_') // Replace leading dot
-    .replace(/[\x00-\x1f\x80-\x9f]/g, '') // Remove control characters
     .replace(/[<>:"|?*]/g, '_'); // Replace invalid filename chars
+
+  return Array.from(sanitized)
+    .filter(char => {
+      const code = char.charCodeAt(0);
+      return !((code >= 0x00 && code <= 0x1f) || (code >= 0x80 && code <= 0x9f));
+    })
+    .join('');
 }
 
 /**
@@ -60,11 +95,28 @@ export async function validatePath(
     throw new Error(`Path traversal attempt detected: ${targetPath}`);
   }
 
+  const canonicalBase = await getCanonicalBasePath(resolvedBase);
+
   if (mustExist) {
     try {
-      await fs.access(resolved);
-    } catch {
+      const canonicalTarget = await fs.realpath(resolved);
+      if (!isPathSafe(canonicalTarget, canonicalBase)) {
+        throw new Error(`Path traversal attempt detected: ${targetPath}`);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Path traversal attempt detected')) {
+        throw error;
+      }
       throw new Error(`Path does not exist: ${targetPath}`);
+    }
+  } else {
+    const nearestExistingParent = await findExistingParent(path.dirname(resolved), resolvedBase);
+    const canonicalParent = await fs
+      .realpath(nearestExistingParent)
+      .catch(() => path.resolve(nearestExistingParent));
+
+    if (!isPathSafe(canonicalParent, canonicalBase)) {
+      throw new Error(`Path traversal attempt detected: ${targetPath}`);
     }
   }
 

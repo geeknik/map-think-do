@@ -17,12 +17,8 @@ import { EventEmitter } from 'events';
 import { ErrorSeverity, handleError } from '../utils/error-handler.js';
 import { Mutex } from '../utils/mutex.js';
 import { SecureLogger } from '../utils/secure-logger.js';
-import {
-  CircularBuffer,
-  CognitiveCircularBuffer,
-  BufferFactory,
-} from '../utils/circular-buffer.js';
-import { ErrorBoundary, ErrorBoundaryFactory, withErrorBoundary } from '../utils/error-boundary.js';
+import { CognitiveCircularBuffer, BufferFactory } from '../utils/circular-buffer.js';
+import { ErrorBoundary, ErrorBoundaryFactory } from '../utils/error-boundary.js';
 import {
   CognitivePluginManager,
   CognitiveContext,
@@ -66,19 +62,6 @@ export interface OrchestratorConfig {
   performance_monitoring_enabled: boolean;
   self_optimization_enabled: boolean;
   cognitive_load_balancing: boolean;
-}
-
-/**
- * Cognitive insight detection
- */
-interface LocalCognitiveInsight {
-  type: 'pattern_recognition' | 'breakthrough' | 'synthesis' | 'paradigm_shift';
-  confidence: number;
-  description: string;
-  implications: string[];
-  evidence: string[];
-  novelty_score: number;
-  impact_potential: number;
 }
 
 /**
@@ -222,10 +205,16 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       // Record request performance
       this.stateService.recordRequest(event.processing_time, true);
 
+      const currentSession = this.stateService.getState().session;
+
       // Update cognitive state in unified state
       this.stateService.updateState(
         {
           cognitive: event.cognitiveState,
+          session: {
+            ...currentSession,
+            currentSessionId: event.cognitiveState.session_id,
+          },
         },
         'cognitive_orchestrator'
       );

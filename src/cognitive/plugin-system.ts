@@ -15,7 +15,7 @@
 import { EventEmitter } from 'events';
 import { ErrorSeverity, handleError } from '../utils/error-handler.js';
 import { StoredThought, ReasoningSession } from '../memory/memory-store.js';
-import { asyncSort, processInChunks, yieldToEventLoop } from '../utils/async-helpers.js';
+import { asyncSort, yieldToEventLoop } from '../utils/async-helpers.js';
 
 /**
  * Context information available to cognitive plugins

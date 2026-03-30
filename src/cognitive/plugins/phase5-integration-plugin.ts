@@ -860,7 +860,7 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    */
   async intervene(context: CognitiveContext): Promise<PluginIntervention> {
     try {
-      const processedResult = await this.process(context);
+      await this.process(context);
 
       return {
         type: 'context_enhancement',

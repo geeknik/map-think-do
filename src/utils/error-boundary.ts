@@ -5,7 +5,7 @@
  * to prevent cascading failures in the cognitive system.
  */
 
-import { ErrorSeverity, ErrorHandler, handleError } from './error-handler.js';
+import { ErrorSeverity, handleError } from './error-handler.js';
 import { CircularBuffer } from './circular-buffer.js';
 
 export interface ErrorBoundaryConfig {

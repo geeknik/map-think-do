@@ -75,10 +75,10 @@ import {
 import { CognitiveOrchestrator } from './cognitive/cognitive-orchestrator.js';
 import { createCognitiveOrchestrator } from './cognitive/cognitive-orchestrator-factory.js';
 import { Mutex } from './utils/mutex.js';
-import { StoredThought, ReasoningSession } from './memory/memory-store.js';
+import { StoredThought } from './memory/memory-store.js';
 import { SQLiteStore } from './memory/sqlite-store.js';
 import { BiasDetector } from './cognitive/bias-detector.js';
-import { secureLogger, LogLevel as SecureLogLevel } from './utils/secure-logger.js';
+import { secureLogger } from './utils/secure-logger.js';
 import { MCPIntegrationManager } from './cognitive/mcp-manager.js';
 import path from 'path';
 import os from 'os';
@@ -210,7 +210,6 @@ structured reasoning with multiple cognitive perspectives and adaptive learning.
 - ai_recommendations: Suggested next steps
 - metacognitive_awareness: Self-reflection depth (0-1)
 - breakthrough_likelihood: Discovery probability (0-1)`,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   inputSchema: THOUGHT_DATA_JSON_SCHEMA as any, // SDK expects unknown JSON schema shape
   annotations: {
     title: 'Map. Think. Do. - Code Reasoning',
@@ -272,7 +271,6 @@ class FilteredStdioServerTransport extends StdioServerTransport {
         // Re-throw non-transport errors
         throw error;
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
 
     // Handle process stdout errors

@@ -29,8 +29,16 @@ export default [
     },
     rules: {
       // TypeScript specific rules
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      // This codebase handles dynamic MCP/JSON payloads extensively; strict TS remains enabled.
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          args: 'none',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
       // General rules
       'no-console': ['warn', { allow: ['error', 'warn', 'info', 'debug'] }],
       'no-unused-vars': 'off',
@@ -38,9 +46,17 @@ export default [
     },
   },
   {
-    files: ['**/test/**/*.ts'],
+    files: ['**/*.ts'],
+    rules: {
+      // TypeScript handles type-only symbols; core no-undef produces false positives here.
+      'no-undef': 'off',
+    },
+  },
+  {
+    files: ['**/test/**/*.ts', '**/tests/**/*.ts', 'examples/**/*.js', 'test/**/*.js'],
     rules: {
       'no-console': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
     },
   },
 ];

@@ -26,20 +26,6 @@ interface ConceptNode {
   abstractionLevel: number; // 0 = concrete, 1 = abstract
 }
 
-interface BlendedSpace {
-  inputSpace1: ConceptNode;
-  inputSpace2: ConceptNode;
-  genericSpace: string[]; // shared structure
-  blendedSpace: {
-    emergentProperties: string[];
-    inheritedFrom1: string[];
-    inheritedFrom2: string[];
-    novelCombinations: string[];
-  };
-  compressionScore: number;
-  integrationScore: number;
-}
-
 interface AnalogicalMapping {
   source: string;
   target: string;

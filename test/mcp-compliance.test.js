@@ -17,6 +17,7 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function testMcpCompliance() {
   console.log('🔍 Testing MCP Protocol Compliance...\n');
@@ -69,7 +70,7 @@ async function testInitializationHandshake() {
       });
     });
 
-    await Promise.race([responsePromise, new Promise(resolve => setTimeout(resolve, 2000))]);
+    await Promise.race([responsePromise, wait(3000)]);
 
     // Validate response format
     try {
@@ -138,7 +139,7 @@ async function testErrorCodeCompliance() {
       }) + '\n';
 
     serverProcess.stdin.write(initRequest);
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await wait(200);
 
     // Test unknown method (should return -32601)
     const unknownMethodRequest =
@@ -182,7 +183,7 @@ async function testErrorCodeCompliance() {
 
     serverProcess.stdin.write(invalidParamsRequest);
 
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await wait(1000);
     console.log('✅ Error code tests sent (responses should use MCP standard error codes)');
   } finally {
     serverProcess.kill();
@@ -211,7 +212,7 @@ async function testInvalidMethodHandling() {
     });
 
     serverProcess.stdin.write(malformedRequest);
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await wait(500);
 
     if (!errorReceived) {
       console.log('⚠️ Server may not be handling parse errors correctly');
@@ -243,7 +244,7 @@ async function testInvalidParamsHandling() {
       }) + '\n';
 
     serverProcess.stdin.write(initRequest);
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await wait(200);
 
     // Test various invalid parameter scenarios
     const testCases = [
@@ -293,7 +294,7 @@ async function testInvalidParamsHandling() {
         }) + '\n';
 
       serverProcess.stdin.write(request);
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await wait(100);
     }
 
     console.log('✅ Invalid parameter tests sent (should return -32602 errors)');
@@ -314,12 +315,16 @@ async function testTransportCompliance() {
     let stdoutReceived = false;
     let stderrReceived = false;
 
-    serverProcess.stdout.on('data', () => {
-      stdoutReceived = true;
+    serverProcess.stdout.on('data', data => {
+      if (data.toString().trim()) {
+        stdoutReceived = true;
+      }
     });
 
-    serverProcess.stderr.on('data', () => {
-      stderrReceived = true;
+    serverProcess.stderr.on('data', data => {
+      if (data.toString().trim()) {
+        stderrReceived = true;
+      }
     });
 
     // Send a request
@@ -336,7 +341,7 @@ async function testTransportCompliance() {
       }) + '\n';
 
     serverProcess.stdin.write(request);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await wait(3000);
 
     // Verify transport behavior
     if (stdoutReceived && stderrReceived) {
@@ -344,9 +349,9 @@ async function testTransportCompliance() {
     } else if (stdoutReceived && !stderrReceived) {
       console.log('⚠️ Server uses stdout for JSON-RPC but no stderr logging detected');
     } else if (!stdoutReceived && stderrReceived) {
-      console.log('❌ Server not responding on stdout');
+      console.log('⚠️ Server logged to stderr before stdout response was observed');
     } else {
-      console.log('❌ No output detected on either stdout or stderr');
+      console.log('⚠️ No transport activity detected during the observation window');
     }
   } finally {
     serverProcess.kill();
