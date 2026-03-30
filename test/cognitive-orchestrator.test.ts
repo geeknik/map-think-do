@@ -278,10 +278,15 @@ async function testCognitiveStateImmutability(): Promise<void> {
 async function testInterventionCooldown(): Promise<void> {
   const orchestrator = await createTestCognitiveOrchestrator({
     intervention_cooldown_ms: 100, // 100ms cooldown
+    max_concurrent_interventions: 4,
   });
 
-  const thought1 = createMockThought({ thought: 'First thought' });
+  const thought1 = createMockThought({
+    thought:
+      'This is urgent and complex, so we should challenge our assumptions before choosing an architecture',
+  });
   const result1 = await orchestrator.processThought(thought1);
+  assert.ok(result1.interventions.length > 0, 'First thought should trigger an intervention');
 
   // Immediately process second thought - should be in cooldown
   const thought2 = createMockThought({
@@ -639,6 +644,120 @@ async function testUrgencyRecommendations(): Promise<void> {
   console.log('  ✓ Urgency handling works');
 }
 
+async function testPhase5StaysInactiveForRoutineThoughts(): Promise<void> {
+  const orchestrator = await createTestCognitiveOrchestrator({
+    intervention_cooldown_ms: 0,
+    max_concurrent_interventions: 4,
+  });
+
+  const result = await orchestrator.processThought(
+    createMockThought({ thought: 'List the next practical step for this small fix' })
+  );
+
+  assert.ok(
+    !result.interventions.some(
+      intervention => intervention.metadata.plugin_id === 'phase5-integration'
+    ),
+    'Routine thoughts should not trigger advanced reasoning integration'
+  );
+
+  await orchestrator.dispose();
+  console.log('  ✓ Phase 5 stays inactive for routine thoughts');
+}
+
+async function testPhase5ActivatesForDemandingThoughts(): Promise<void> {
+  const orchestrator = await createTestCognitiveOrchestrator({
+    intervention_cooldown_ms: 0,
+    max_concurrent_interventions: 4,
+  });
+
+  const result = await orchestrator.processThought(
+    createMockThought({
+      thought:
+        'We urgently need to integrate multiple complex systems, revisit our assumptions, and coordinate a creative architecture under pressure',
+    })
+  );
+
+  assert.ok(
+    result.interventions.some(
+      intervention => intervention.metadata.plugin_id === 'phase5-integration'
+    ),
+    'Demanding reasoning should trigger advanced reasoning integration'
+  );
+
+  await orchestrator.dispose();
+  console.log('  ✓ Phase 5 activates for demanding thoughts');
+}
+
+async function testRecommendationsReflectRevisionAndDeadlinePressure(): Promise<void> {
+  const orchestrator = await createTestCognitiveOrchestrator({
+    intervention_cooldown_ms: 0,
+  });
+
+  await orchestrator.processThought(
+    createMockThought({ thought: 'Initial plan for the investigation' })
+  );
+
+  const result = await orchestrator.processThought(
+    createMockThought({
+      thought: 'Maybe we should revise this approach immediately because I am unsure',
+      thought_number: 2,
+      is_revision: true,
+      revises_thought: 1,
+    })
+  );
+
+  assert.ok(
+    result.recommendations.some(
+      recommendation =>
+        recommendation.includes('Revision detected') || recommendation.includes('revised')
+    ),
+    'Revision thoughts should receive revision-specific guidance'
+  );
+  assert.ok(
+    result.recommendations.some(
+      recommendation =>
+        recommendation.includes('deadline') || recommendation.includes('concrete action')
+    ),
+    'Deadline pressure should produce time-sensitive guidance'
+  );
+
+  await orchestrator.dispose();
+  console.log('  ✓ Recommendations reflect revision and deadline pressure');
+}
+
+async function testRepeatedReasoningDetectionHandlesParaphrases(): Promise<void> {
+  const orchestrator = await createTestCognitiveOrchestrator({
+    intervention_cooldown_ms: 0,
+  });
+
+  await orchestrator.processThought(
+    createMockThought({
+      thought: 'We should evaluate peak API latency before changing the architecture',
+    })
+  );
+
+  const result = await orchestrator.processThought(
+    createMockThought({
+      thought: 'Before we change the architecture, we need to assess peak API latency',
+      thought_number: 2,
+      total_thoughts: 3,
+    })
+  );
+
+  assert.ok(
+    result.recommendations.some(
+      recommendation =>
+        recommendation.includes('highly similar to a recent step') ||
+        recommendation.includes('add new evidence')
+    ),
+    'Paraphrased repeats should be detected as stagnation signals'
+  );
+
+  await orchestrator.dispose();
+  console.log('  ✓ Repeated reasoning detection handles paraphrases');
+}
+
 // ============================================================================
 // Plugin Add/Remove Tests
 // ============================================================================
@@ -751,6 +870,19 @@ const tests = [
   // Detection
   { name: 'Complexity detection', fn: testComplexityDetection },
   { name: 'Urgency handling', fn: testUrgencyRecommendations },
+  { name: 'Phase 5 inactive on routine thoughts', fn: testPhase5StaysInactiveForRoutineThoughts },
+  {
+    name: 'Phase 5 active on demanding thoughts',
+    fn: testPhase5ActivatesForDemandingThoughts,
+  },
+  {
+    name: 'Recommendations reflect revision and deadline pressure',
+    fn: testRecommendationsReflectRevisionAndDeadlinePressure,
+  },
+  {
+    name: 'Repeated reasoning detection handles paraphrases',
+    fn: testRepeatedReasoningDetectionHandlesParaphrases,
+  },
 
   // Plugin Management
   { name: 'Add plugin', fn: testAddPlugin },

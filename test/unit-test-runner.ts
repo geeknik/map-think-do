@@ -14,6 +14,8 @@ import { runLearningManagerTests } from './learning-manager.test.js';
 import { runCognitiveOrchestratorTests } from './cognitive-orchestrator.test.js';
 import { runFileSystemStoreTests } from './file-system-store.test.js';
 import { runPathValidatorTests } from './path-validator.test.js';
+import { runServerToolTests } from './server-tool.test.js';
+import { runReasoningPluginTests } from './reasoning-plugins.test.js';
 
 interface TestSuite {
   name: string;
@@ -27,6 +29,8 @@ const testSuites: TestSuite[] = [
   { name: 'StateManager', runner: runStateManagerTests },
   { name: 'PathValidator', runner: runPathValidatorTests },
   { name: 'FileSystemStore', runner: runFileSystemStoreTests },
+  { name: 'ServerTool', runner: runServerToolTests },
+  { name: 'ReasoningPlugins', runner: runReasoningPluginTests },
   { name: 'SQLiteStore', runner: runSQLiteStoreTests },
   { name: 'BiasDetector', runner: runBiasDetectorTests },
   { name: 'LearningManager', runner: runLearningManagerTests },

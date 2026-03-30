@@ -54,44 +54,23 @@ export class ExternalReasoningPlugin extends CognitivePlugin {
   }
 
   async intervene(context: CognitiveContext): Promise<PluginIntervention> {
-    const insights: any[] = [];
-    const interventions: any[] = [];
-    const recommendations: string[] = [];
-
     try {
       // Determine which tools to use
       const toolsToUse = this.selectTools(context);
 
       // Execute tools
       const results = await this.executeTools(toolsToUse, context);
-
-      // Process results
-      for (const result of results) {
-        if (result.success) {
-          insights.push({
-            type: 'external_tool_result',
-            confidence: result.result?.confidence || 0.7,
-            description: `${result.tool_name} provided insights`,
-            tool_data: result.result,
-          });
-
-          recommendations.push(`Successfully used ${result.tool_name} for enhanced reasoning`);
-        } else {
-          interventions.push({
-            type: 'tool_failure',
-            content: `${result.tool_name} failed: ${result.error}`,
-            confidence: 0.8,
-          });
-        }
-      }
+      const content = this.buildInterventionSummary(results, context);
+      const confidence = this.deriveInterventionConfidence(results);
 
       return {
         type: 'context_enhancement',
-        content: `External reasoning tools provided ${insights.length} insights and ${recommendations.length} recommendations`,
+        content,
         metadata: {
           plugin_id: this.id,
-          confidence: 0.8,
-          expected_benefit: 'Enhanced reasoning capabilities through external tools',
+          confidence,
+          expected_benefit:
+            'Grounds reasoning in concrete tool output instead of unsupported intuition',
         },
       };
     } catch (error) {
@@ -152,14 +131,38 @@ export class ExternalReasoningPlugin extends CognitivePlugin {
 
   private detectMathematicalNeeds(context: CognitiveContext): number {
     const content = context.current_thought?.toLowerCase() || '';
-    const mathKeywords = ['calculate', 'equation', 'solve', 'mathematical', 'number', 'pattern'];
+    const mathKeywords = [
+      'calculate',
+      'equation',
+      'solve',
+      'mathematical',
+      'number',
+      'pattern',
+      'latency',
+      'throughput',
+      'estimate',
+      'compare',
+      'probability',
+      'rate',
+    ];
     const matches = mathKeywords.filter(keyword => content.includes(keyword)).length;
     return Math.min(1.0, matches * 0.25);
   }
 
   private detectCreativeNeeds(context: CognitiveContext): number {
     const content = context.current_thought?.toLowerCase() || '';
-    const creativeKeywords = ['creative', 'idea', 'brainstorm', 'innovative', 'design', 'metaphor'];
+    const creativeKeywords = [
+      'creative',
+      'idea',
+      'brainstorm',
+      'innovative',
+      'design',
+      'metaphor',
+      'alternative',
+      'concept',
+      'combine',
+      'reframe',
+    ];
     const matches = creativeKeywords.filter(keyword => content.includes(keyword)).length;
     // Note: persona_active is not available in CognitiveContext, so we'll skip this check
     return Math.min(1.0, matches * 0.3);
@@ -265,6 +268,114 @@ export class ExternalReasoningPlugin extends CognitivePlugin {
   private getToolName(toolId: string): string {
     const tool = this.toolRegistry.getTool(toolId);
     return tool?.name || toolId;
+  }
+
+  private buildInterventionSummary(results: any[], context: CognitiveContext): string {
+    const successfulResults = results.filter(result => result.success);
+    const failedResults = results.filter(result => !result.success);
+    const findings = successfulResults.map(result => this.summarizeSuccessfulResult(result));
+    const nextChecks = this.generateNextChecks(successfulResults, failedResults, context);
+
+    if (successfulResults.length === 0 && failedResults.length === 0) {
+      return 'External reasoning was requested but no suitable tool could be selected. Continue manually and refine the request if tool support is needed.';
+    }
+
+    const sections: string[] = [];
+
+    if (findings.length > 0) {
+      sections.push(`External tool findings:\n${findings.map(line => `- ${line}`).join('\n')}`);
+    }
+
+    if (failedResults.length > 0) {
+      sections.push(
+        `Tool issues:\n${failedResults
+          .map(result => `- ${result.tool_name} failed: ${result.error || 'unknown error'}`)
+          .join('\n')}`
+      );
+    }
+
+    if (nextChecks.length > 0) {
+      sections.push(`Recommended next checks:\n${nextChecks.map(line => `- ${line}`).join('\n')}`);
+    }
+
+    return sections.join('\n\n');
+  }
+
+  private summarizeSuccessfulResult(result: any): string {
+    const payload = result.result || {};
+
+    if (result.tool_id === 'mathematical-solver') {
+      if (typeof payload.formatted === 'string') {
+        return `${result.tool_name}: computed ${payload.formatted}.`;
+      }
+      if (Array.isArray(payload.solutions) && payload.solutions.length > 0) {
+        return `${result.tool_name}: found solution set ${payload.solutions.join(', ')}.`;
+      }
+    }
+
+    if (result.tool_id === 'creative-synthesizer') {
+      if (Array.isArray(payload.ideas) && payload.ideas.length > 0) {
+        const topIdea = payload.ideas[0];
+        const ideaText =
+          typeof topIdea === 'string'
+            ? topIdea
+            : topIdea.idea || topIdea.description || topIdea.prompt || 'a promising idea';
+        return `${result.tool_name}: surfaced "${ideaText}".`;
+      }
+      if (Array.isArray(payload.candidate_solutions) && payload.candidate_solutions.length > 0) {
+        const topSolution = payload.candidate_solutions[0];
+        return `${result.tool_name}: suggested "${topSolution.solution || 'an analogy-driven option'}".`;
+      }
+    }
+
+    return `${result.tool_name}: produced structured output with confidence ${Math.round((payload.confidence || 0.7) * 100)}%.`;
+  }
+
+  private generateNextChecks(
+    successfulResults: any[],
+    failedResults: any[],
+    context: CognitiveContext
+  ): string[] {
+    const checks: string[] = [];
+
+    if (successfulResults.some(result => result.tool_id === 'mathematical-solver')) {
+      checks.push(
+        'Use the computed result to verify the numeric assumption behind the current plan.'
+      );
+    }
+
+    if (successfulResults.some(result => result.tool_id === 'creative-synthesizer')) {
+      checks.push(
+        'Compare the top generated idea against the baseline approach on feasibility and risk.'
+      );
+    }
+
+    if (failedResults.length > 0) {
+      checks.push(
+        'If a tool failed, simplify the request or restate the problem in a more structured form.'
+      );
+    }
+
+    if (context.confidence_level < 0.4) {
+      checks.push(
+        'Prefer a small validation step before building further reasoning on these results.'
+      );
+    }
+
+    return Array.from(new Set(checks)).slice(0, 3);
+  }
+
+  private deriveInterventionConfidence(results: any[]): number {
+    const successful = results.filter(result => result.success);
+    if (successful.length === 0) {
+      return 0.45;
+    }
+
+    const averageConfidence =
+      successful.reduce((sum, result) => sum + (result.result?.confidence || 0.7), 0) /
+      successful.length;
+
+    return Math.max(0.55, Math.min(0.95, averageConfidence));
   }
 
   // Public methods

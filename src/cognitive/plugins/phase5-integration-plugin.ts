@@ -1,9 +1,8 @@
 /**
- * 🚀 Phase 5 Integration Plugin
+ * Advanced reasoning integration plugin.
  *
- * Advanced AGI Features Integration
- * Orchestrates MCP integration, consciousness simulation, self-modifying architecture,
- * recursive self-prompting, and cross-domain knowledge transfer.
+ * Orchestrates MCP integration, recursive prompting, and cross-domain synthesis
+ * for demanding reasoning tasks.
  *
  * Features:
  * - MCP server integration and tool discovery
@@ -115,8 +114,8 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
   constructor(memoryStore: MemoryStore) {
     super(
       'phase5-integration',
-      'Phase 5 Advanced AGI Integration',
-      'Advanced AGI integration with MCP, consciousness simulation, self-modification, and quantum reasoning',
+      'Advanced Reasoning Integration',
+      'Advanced reasoning support with MCP integration, recursive prompting, and cross-domain synthesis',
       '1.0.0',
       {}
     );
@@ -626,6 +625,7 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    */
   async process(context: CognitiveContext): Promise<any> {
     const startTime = Date.now();
+    const normalizedComplexity = this.normalizeComplexity(context.complexity);
 
     try {
       // Enhance context with Phase 5 capabilities
@@ -638,7 +638,7 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
       const consciousnessInsights = this.applyConsciousnessInsights(enhancedContext);
 
       // Generate recursive prompts if needed
-      if (enhancedContext.complexity > 0.7) {
+      if (normalizedComplexity > 0.7) {
         this.generateRecursivePrompt(
           `How can I better understand: ${enhancedContext.current_thought}`,
           'cognitive_processing'
@@ -832,20 +832,24 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    * Determine if this plugin should activate given the current context
    */
   async shouldActivate(context: CognitiveContext): Promise<PluginActivation> {
-    // Phase 5 should activate for complex, high-level reasoning tasks
-    const shouldActivate =
-      context.complexity > 0.6 ||
-      context.metacognitive_awareness > 0.7 ||
-      context.creative_pressure > 0.5;
+    const normalizedComplexity = this.normalizeComplexity(context.complexity);
+    const signalStrength = Math.max(
+      normalizedComplexity,
+      context.metacognitive_awareness,
+      context.creative_pressure,
+      context.urgency === 'high' ? 0.8 : 0
+    );
+    const activationSignals = this.describeActivationSignals(context, normalizedComplexity);
+    const shouldActivate = activationSignals.length > 0;
 
     return {
       should_activate: shouldActivate,
-      priority: shouldActivate ? 85 : 20, // High priority when activated
-      confidence: 0.9,
+      priority: shouldActivate ? Math.min(90, Math.round(signalStrength * 100)) : 20,
+      confidence: shouldActivate ? Math.max(0.65, signalStrength) : signalStrength,
       reason: shouldActivate
-        ? 'High complexity/metacognitive task requiring advanced AGI capabilities'
-        : 'Task complexity below Phase 5 threshold',
-      estimated_impact: shouldActivate ? 'high' : 'low',
+        ? `Demanding reasoning signals detected: ${activationSignals.join(', ')}`
+        : 'Reasoning demand below advanced-integration threshold',
+      estimated_impact: signalStrength > 0.85 ? 'high' : signalStrength > 0.65 ? 'medium' : 'low',
       resource_requirements: {
         cognitive_load: 0.8,
         time_cost: 3,
@@ -860,26 +864,29 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    */
   async intervene(context: CognitiveContext): Promise<PluginIntervention> {
     try {
+      this.ensureInitialized();
       await this.process(context);
+      const content = this.buildInterventionSummary(context);
 
       return {
         type: 'context_enhancement',
-        content: `Phase 5 AGI Enhancement: Consciousness Level ${(this.state.consciousness_level * 100).toFixed(1)}%, MCP Tools: ${this.state.mcp_status.tools_available}, Quantum Coherence: ${(this.state.quantum_coherence * 100).toFixed(1)}%`,
+        content,
         metadata: {
           plugin_id: this.id,
           confidence: 0.9,
-          expected_benefit: 'Enhanced reasoning through advanced AGI capabilities',
+          expected_benefit:
+            'Broader reasoning coverage across constraints, uncertainty, and available tools',
           side_effects: ['Increased processing complexity', 'Higher resource usage'],
         },
         follow_up_needed: true,
         next_check_after: 2,
-        success_metrics: ['consciousness_level', 'integration_health', 'quantum_coherence'],
+        success_metrics: ['integration_health', 'recursive_depth', 'cross_domain_synthesis'],
         failure_indicators: ['processing_error', 'integration_failure', 'coherence_collapse'],
       };
     } catch (error) {
       return {
         type: 'meta_guidance',
-        content: `Phase 5 processing error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        content: `Advanced reasoning integration error: ${error instanceof Error ? error.message : 'Unknown error'}`,
         metadata: {
           plugin_id: this.id,
           confidence: 0.3,
@@ -958,6 +965,62 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
     }
 
     this.emit('adaptation_completed', { learningData, updated_state: this.state });
+  }
+
+  private normalizeComplexity(complexity: number): number {
+    return Math.max(0, Math.min(1, complexity / 10));
+  }
+
+  private describeActivationSignals(
+    context: CognitiveContext,
+    normalizedComplexity = this.normalizeComplexity(context.complexity)
+  ): string[] {
+    const signals: string[] = [];
+
+    if (normalizedComplexity >= 0.75) {
+      signals.push('high complexity');
+    }
+    if (context.metacognitive_awareness >= 0.75) {
+      signals.push('strong self-reflection');
+    }
+    if (context.creative_pressure >= 0.65) {
+      signals.push('high creative pressure');
+    }
+    if (context.urgency === 'high') {
+      signals.push('time pressure');
+    }
+    if (context.time_constraints?.deadline) {
+      signals.push('explicit deadline');
+    }
+
+    return signals;
+  }
+
+  private buildInterventionSummary(context: CognitiveContext): string {
+    const activationSignals = this.describeActivationSignals(context);
+    const focusAreas: string[] = [];
+
+    if (this.normalizeComplexity(context.complexity) >= 0.75) {
+      focusAreas.push('map dependencies and failure modes');
+    }
+    if (context.confidence_level < 0.4) {
+      focusAreas.push('verify the weakest assumption');
+    }
+    if (context.time_constraints?.deadline || context.urgency === 'high') {
+      focusAreas.push('prioritize the next concrete action');
+    }
+    if (context.available_tools.length > 0) {
+      focusAreas.push('use tool-assisted verification where possible');
+    }
+
+    if (focusAreas.length === 0) {
+      focusAreas.push('synthesize the strongest constraints before proceeding');
+    }
+
+    const signalSummary =
+      activationSignals.length > 0 ? activationSignals.join(', ') : 'general reasoning demand';
+
+    return `Advanced reasoning synthesis: focus on ${focusAreas.join('; ')}. Active signals: ${signalSummary}. MCP tools currently available: ${this.state.mcp_status.tools_available}.`;
   }
 
   /**

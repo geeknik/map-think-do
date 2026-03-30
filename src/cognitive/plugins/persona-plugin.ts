@@ -796,7 +796,7 @@ ${this.generateBalancedApproach(selectedPersonas, context)}`;
    */
   private generatePersonaPerspective(persona: CognitivePersona, context: CognitiveContext): string {
     const templates = this.getPersonaTemplates(persona.id);
-    const template = templates[Math.floor(Math.random() * templates.length)];
+    const template = this.selectDeterministicTemplate(templates, persona, context);
 
     return this.customizeTemplate(template, persona, context);
   }
@@ -859,9 +859,14 @@ ${this.generateBalancedApproach(selectedPersonas, context)}`;
     persona: CognitivePersona,
     context: CognitiveContext
   ): string {
-    // This could be enhanced with more sophisticated template customization
-    // For now, return the template as-is
-    return template;
+    let customized = template;
+
+    if (customized.includes('[creative analogy]')) {
+      customized = customized.replace('[creative analogy]', this.describeCreativeAnalogy(context));
+    }
+
+    const anchor = this.generatePersonaContextAnchor(persona, context);
+    return anchor ? `${customized} ${anchor}` : customized;
   }
 
   /**
@@ -871,9 +876,12 @@ ${this.generateBalancedApproach(selectedPersonas, context)}`;
     persona: CognitivePersona,
     context: CognitiveContext
   ): string {
-    const considerations = persona.strengths
-      .slice(0, 3)
-      .map(strength => `• ${strength} in this context`)
+    const considerations = [
+      ...persona.strengths.slice(0, 2).map(strength => `${strength} in this context`),
+      ...this.generateContextSpecificConsiderations(persona, context),
+    ]
+      .slice(0, 4)
+      .map(strength => `• ${strength}`)
       .join('\n');
 
     return considerations;
@@ -927,8 +935,10 @@ ${this.generateBalancedApproach(selectedPersonas, context)}`;
     };
 
     const questions = questionTemplates[persona.id] || ['What questions should we be asking?'];
+    const contextualQuestion = this.generateContextualQuestion(persona, context);
     return questions
       .slice(0, 2)
+      .concat(contextualQuestion ? [contextualQuestion] : [])
       .map(q => `• ${q}`)
       .join('\n');
   }
@@ -962,6 +972,10 @@ ${this.generateBalancedApproach(selectedPersonas, context)}`;
       return 'Technical practicality should be questioned through philosophical reflection and then merged into an integrated approach.';
     }
 
+    if (context.urgency === 'high') {
+      return 'Each perspective adds value, but the synthesis should collapse into one reversible next step that can be executed under time pressure.';
+    }
+
     return 'Each perspective offers valuable insights. The key is finding an approach that leverages the strengths of each viewpoint while mitigating their respective blind spots.';
   }
 
@@ -982,7 +996,104 @@ ${this.generateBalancedApproach(selectedPersonas, context)}`;
       return 'Develop a strategic framework that can be implemented through practical, incremental steps. Balance long-term vision with immediate actionability.';
     }
 
+    if (context.confidence_level < 0.4) {
+      return 'Integrate the perspectives into a small, testable next step so confidence can be earned with evidence instead of assumption.';
+    }
+
     return 'Integrate insights from all perspectives to create a well-rounded approach that addresses multiple dimensions of the problem.';
+  }
+
+  private selectDeterministicTemplate(
+    templates: string[],
+    persona: CognitivePersona,
+    context: CognitiveContext
+  ): string {
+    if (templates.length === 0) {
+      return 'Let me consider this from a different angle.';
+    }
+
+    const seed = `${persona.id}:${context.current_thought || ''}:${context.domain || ''}:${context.urgency}:${Math.round(context.complexity)}`;
+    let hash = 0;
+    for (const char of seed) {
+      hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+    }
+
+    return templates[hash % templates.length];
+  }
+
+  private describeCreativeAnalogy(context: CognitiveContext): string {
+    if (context.domain?.includes('software')) return 'incident response drill';
+    if (context.domain?.includes('design')) return 'gallery critique';
+    if (context.domain?.includes('business')) return 'portfolio rebalancing';
+    if (context.urgency === 'high') return 'pit-stop under race conditions';
+    return 'systems rehearsal';
+  }
+
+  private generatePersonaContextAnchor(
+    persona: CognitivePersona,
+    context: CognitiveContext
+  ): string {
+    const anchors: string[] = [];
+
+    if (context.current_thought) {
+      anchors.push(`Current focus: "${this.summarizeThought(context.current_thought)}".`);
+    }
+    if (context.urgency === 'high' && persona.id === 'pragmatist') {
+      anchors.push('Time pressure means the next step should be reversible and concrete.');
+    }
+    if (context.confidence_level < 0.4 && ['skeptic', 'analyst'].includes(persona.id)) {
+      anchors.push('Low confidence suggests we should prefer verification over elaboration.');
+    }
+    if (context.time_constraints?.deadline) {
+      anchors.push(
+        'A deadline is present, so prioritization matters more than exhaustive exploration.'
+      );
+    }
+
+    return anchors.slice(0, 2).join(' ');
+  }
+
+  private generateContextSpecificConsiderations(
+    persona: CognitivePersona,
+    context: CognitiveContext
+  ): string[] {
+    const considerations: string[] = [];
+
+    if (context.domain) {
+      considerations.push(`Applies ${persona.name}'s lens to the ${context.domain} domain`);
+    }
+    if (context.urgency === 'high') {
+      considerations.push('Keeps the recommendation usable under time pressure');
+    }
+    if (context.confidence_level < 0.4) {
+      considerations.push('Pushes for evidence before committing further');
+    }
+    if (context.thought_history.length > 0) {
+      considerations.push('Builds on the recent reasoning trail instead of restarting analysis');
+    }
+
+    return considerations;
+  }
+
+  private generateContextualQuestion(
+    persona: CognitivePersona,
+    context: CognitiveContext
+  ): string | null {
+    if (context.time_constraints?.deadline) {
+      return 'What is the single most important thing to validate before the deadline?';
+    }
+    if (context.confidence_level < 0.4 && ['skeptic', 'analyst', 'engineer'].includes(persona.id)) {
+      return 'Which assumption can we test quickly to raise confidence?';
+    }
+    if (context.thought_history.length > 1 && persona.id === 'synthesizer') {
+      return 'Which earlier conclusion still holds up after the latest reasoning step?';
+    }
+
+    return null;
+  }
+
+  private summarizeThought(thought: string): string {
+    return thought.length > 80 ? `${thought.slice(0, 77)}...` : thought;
   }
 
   // Helper methods for learning and adaptation

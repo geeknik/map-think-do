@@ -1,9 +1,8 @@
 /**
- * @fileoverview Cognitive Orchestrator - The Brain of the AGI System
+ * @fileoverview Cognitive Orchestrator
  *
- * This orchestrator integrates all cognitive plugins and manages the overall
- * cognitive behavior of the system. It provides the high-level intelligence
- * that coordinates different cognitive capabilities to produce AGI-like behavior.
+ * This orchestrator integrates cognitive plugins and manages structured
+ * reasoning behavior across the system.
  *
  * Key responsibilities:
  * - Cognitive plugin management and coordination
@@ -173,9 +172,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     // Complete state service initialization with orchestrator
     await this.finalizeStateServiceInitialization();
 
-    console.error(
-      'Cognitive Orchestrator initialized with dependency injection and AGI-like capabilities'
-    );
+    console.error('Cognitive Orchestrator initialized with dependency injection');
   }
 
   /**
@@ -314,7 +311,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
 
       // Generate recommendations with error boundary
       const recommendations = await this.generalBoundary.execute(
-        () => this.generateRecommendations(context, interventions, insights),
+        () => this.generateRecommendations(thoughtData, context, interventions, insights),
         { component: 'CognitiveOrchestrator', method: 'generateRecommendations' },
         async error => {
           console.error('💡 Recommendation generation failed, using fallback');
@@ -628,33 +625,41 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
    * Generate cognitive recommendations
    */
   private async generateRecommendations(
+    thoughtData: ValidatedThoughtData,
     context: CognitiveContext,
     interventions: PluginIntervention[],
     insights: CognitiveInsight[]
   ): Promise<string[]> {
     const recommendations: string[] = [];
+    const remainingThoughts = Math.max(0, thoughtData.total_thoughts - thoughtData.thought_number);
+    const repeatedReasoning = this.findRepeatedReasoningSignal(context, thoughtData.thought);
+    const deadlineHours = this.getHoursUntilDeadline(context);
 
     // Complexity-based recommendations
-    if (context.complexity > 8 && context.confidence_level > 0.8) {
-      recommendations.push('Consider breaking down this complex problem into smaller components');
+    if (context.complexity >= 8) {
+      recommendations.push(
+        'High complexity detected - write down the key constraints, interfaces, and failure modes before moving on'
+      );
     }
 
     // Confidence-based recommendations
-    if (context.confidence_level < 0.3) {
-      recommendations.push('Low confidence detected - consider gathering more information');
+    if (context.confidence_level < 0.35) {
+      recommendations.push(
+        'Low confidence detected - verify one assumption with evidence before adding more scope'
+      );
     }
 
     // Intervention-based recommendations
-    if (interventions.length === 0 && context.complexity > 6) {
+    if (interventions.length === 0 && context.complexity >= 7) {
       recommendations.push(
-        'Complex problem with no cognitive interventions - consider seeking alternative perspectives'
+        'Complex problem with no cognitive interventions - explicitly check for missing constraints or an untested alternative'
       );
     }
 
     // Insight-based recommendations
     if (insights.length > 0) {
       recommendations.push(
-        `${insights.length} cognitive insight(s) detected - consider exploring these further`
+        `${insights.length} cognitive insight(s) detected - validate the highest-confidence insight before expanding further`
       );
     }
 
@@ -668,11 +673,49 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     // Metacognitive recommendations
     if (context.metacognitive_awareness < 0.4) {
       recommendations.push(
-        'Low metacognitive awareness - consider reflecting on your thinking process'
+        'Low metacognitive awareness - name the assumption that would invalidate the current plan'
       );
     }
 
-    return recommendations;
+    if (thoughtData.is_revision) {
+      recommendations.push(
+        'Revision detected - compare the revised assumption against the original and note what changed'
+      );
+    }
+
+    if (thoughtData.branch_from_thought) {
+      recommendations.push(
+        'Branch exploration active - define the decision criteria that will determine whether this branch beats the main path'
+      );
+    }
+
+    if (deadlineHours !== undefined && deadlineHours <= 2) {
+      recommendations.push(
+        'A near deadline is in play - prioritize the next concrete action and defer speculative exploration'
+      );
+    }
+
+    if (repeatedReasoning) {
+      recommendations.push(
+        `This thought is highly similar to a recent step (${Math.round(repeatedReasoning.similarity * 100)}% overlap) - add new evidence, test a different assumption, or converge on a decision`
+      );
+    }
+
+    if (remainingThoughts <= 1 && thoughtData.next_thought_needed) {
+      recommendations.push(
+        'You are near the planned end of the sequence - converge on a decision or revise total_thoughts explicitly'
+      );
+    }
+
+    if (recommendations.length === 0) {
+      recommendations.push(
+        thoughtData.next_thought_needed
+          ? 'Continue with the next thought by testing the strongest remaining assumption'
+          : 'Summarize the decision, supporting evidence, and immediate next action'
+      );
+    }
+
+    return this.dedupeRecommendations(recommendations).slice(0, 5);
   }
 
   /**
@@ -882,6 +925,126 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       console.error('Error getting thought history:', error);
       return [];
     }
+  }
+
+  private getHoursUntilDeadline(context: CognitiveContext): number | undefined {
+    if (!context.time_constraints?.deadline) {
+      return undefined;
+    }
+
+    return (context.time_constraints.deadline.getTime() - Date.now()) / (1000 * 60 * 60);
+  }
+
+  private findRepeatedReasoningSignal(
+    context: CognitiveContext,
+    thought: string
+  ): { previousThought: string; similarity: number } | null {
+    const normalizedCurrent = this.normalizeThought(thought);
+    if (!normalizedCurrent) {
+      return null;
+    }
+
+    const recentThoughts = context.thought_history.slice(0, 5);
+    let strongestMatch: { previousThought: string; similarity: number } | null = null;
+
+    for (const previous of recentThoughts) {
+      const normalizedPrevious = this.normalizeThought(previous.thought);
+      if (!normalizedPrevious) {
+        continue;
+      }
+
+      const similarity = this.calculateThoughtSimilarity(normalizedCurrent, normalizedPrevious);
+      if (!strongestMatch || similarity > strongestMatch.similarity) {
+        strongestMatch = { previousThought: previous.thought, similarity };
+      }
+    }
+
+    return strongestMatch && strongestMatch.similarity >= 0.5 ? strongestMatch : null;
+  }
+
+  private normalizeThought(thought: string): string {
+    return thought
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private calculateThoughtSimilarity(current: string, previous: string): number {
+    if (current === previous) {
+      return 1;
+    }
+
+    const currentTokens = this.getSignificantTokens(current);
+    const previousTokens = this.getSignificantTokens(previous);
+
+    if (currentTokens.size === 0 || previousTokens.size === 0) {
+      return 0;
+    }
+
+    const intersection = [...currentTokens].filter(token => previousTokens.has(token)).length;
+    const union = new Set([...currentTokens, ...previousTokens]).size;
+    const tokenSimilarity = union > 0 ? intersection / union : 0;
+
+    const shorter = current.length < previous.length ? current : previous;
+    const longer = current.length < previous.length ? previous : current;
+    const containment = longer.includes(shorter) ? shorter.length / longer.length : 0;
+
+    return Math.max(tokenSimilarity, containment);
+  }
+
+  private getSignificantTokens(text: string): Set<string> {
+    const stopWords = new Set([
+      'the',
+      'and',
+      'for',
+      'with',
+      'that',
+      'this',
+      'from',
+      'into',
+      'have',
+      'need',
+      'should',
+      'before',
+      'after',
+      'then',
+      'when',
+      'where',
+      'what',
+      'why',
+      'how',
+      'are',
+      'was',
+      'were',
+      'will',
+      'would',
+      'could',
+      'about',
+      'your',
+      'their',
+      'them',
+      'they',
+      'our',
+      'you',
+      'but',
+      'not',
+      'all',
+      'can',
+      'out',
+      'use',
+    ]);
+
+    return new Set(
+      text
+        .split(' ')
+        .map(token => token.trim())
+        .filter(token => token.length > 2 && !stopWords.has(token))
+    );
+  }
+
+  private dedupeRecommendations(recommendations: string[]): string[] {
+    return Array.from(new Set(recommendations));
   }
 
   private async getSimilarSessions(

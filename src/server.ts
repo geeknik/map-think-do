@@ -162,12 +162,12 @@ const THOUGHT_DATA_JSON_SCHEMA = Object.freeze(
 /*                                  TOOL DEF                                  */
 /* -------------------------------------------------------------------------- */
 
-const CODE_REASONING_TOOL: Tool = {
+export const CODE_REASONING_TOOL: Tool = {
   name: 'code-reasoning',
   description: `🗺️ Map. Think. Do. - Structured cognitive reasoning for complex problem-solving.
 
 This tool helps you MAP problems, THINK through solutions, and DO what needs to be done through
-structured reasoning with multiple cognitive perspectives and adaptive learning.
+structured reasoning with multiple cognitive perspectives, persisted state, and heuristic cognitive metadata.
 
 📍 MAP - Understand the Problem:
 - Break down complex problems into manageable parts
@@ -178,7 +178,7 @@ structured reasoning with multiple cognitive perspectives and adaptive learning.
 - Apply multiple cognitive perspectives to the problem
 - Detect and correct cognitive biases in reasoning
 - Generate insights and identify breakthrough opportunities
-- Learn from past experiences and patterns
+- Reuse persisted context and historical patterns when available
 
 ✅ DO - Execute with Confidence:
 - Synthesize reasoning into actionable steps
@@ -208,8 +208,8 @@ structured reasoning with multiple cognitive perspectives and adaptive learning.
 - cognitive_interventions: Applied reasoning strategies
 - detected_biases: Cognitive biases found in reasoning
 - ai_recommendations: Suggested next steps
-- metacognitive_awareness: Self-reflection depth (0-1)
-- breakthrough_likelihood: Discovery probability (0-1)`,
+- metacognitive_awareness: Heuristic self-reflection score (0-1)
+- breakthrough_likelihood: Heuristic novelty potential score (0-1)`,
   inputSchema: THOUGHT_DATA_JSON_SCHEMA as any, // SDK expects unknown JSON schema shape
   annotations: {
     title: 'Map. Think. Do. - Code Reasoning',
@@ -330,6 +330,7 @@ class CodeReasoningServer {
   private readonly biasDetector: BiasDetector;
   private mcpManager!: MCPIntegrationManager;
   private currentSessionId: string;
+  private readonly sessionStartedAt: Date;
   private readonly thoughtMutex = new Mutex();
 
   /**
@@ -350,6 +351,7 @@ class CodeReasoningServer {
     // Cognitive orchestrator will be initialized via initialize() method
 
     // Generate session ID for this reasoning session
+    this.sessionStartedAt = new Date();
     this.currentSessionId = this.generateSessionId();
 
     console.error('🗺️ Map. Think. Do. - Cognitive reasoning system initialized', {
@@ -514,7 +516,7 @@ class CodeReasoningServer {
       next_thought_needed: t.next_thought_needed,
       branches: Array.from(this.branches.keys()),
       thought_history_length: this.thoughtHistory.length,
-      // AGI Magic: Cognitive insights and recommendations
+      // Cognitive insights and recommendations
       cognitive_insights: cognitiveResult?.insights || [],
       cognitive_interventions: cognitiveResult?.interventions || [],
       cognitive_state: cognitiveResult?.cognitiveState || {},
@@ -529,7 +531,7 @@ class CodeReasoningServer {
         })) || [],
       // External tool recommendations from MCP
       recommended_external_tools: recommendedTools,
-      // Sentient behavior indicators
+      // Heuristic cognitive state indicators
       metacognitive_awareness: cognitiveResult?.cognitiveState?.metacognitive_awareness || 0,
       creative_pressure: cognitiveResult?.cognitiveState?.creative_pressure || 0,
       breakthrough_likelihood: cognitiveResult?.cognitiveState?.breakthrough_likelihood || 0,
@@ -605,8 +607,7 @@ class CodeReasoningServer {
         );
       }
 
-      // 🧠 AGI MAGIC: Cognitive orchestration and sentient processing
-      console.error('🧠 Engaging cognitive orchestrator for AGI-level processing...');
+      console.error('🧠 Engaging cognitive orchestrator for structured reasoning...');
 
       // 🔍 REAL Bias Detection - analyze thought for cognitive biases
       const biasDetections = await this.biasDetector.detectBiases(data.thought, {
@@ -635,7 +636,7 @@ class CodeReasoningServer {
         id: this.currentSessionId,
         objective: this.inferObjective(data),
         domain: this.inferDomain(data),
-        start_time: new Date(),
+        start_time: this.sessionStartedAt,
         goal_achieved: false,
         confidence_level: 0.5,
         total_thoughts: data.total_thoughts,
@@ -700,7 +701,7 @@ class CodeReasoningServer {
 
       // Enhanced logging with cognitive insights (secure)
       console.error(await this.formatThoughtSecure(data));
-      console.error('🧠 Cognitive Analysis:', {
+      console.error('🧠 Cognitive Summary:', {
         metacognitive_awareness: cognitiveResult.cognitiveState.metacognitive_awareness,
         creative_pressure: cognitiveResult.cognitiveState.creative_pressure,
         breakthrough_likelihood: cognitiveResult.cognitiveState.breakthrough_likelihood,
@@ -709,7 +710,7 @@ class CodeReasoningServer {
         recommendations_generated: cognitiveResult.recommendations.length,
       });
 
-      console.error('✔️ AGI processed', {
+      console.error('✔️ Cognitive processing complete', {
         num: data.thought_number,
         cognitive_efficiency: cognitiveResult.cognitiveState.cognitive_efficiency,
         biases_detected: biasDetections.length,
@@ -719,7 +720,7 @@ class CodeReasoningServer {
       return this.buildSuccess(data, cognitiveResult, biasDetections);
     } catch (err) {
       const e = err as Error;
-      console.error('❌ AGI error', {
+      console.error('❌ Cognitive processing error', {
         err: e.message,
         elapsedMs: +(performance.now() - t0).toFixed(1),
       });
