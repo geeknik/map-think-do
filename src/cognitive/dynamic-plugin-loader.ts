@@ -396,7 +396,7 @@ export class DynamicPluginLoader extends EventEmitter {
     // Execute top plugins
     const toExecute = activations.slice(0, maxConcurrent);
 
-    for (const { plugin, activation } of toExecute) {
+    for (const { plugin } of toExecute) {
       const startTime = Date.now();
       plugin.metrics.activationCount++;
 

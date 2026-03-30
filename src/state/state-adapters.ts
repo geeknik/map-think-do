@@ -6,10 +6,10 @@
  * synchronization and event propagation.
  */
 
-import { StateManager, UnifiedState } from './state-manager.js';
+import { StateManager } from './state-manager.js';
 import { CognitiveOrchestrator } from '../cognitive/cognitive-orchestrator.js';
 import { CognitiveState } from '../cognitive/state-tracker.js';
-import { PluginMetrics, CognitivePluginManager } from '../cognitive/plugin-system.js';
+import { PluginMetrics } from '../cognitive/plugin-system.js';
 import { MemoryStore, MemoryStats } from '../memory/memory-store.js';
 import { getIntervalManager } from '../utils/interval-manager.js';
 

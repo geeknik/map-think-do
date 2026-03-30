@@ -54,7 +54,7 @@ const SENSITIVE_PATTERNS = [
   // IP addresses
   /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
   // File paths that might contain usernames
-  /\/(?:home|Users)\/[^\/\s]+/g,
+  /\/(?:home|Users)\/[^/\s]+/g,
   // Potential passwords or secrets (common patterns)
   /(?:password|passwd|secret|key|token)[\s:=]+[^\s]+/gi,
 ];

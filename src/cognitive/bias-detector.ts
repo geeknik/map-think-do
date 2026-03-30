@@ -911,7 +911,6 @@ export class BiasDetector extends EventEmitter {
 
     for (let i = 6; i >= 0; i--) {
       const dayStart = new Date(now.getTime() - (i + 1) * dayMs);
-      const dayEnd = new Date(now.getTime() - i * dayMs);
 
       const dayDetections = this.recentDetections.filter(d => {
         // Detections don't have timestamps in current structure, use proxy

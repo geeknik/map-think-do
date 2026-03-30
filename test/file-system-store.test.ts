@@ -56,9 +56,10 @@ export async function runFileSystemStoreTests(): Promise<void> {
 
   delete process.env.MEMORY_STORE_KEY;
   assert.throws(
-    () => new FileSystemStore(path.join(process.cwd(), 'tmp-memory-test-missing-key'), {
-      encryptSensitiveData: true,
-    }),
+    () =>
+      new FileSystemStore(path.join(process.cwd(), 'tmp-memory-test-missing-key'), {
+        encryptSensitiveData: true,
+      }),
     /MEMORY_STORE_KEY is required/,
     'encrypted store should fail closed without a key'
   );

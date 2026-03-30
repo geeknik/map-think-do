@@ -266,7 +266,7 @@ export class SimpleMemoryStore extends MemoryStore {
           '\n' +
           data.sessions.map(s => JSON.stringify(s)).join('\n')
         );
-      case 'csv':
+      case 'csv': {
         // Simple CSV export for thoughts
         const headers = 'id,thought,timestamp,session_id,confidence,domain\n';
         const rows = data.thoughts
@@ -276,6 +276,7 @@ export class SimpleMemoryStore extends MemoryStore {
           )
           .join('\n');
         return headers + rows;
+      }
       default:
         throw new Error(`Unsupported export format: ${format}`);
     }
@@ -283,7 +284,7 @@ export class SimpleMemoryStore extends MemoryStore {
 
   async importData(data: string, format: 'json' | 'csv' | 'jsonl'): Promise<void> {
     switch (format) {
-      case 'json':
+      case 'json': {
         const parsed = JSON.parse(data);
         if (parsed.thoughts) {
           parsed.thoughts.forEach((t: StoredThought) => this.thoughts.set(t.id, t));
@@ -292,6 +293,7 @@ export class SimpleMemoryStore extends MemoryStore {
           parsed.sessions.forEach((s: ReasoningSession) => this.sessions.set(s.id, s));
         }
         break;
+      }
       default:
         throw new Error(`Import format ${format} not yet implemented`);
     }

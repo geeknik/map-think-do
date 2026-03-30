@@ -51,12 +51,18 @@ export function isPathSafe(targetPath: string, allowedBase: string): boolean {
  */
 export function sanitizeFilename(filename: string): string {
   // Remove any path separators and parent directory references
-  return filename
+  const sanitized = filename
     .replace(/[\\/]/g, '_') // Replace slashes with underscores
     .replace(/\.\./g, '_') // Replace .. with underscore
     .replace(/^\./, '_') // Replace leading dot
-    .replace(/[\u0000-\u001f\u0080-\u009f]/g, '') // Remove control characters
     .replace(/[<>:"|?*]/g, '_'); // Replace invalid filename chars
+
+  return Array.from(sanitized)
+    .filter(char => {
+      const code = char.charCodeAt(0);
+      return !((code >= 0x00 && code <= 0x1f) || (code >= 0x80 && code <= 0x9f));
+    })
+    .join('');
 }
 
 /**

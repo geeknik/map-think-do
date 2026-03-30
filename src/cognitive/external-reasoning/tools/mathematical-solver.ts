@@ -836,30 +836,33 @@ export class MathematicalSolver implements ExternalTool {
           resultFormatted = `A^T = ${math.format(result)}`;
           break;
 
-        case 'eigenvalues':
+        case 'eigenvalues': {
           const eig = math.eigs(m1);
           result = { values: eig.values, vectors: eig.eigenvectors };
           resultFormatted = `Eigenvalues: ${math.format(eig.values)}`;
           break;
+        }
 
         case 'trace':
           result = math.trace(m1);
           resultFormatted = `tr(A) = ${result}`;
           break;
 
-        case 'rank':
+        case 'rank': {
           // Calculate rank via SVD approximation
           const size = math.size(m1).valueOf() as number[];
           result = Math.min(size[0], size[1]); // Simplified
           resultFormatted = `rank(A) = ${result}`;
           break;
+        }
 
-        case 'multiply':
+        case 'multiply': {
           if (!matrix2) throw new Error('Second matrix required for multiplication');
           const m2 = math.matrix(matrix2);
           result = math.multiply(m1, m2);
           resultFormatted = `A × B = ${math.format(result)}`;
           break;
+        }
 
         case 'add':
           if (!matrix2) throw new Error('Second matrix required for addition');
@@ -873,11 +876,12 @@ export class MathematicalSolver implements ExternalTool {
           resultFormatted = `A - B = ${math.format(result)}`;
           break;
 
-        case 'lu':
+        case 'lu': {
           const lu = math.lup(m1);
           result = { L: lu.L, U: lu.U, P: lu.p };
           resultFormatted = 'LU decomposition computed';
           break;
+        }
 
         default:
           throw new Error(`Unknown matrix operation: ${operation}`);

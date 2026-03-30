@@ -65,7 +65,6 @@ export class RolePrimingPlugin extends BasePromptPlugin {
         // Activate when we seem stuck (repeated similar thoughts)
         if (thoughtCount >= 3) {
           const recentThoughts = context.thoughtHistory.slice(-3);
-          const similarityThreshold = 0.7; // Simplified similarity check
           // In real implementation, would use more sophisticated similarity
           return this.detectSimilarThoughts(recentThoughts);
         }

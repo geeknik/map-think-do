@@ -42,10 +42,7 @@ export class FileSystemStore extends MemoryStore {
     }
 
     this.key = this.encrypt
-      ? crypto
-          .createHash('sha256')
-          .update(encryptionKey)
-          .digest()
+      ? crypto.createHash('sha256').update(encryptionKey).digest()
       : Buffer.alloc(0);
 
     // Ensure directories exist

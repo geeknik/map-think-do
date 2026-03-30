@@ -679,7 +679,7 @@ export class SelfModifyingArchitecture extends EventEmitter {
    * Update component metrics
    */
   private updateComponentMetrics(): void {
-    for (const [id, component] of this.components) {
+    for (const [_id, component] of this.components) {
       // Simulate usage and learning
       component.performance_metrics.usage_frequency += Math.random() * 0.1;
 

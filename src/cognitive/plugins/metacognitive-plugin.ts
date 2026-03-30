@@ -118,8 +118,6 @@ export class MetacognitivePlugin extends CognitivePlugin {
   }
 
   async shouldActivate(context: CognitiveContext): Promise<PluginActivation> {
-    const startTime = Date.now();
-
     try {
       // Calculate activation factors
       const metacognitiveNeed = this.assessMetacognitiveNeed(context);
