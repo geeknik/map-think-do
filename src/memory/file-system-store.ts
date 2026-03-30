@@ -9,6 +9,7 @@ import {
   MemoryStats,
   MemoryConfig,
 } from './memory-store.js';
+import { safeCreateDirectory, safeJoin } from '../utils/path-validator.js';
 
 /**
  * File system based implementation of MemoryStore.
@@ -20,28 +21,35 @@ import {
  * secure at-rest encryption.
  */
 export class FileSystemStore extends MemoryStore {
+  private static readonly SAFE_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
   private basePath: string;
   private thoughtPath: string;
   private sessionPath: string;
   private encrypt: boolean;
   private key: Buffer;
+  private ready: Promise<void>;
 
   constructor(basePath: string, config: MemoryConfig = {}) {
     super();
-    this.basePath = basePath;
-    this.thoughtPath = path.join(basePath, 'thoughts');
-    this.sessionPath = path.join(basePath, 'sessions');
+    this.basePath = path.resolve(basePath);
+    this.thoughtPath = safeJoin(this.basePath, 'thoughts');
+    this.sessionPath = safeJoin(this.basePath, 'sessions');
     this.encrypt = config.encryptSensitiveData ?? false;
+    const encryptionKey = process.env.MEMORY_STORE_KEY;
+
+    if (this.encrypt && !encryptionKey) {
+      throw new Error('MEMORY_STORE_KEY is required when encryptSensitiveData is enabled');
+    }
+
     this.key = this.encrypt
       ? crypto
           .createHash('sha256')
-          .update(process.env.MEMORY_STORE_KEY || 'default_key')
+          .update(encryptionKey)
           .digest()
       : Buffer.alloc(0);
 
     // Ensure directories exist
-    fs.mkdir(this.thoughtPath, { recursive: true }).catch(() => {});
-    fs.mkdir(this.sessionPath, { recursive: true }).catch(() => {});
+    this.ready = this.initializeStorage();
   }
 
   // ---------------------------------------------------------------------------
@@ -81,18 +89,40 @@ export class FileSystemStore extends MemoryStore {
   }
 
   private thoughtFile(id: string): string {
-    return path.join(this.thoughtPath, `${id}.json`);
+    return safeJoin(this.thoughtPath, `${this.validateStorageId(id, 'thought')}.json`);
   }
 
   private sessionFile(id: string): string {
-    return path.join(this.sessionPath, `${id}.json`);
+    return safeJoin(this.sessionPath, `${this.validateStorageId(id, 'session')}.json`);
+  }
+
+  private validateStorageId(id: string, kind: 'thought' | 'session'): string {
+    if (!FileSystemStore.SAFE_ID_PATTERN.test(id)) {
+      throw new Error(`Invalid ${kind} id`);
+    }
+
+    return id;
+  }
+
+  private async initializeStorage(): Promise<void> {
+    await safeCreateDirectory(this.thoughtPath, this.basePath);
+    await safeCreateDirectory(this.sessionPath, this.basePath);
+  }
+
+  private async ensureReady(): Promise<void> {
+    await this.ready;
   }
 
   private async readAllThoughts(): Promise<StoredThought[]> {
+    await this.ensureReady();
+
     try {
       const files = await fs.readdir(this.thoughtPath);
       const thoughts: StoredThought[] = [];
       for (const file of files) {
+        if (!file.endsWith('.json')) {
+          continue;
+        }
         const t = await this.readJSON<StoredThought>(path.join(this.thoughtPath, file));
         if (t) thoughts.push(t);
       }
@@ -103,10 +133,15 @@ export class FileSystemStore extends MemoryStore {
   }
 
   private async readAllSessions(): Promise<ReasoningSession[]> {
+    await this.ensureReady();
+
     try {
       const files = await fs.readdir(this.sessionPath);
       const sessions: ReasoningSession[] = [];
       for (const file of files) {
+        if (!file.endsWith('.json')) {
+          continue;
+        }
         const s = await this.readJSON<ReasoningSession>(path.join(this.sessionPath, file));
         if (s) sessions.push(s);
       }
@@ -118,10 +153,15 @@ export class FileSystemStore extends MemoryStore {
 
   // ---------------------------------------------------------------------------
   async storeThought(thought: StoredThought): Promise<void> {
+    await this.ensureReady();
+    this.validateStorageId(thought.id, 'thought');
+    this.validateStorageId(thought.session_id, 'session');
     await this.writeJSON(this.thoughtFile(thought.id), thought);
   }
 
   async storeSession(session: ReasoningSession): Promise<void> {
+    await this.ensureReady();
+    this.validateStorageId(session.id, 'session');
     await this.writeJSON(this.sessionFile(session.id), session);
   }
 
@@ -145,10 +185,12 @@ export class FileSystemStore extends MemoryStore {
   }
 
   async getThought(id: string): Promise<StoredThought | null> {
+    await this.ensureReady();
     return this.readJSON<StoredThought>(this.thoughtFile(id));
   }
 
   async getSession(id: string): Promise<ReasoningSession | null> {
+    await this.ensureReady();
     return this.readJSON<ReasoningSession>(this.sessionFile(id));
   }
 
@@ -168,6 +210,7 @@ export class FileSystemStore extends MemoryStore {
   }
 
   async updateThought(id: string, updates: Partial<StoredThought>): Promise<void> {
+    await this.ensureReady();
     const existing = await this.getThought(id);
     if (existing) {
       await this.writeJSON(this.thoughtFile(id), { ...existing, ...updates });
@@ -175,6 +218,7 @@ export class FileSystemStore extends MemoryStore {
   }
 
   async updateSession(id: string, updates: Partial<ReasoningSession>): Promise<void> {
+    await this.ensureReady();
     const existing = await this.getSession(id);
     if (existing) {
       await this.writeJSON(this.sessionFile(id), { ...existing, ...updates });
@@ -182,6 +226,7 @@ export class FileSystemStore extends MemoryStore {
   }
 
   async cleanupOldThoughts(olderThan: Date): Promise<number> {
+    await this.ensureReady();
     const files = await fs.readdir(this.thoughtPath);
     let removed = 0;
     for (const file of files) {
@@ -233,8 +278,12 @@ export class FileSystemStore extends MemoryStore {
         thoughts: StoredThought[];
         sessions: ReasoningSession[];
       };
-      for (const t of parsed.thoughts) await this.storeThought(t);
-      for (const s of parsed.sessions) await this.storeSession(s);
+      for (const t of parsed.thoughts) {
+        await this.storeThought(t);
+      }
+      for (const s of parsed.sessions) {
+        await this.storeSession(s);
+      }
     }
   }
 

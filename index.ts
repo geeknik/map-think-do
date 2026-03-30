@@ -21,13 +21,25 @@ const { values } = parseArgs({
   },
 });
 
+if (values.help) {
+  console.info(`map-think-do
+
+Usage:
+  map-think-do [--debug] [--help]
+
+Options:
+  --debug    Enable verbose logging and disable secure redaction for debug output
+  --help     Show this help text
+`);
+  process.exit(0);
+}
+
 // Import and run the server
 import('./src/server.js')
   .then(module => {
     // Debug flag is passed to runServer
     if (values.debug) {
-      // eslint-disable-next-line no-console
-      console.log('Starting server in debug mode');
+      console.info('Starting server in debug mode');
     }
 
     module.runServer(values.debug);

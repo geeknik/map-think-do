@@ -1,51 +1,60 @@
-# Testing the Code-Reasoning MCP Server
+# Testing
 
-This document provides basic information about testing the Code-Reasoning MCP Server. For most users, this information is only relevant if you're developing or extending the server.
+This project has a mixed test layout:
 
-## Basic Testing Commands
+- TypeScript unit and e2e tests compiled into `dist/test` and `dist/tests`
+- standalone JavaScript protocol and transport scripts under `test/`
 
-The Code-Reasoning MCP Server includes an automated testing framework. To run tests:
+## Default Checks
 
 ```bash
-# Run basic tests
+npm run build
 npm test
-
-# Run with verbose output
-npm run test:verbose
-
-# Run specific test scenarios
-npm run test:basic      # Basic thought flow
-npm run test:branch     # Thought branching
-npm run test:revision   # Thought revision
-npm run test:error      # Error handling
-npm run test:perf       # Performance testing
 ```
 
-## What These Tests Verify
+`npm test` currently runs:
 
-The testing framework verifies that the MCP server:
+1. `dist/test/unit-test-runner.js`
+2. `dist/test/code-reasoning.e2e.js basic`
+3. `dist/tests/plugin-manager.test.js`
 
-- Processes linear sequences of thoughts correctly
-- Handles thought branching for exploring alternative approaches
-- Processes thought revisions properly
-- Responds appropriately to error conditions
-- Performs efficiently with longer thought chains
+The unit runner covers core utilities, state management, memory stores, and orchestrator behavior.
 
-## Prompt Evaluation System
-
-The server also includes a prompt evaluation system that checks how well Claude follows the code reasoning prompts:
+## Scenario Tests
 
 ```bash
-# Run the prompt evaluator with an interactive menu
+npm run test:basic
+npm run test:branch
+npm run test:revision
+npm run test:error
+npm run test:perf
+npm run test:all
+```
+
+These scripts exercise the MCP server through stdio and verify thought sequencing, branching, revision handling, error handling, and longer flows.
+
+## Extra Validation Scripts
+
+These are not part of the default `npm test` command, but they are useful when changing transport or protocol code:
+
+```bash
+node test/mcp-compliance.test.js
+node test/transport-failure.test.js
+```
+
+## Prompt Evaluation
+
+Prompt evaluation lives under `test/prompt-evaluation/`.
+
+```bash
 npm run eval
 ```
 
-The evaluation system helps compare different prompt variations and generates reports on Claude's adherence to the format requirements.
+That workflow is optional and separate from the core unit/e2e suite.
 
-## Troubleshooting
+## Debugging Notes
 
-- For debugging issues, use the `--debug` flag when starting the server
-- For more detailed test information, use `npm run test:verbose`
-- Ensure your project is properly built before testing with `npm run build`
-
-For most users, these testing features are only needed when developing new functionality for the MCP server.
+- The server must keep JSON-RPC traffic on `stdout` and logs on `stderr`.
+- `--debug` increases logging detail and may expose raw thought content.
+- Test logs are written under `logs/`.
+- Structured e2e results are written under `test-results/`.

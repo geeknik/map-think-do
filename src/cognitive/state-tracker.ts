@@ -42,7 +42,7 @@ export class StateTracker {
 
   constructor(initial?: Partial<CognitiveState>) {
     this.state = {
-      session_id: '',
+      session_id: StateTracker.generateSessionId(),
       thought_count: 0,
       current_complexity: 5,
       confidence_trajectory: [],
@@ -66,6 +66,10 @@ export class StateTracker {
     };
   }
 
+  private static generateSessionId(): string {
+    return `session_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+  }
+
   public getState(): CognitiveState {
     return this.state;
   }
@@ -75,6 +79,12 @@ export class StateTracker {
     sessionContext?: Partial<ReasoningSession>
   ): Promise<void> {
     await this.mutex.withLock(async () => {
+      if (sessionContext?.id) {
+        this.state.session_id = sessionContext.id;
+      } else if (!this.state.session_id) {
+        this.state.session_id = StateTracker.generateSessionId();
+      }
+
       this.state.thought_count++;
       this.state.current_complexity = this.estimateComplexity(thoughtData);
       const confidence = this.estimateConfidence(thoughtData);
@@ -85,9 +95,6 @@ export class StateTracker {
       this.state.metacognitive_awareness = this.calculateMetacognitiveAwareness(thoughtData);
       this.updateEmotionalState(thoughtData);
       this.updateEmergentProperties(thoughtData);
-      if (sessionContext?.id && this.state.session_id !== sessionContext.id) {
-        this.state.session_id = sessionContext.id;
-      }
     });
   }
 

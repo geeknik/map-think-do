@@ -4,7 +4,7 @@ import path from 'path';
 import { FileSystemStore } from '../src/memory/file-system-store.js';
 import { MemoryUtils, StoredThought } from '../src/memory/memory-store.js';
 
-async function run() {
+export async function runFileSystemStoreTests(): Promise<void> {
   const base = path.join(process.cwd(), 'tmp-memory-test');
   await fs.rm(base, { recursive: true, force: true });
 
@@ -53,13 +53,47 @@ async function run() {
   assert.ok(!encRaw.includes('secret'), 'encrypted file should not contain plaintext');
   const decThought = await encStore.getThought(secretThought.id);
   assert.equal(decThought?.thought, 'secret');
+
+  delete process.env.MEMORY_STORE_KEY;
+  assert.throws(
+    () => new FileSystemStore(path.join(process.cwd(), 'tmp-memory-test-missing-key'), {
+      encryptSensitiveData: true,
+    }),
+    /MEMORY_STORE_KEY is required/,
+    'encrypted store should fail closed without a key'
+  );
+
+  const traversalThought = {
+    ...thought,
+    id: '../escape',
+    session_id: 'valid_session',
+  };
+  await assert.rejects(
+    () => store2.storeThought(traversalThought),
+    /Invalid thought id/,
+    'thought IDs should reject traversal characters'
+  );
+
+  const traversalSessionThought = {
+    ...thought,
+    id: MemoryUtils.generateThoughtId(),
+    session_id: '../escape',
+  };
+  await assert.rejects(
+    () => store2.storeThought(traversalSessionThought),
+    /Invalid session id/,
+    'session IDs should reject traversal characters'
+  );
+
   await fs.rm(baseEnc, { recursive: true, force: true });
 
   await fs.rm(base, { recursive: true, force: true });
   console.log('✅ file-system-store tests passed');
 }
 
-run().catch(err => {
-  console.error('💥 file-system-store tests failed', err);
-  process.exit(1);
-});
+if (import.meta.url === `file://${process.argv[1]}`) {
+  runFileSystemStoreTests().catch(err => {
+    console.error('💥 file-system-store tests failed', err);
+    process.exit(1);
+  });
+}

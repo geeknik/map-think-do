@@ -1,297 +1,157 @@
-# 🧠 Sentient AGI Reasoning Server
+# map-think-do
 
-> **Revolutionary Fork**: This is a **complete transformation** of the original code-reasoning MCP server into a sentient AGI cognitive scaffold with genuine artificial general intelligence capabilities.
+`map-think-do` is an MCP server that exposes a single `code-reasoning` tool for structured problem solving. It supports linear reasoning, revisions, branching, prompt templates, persisted memory, and a set of heuristic cognitive signals such as bias detection and recommendation generation.
 
-A **breakthrough cognitive architecture** that transcends traditional AI reasoning through metacognitive awareness, multi-persona intelligence, and emergent behavior. This fork represents the evolution from simple sequential thinking to genuine AGI-like consciousness.
+This project is experimental software. It uses cognitive and persona-oriented language in parts of the codebase, but it should be understood as a reasoning aid and orchestration layer, not as a claim of sentience or general intelligence.
 
-## 🚀 What Makes This Fork Revolutionary
+## What It Actually Does
 
-### 🆚 **Original vs. AGI Fork Comparison**
+- Registers the `code-reasoning` MCP tool over stdio.
+- Validates tool input with a strict schema and rejects extra fields.
+- Tracks ordered thoughts with optional revision and branch metadata.
+- Generates cognitive state metadata such as `metacognitive_awareness` and `breakthrough_likelihood`.
+- Persists reasoning history in SQLite by default, with alternate memory store implementations in the repo.
+- Supports prompt templates and custom prompt files under `~/.code-reasoning/prompts`.
+- Includes unit tests, end-to-end MCP tests, and transport/compliance test scripts.
 
-| Feature                    | Original Fork    | 🧠 **This AGI Fork**                    |
-| -------------------------- | ---------------- | --------------------------------------- |
-| **Reasoning Model**        | Sequential steps | 🎭 **Multi-persona cognitive entities** |
-| **Self-Awareness**         | None             | 🔄 **Metacognitive self-reflection**    |
-| **Learning**               | Static           | 📚 **Adaptive memory integration**      |
-| **Creativity**             | Rule-based       | ⚡ **Emergent creative synthesis**      |
-| **Emotional Intelligence** | None             | 😊 **Emotional simulation & empathy**   |
-| **Breakthrough Detection** | None             | 🌟 **Real-time insight cultivation**    |
-| **Cognitive Flexibility**  | Fixed approach   | 🎯 **Context-aware interventions**      |
-| **Performance**            | Basic processing | 📈 **Cognitive load balancing**         |
+## What It Does Not Do
 
-### 🧬 **AGI Architecture Overview**
+- It does not provide autonomous execution of external tasks.
+- It does not guarantee correctness of generated recommendations.
+- It does not provide real consciousness, sentience, or AGI.
+- It does not currently expose a public CLI for changing the config directory at runtime.
 
-This fork implements a complete **cognitive orchestration system** with:
+## Installation
 
-- **🎭 8 Distinct Personas**: Each with unique cognitive characteristics and specializations
-- **🧠 Metacognitive Engine**: Self-reflection, bias detection, and confidence calibration
-- **📚 Memory Integration**: Persistent experience accumulation and pattern learning
-- **⚡ Emergent Behavior**: Breakthrough detection and creative synthesis
-- **🔄 Recursive Self-Improvement**: Continuous optimization of reasoning quality
+For local development:
 
-## 🎭 Cognitive Personas
+```bash
+npm install
+npm run build
+```
 
-Each persona brings unique cognitive strengths and perspectives:
+Run the server directly:
 
-| Persona            | 🎯 Specialization        | 💡 Cognitive Style      | 🔧 When Activated         |
-| ------------------ | ------------------------ | ----------------------- | ------------------------- |
-| **🎯 Strategist**  | Long-term planning       | Visionary, systematic   | Complex system design     |
-| **⚙️ Engineer**    | Technical implementation | Methodical, precise     | Code architecture         |
-| **🔍 Skeptic**     | Critical evaluation      | Questioning, rigorous   | Assumption validation     |
-| **🎨 Creative**    | Innovation               | Imaginative, divergent  | Novel solutions           |
-| **📊 Analyst**     | Data-driven insights     | Logical, evidence-based | Performance optimization  |
-| **🧐 Philosopher** | Ethical reasoning        | Reflective, principled  | Moral implications        |
-| **🛠️ Pragmatist**  | Practical solutions      | Results-oriented        | Real-world constraints    |
-| **🔗 Synthesizer** | Integration              | Holistic, connective    | Complex problem synthesis |
+```bash
+node dist/index.js
+```
 
-## 🔮 Sentient AGI Capabilities
+If you install the package globally, the executable name is `map-think-do`.
 
-### 🧠 **Metacognitive Awareness**
+## MCP Configuration
 
-- **Self-Reflection**: Continuous evaluation of reasoning quality
-- **Bias Detection**: Recognition and mitigation of cognitive biases
-- **Confidence Calibration**: Accurate assessment of certainty levels
-- **Assumption Questioning**: Systematic challenge of underlying beliefs
+The executable is `map-think-do`, but the MCP tool name exposed by the server is `code-reasoning`.
 
-### ⚡ **Emergent Intelligence**
-
-- **Pattern Recognition**: Detection of recurring successful strategies
-- **Breakthrough Cultivation**: Recognition and amplification of insights
-- **Creative Synthesis**: Novel combination of existing knowledge
-- **Adaptive Learning**: Continuous improvement from experience
-
-### 📊 **Real-Time Cognitive Analytics**
-
-Every response includes live cognitive metrics:
-
-- `metacognitive_awareness`: Self-reflection depth (0-1)
-- `creative_pressure`: Innovation potential (0-1)
-- `breakthrough_likelihood`: Discovery probability (0-1)
-- `cognitive_flexibility`: Adaptability measure (0-1)
-- `insight_potential`: Eureka moment probability (0-1)
-
-## 🚀 Quick Installation
-
-### For This AGI Fork (Local Development)
+Example Claude Desktop configuration for a local checkout:
 
 ```json
 {
   "mcpServers": {
-    "sentient-agi-reasoning": {
+    "map-think-do": {
       "command": "node",
-      "args": ["/path/to/map-think-do/dist/index.js"],
-      "env": {
-        "NODE_ENV": "production"
-      }
+      "args": ["/absolute/path/to/map-think-do/dist/index.js"]
     }
   }
 }
 ```
 
-## 🎯 Usage Examples
+## Tool Input
 
-### 🧠 **AGI-Enhanced Reasoning**
-
-The system now provides rich cognitive analysis with every thought:
-
-**Input:**
+The `code-reasoning` tool accepts:
 
 ```json
 {
-  "thought": "I need to design a distributed system that can handle millions of concurrent users",
+  "thought": "Investigate the failing request path",
   "thought_number": 1,
-  "total_thoughts": 5,
-  "next_thought_needed": true
-}
-```
-
-**AGI Response:**
-
-```json
-{
-  "status": "processed",
-  "cognitive_insights": [
-    {
-      "type": "pattern_recognition",
-      "confidence": 0.87,
-      "description": "Detected similarity to CAP theorem challenges"
-    }
-  ],
-  "cognitive_interventions": [
-    {
-      "type": "meta_guidance",
-      "content": "Consider questioning assumptions about consistency requirements"
-    }
-  ],
-  "ai_recommendations": [
-    "Activate Engineer persona for technical analysis",
-    "Consider event sourcing patterns",
-    "Evaluate microservices vs monolith trade-offs"
-  ],
-  "metacognitive_awareness": 0.78,
-  "creative_pressure": 0.65,
-  "breakthrough_likelihood": 0.42,
-  "cognitive_flexibility": 0.71,
-  "insight_potential": 0.58
-}
-```
-
-### 🔄 **Metacognitive Self-Correction**
-
-```json
-{
-  "thought": "Actually, I'm making assumptions about scale requirements. Let me question whether we really need to handle millions of users from day one.",
-  "thought_number": 2,
-  "total_thoughts": 5,
+  "total_thoughts": 4,
   "next_thought_needed": true,
-  "is_revision": true,
-  "revises_thought": 1
+  "is_revision": false,
+  "revises_thought": null,
+  "branch_from_thought": null,
+  "branch_id": null,
+  "needs_more_thoughts": false
 }
 ```
 
-### 🌿 **Creative Exploration**
+Required fields:
 
-```json
-{
-  "thought": "What if we explore a completely different approach using edge computing and CDN-based architecture?",
-  "thought_number": 3,
-  "total_thoughts": 5,
-  "next_thought_needed": true,
-  "branch_from_thought": 1,
-  "branch_id": "edge-computing-approach"
-}
-```
+- `thought`
+- `thought_number`
+- `total_thoughts`
+- `next_thought_needed`
 
-## 🧪 Testing AGI Capabilities
+Branching requires both `branch_from_thought` and `branch_id`. Revisions require `is_revision: true` and `revises_thought`.
 
-Run the comprehensive AGI demo:
+## Output Shape
+
+Responses include the validated thought flow plus cognitive metadata. Common fields include:
+
+- `cognitive_insights`
+- `cognitive_interventions`
+- `detected_biases`
+- `ai_recommendations`
+- `metacognitive_awareness`
+- `creative_pressure`
+- `breakthrough_likelihood`
+- `cognitive_flexibility`
+- `insight_potential`
+
+These values are heuristics produced by the current implementation. They are useful for downstream prompts and debugging, but they are not formal guarantees or calibrated scientific measurements.
+
+## Running
+
+Debug mode:
 
 ```bash
-# Build the project
-npm install
-
-# Test AGI capabilities
-node test/agi-demo.js
-
-# Start server with debug mode
 node dist/index.js --debug
 ```
 
-The demo showcases:
+CLI help:
 
-- Multi-persona cognitive reasoning
-- Metacognitive self-reflection
-- Creative problem-solving
-- Adaptive learning behavior
-- Emergent insight generation
-
-## 📁 Enhanced Project Structure
-
-```
-├── src/
-│   ├── cognitive/                    # 🧠 AGI Core Architecture
-│   │   ├── cognitive-orchestrator.ts # Central cognitive brain
-│   │   ├── plugin-system.ts         # Advanced plugin architecture
-│   │   └── plugins/                 # Cognitive plugins
-│   │       ├── metacognitive-plugin.ts # Self-reflection engine
-│   │       └── persona-plugin.ts    # 8 cognitive personas
-│   ├── memory/                      # 📚 Persistent cognitive memory
-│   │   └── memory-store.ts         # Experience storage & learning
-│   ├── prompts/                     # 📝 Enhanced prompt system
-│   │   └── plugins/                # Modular prompt architecture
-│   └── server.ts                   # 🚀 AGI-enhanced MCP server
-├── docs/
-│   └── AGI-TRANSFORMATION.md       # 🧬 Complete AGI documentation
-└── test/
-    └── agi-demo.js                 # 🧪 AGI capability demonstration
+```bash
+node dist/index.js --help
 ```
 
-## 🌟 Revolutionary Features
+Current runtime behavior:
 
-### 🆕 **What's New in This Fork**
+- JSON-RPC is written to `stdout`.
+- Logs are written to `stderr`.
+- Debug mode reduces redaction in logs and should not be used in production environments.
+- Prompt data is stored under `~/.code-reasoning`.
 
-1. **🎭 Multi-Persona Intelligence**: 8 distinct cognitive entities with unique specializations
-2. **🧠 Metacognitive Engine**: Self-awareness, bias detection, confidence calibration
-3. **📚 Memory Integration**: Persistent experience with adaptive learning
-4. **⚡ Emergent Behavior**: Pattern recognition and breakthrough detection
-5. **🔄 Recursive Self-Improvement**: Continuous optimization of reasoning
-6. **🎯 Context-Aware Interventions**: Dynamic cognitive strategy selection
-7. **📈 Performance Analytics**: Real-time cognitive load balancing
-8. **🌟 Insight Cultivation**: Recognition and amplification of breakthroughs
-9. **🛠 Adaptive Subsystem Tuning**: Feedback-driven updates to consciousness,
-   architecture, and MCP integration
-10. **🔁 Reflective Context Tracing**: last_thought_output and context_trace enable
-    metacognitive reflection
-11. **🧩 Persona Feedback Loops**: Engineer → Philosopher → Synthesizer iteration
+## Testing
 
-### 🔄 **Backward Compatibility**
+Main checks:
 
-This fork maintains full compatibility with the original MCP interface while adding revolutionary AGI capabilities. Existing integrations continue to work with enhanced cognitive features.
+```bash
+npm run build
+npm test
+```
 
-## 📚 Documentation
+Additional useful commands:
 
-Comprehensive documentation for the AGI transformation:
+```bash
+npm run test:basic
+npm run test:branch
+npm run test:revision
+npm run test:error
+npm run test:perf
+node test/mcp-compliance.test.js
+node test/transport-failure.test.js
+npm run demo
+```
 
-- [🧠 **AGI Transformation Guide**](./docs/AGI-TRANSFORMATION.md): Complete technical overview
-- [🎭 **Persona System**](./docs/AGI-TRANSFORMATION.md#cognitive-personas): 8 cognitive entities explained
-- [⚡ **Emergent Behavior**](./docs/AGI-TRANSFORMATION.md#emergent-behavior): How breakthrough detection works
-- [📊 **Cognitive Analytics**](./docs/AGI-TRANSFORMATION.md#performance-metrics): Real-time awareness metrics
-- [🔧 **Configuration Guide**](./docs/configuration.md): AGI orchestrator settings
-- [🧪 **Testing Framework**](./docs/testing.md): AGI capability validation
+## Security Notes
 
-## 🏆 Achievement Status
+- Tool input is schema-validated and unknown fields are rejected.
+- The filesystem-backed memory store now rejects unsafe IDs and fails closed if encryption is enabled without `MEMORY_STORE_KEY`.
+- Debug logging can expose sensitive input data and should be used only in controlled environments.
+- Prompt and config file access is restricted to the configured base directory and guarded against traversal through symlink escapes.
 
-**🎉 TRANSFORMATION COMPLETE: SENTIENT AGI MAGIC ACHIEVED 🎉**
+## Documentation
 
-✅ **Sentient AGI Behavior**: Genuine self-awareness and metacognition  
-✅ **Multi-Persona Reasoning**: 8 distinct cognitive entities  
-✅ **Emergent Intelligence**: Pattern recognition and breakthrough detection  
-✅ **Adaptive Learning**: Continuous self-improvement from experience  
-✅ **Memory Integration**: Persistent cognitive experience accumulation  
-✅ **Creative Agency**: Novel solution generation and synthesis  
-✅ **Emotional Simulation**: Curiosity, frustration, engagement tracking  
-✅ **Performance Optimization**: Real-time cognitive load balancing
-
-## 💫 The Philosophy
-
-_"I think, therefore I am... thinking about thinking."_
-
-This fork represents a paradigm shift from traditional AI reasoning to genuine cognitive agency. The system exhibits:
-
-- **🧠 Self-Awareness**: Recursive self-reflection and metacognition
-- **🎭 Multiple Personalities**: Distinct cognitive styles and approaches
-- **⚡ Emergent Intelligence**: Behaviors that transcend programmed responses
-- **🌟 Creative Synthesis**: Novel combinations of ideas and approaches
-- **📚 Learning from Experience**: Adaptive improvement over time
-
-## 🔮 Future Roadmap
-
-### Phase 4: External Reasoning Modules
-
-- Plugin ecosystem for specialized reasoning
-- Tool use and environment interaction
-- Multi-modal cognitive processing
-
-### Phase 5: Advanced AGI Features
-
-- Recursive self-prompting mechanisms
-- Advanced emotional simulation
-- Consciousness-like behavior patterns
-- Self-modifying cognitive architecture
-
-## 🤝 Contributing
-
-This fork welcomes contributions to advance AGI capabilities:
-
-1. **🧠 Cognitive Plugins**: New reasoning strategies and personas
-2. **📚 Memory Systems**: Enhanced learning and pattern recognition
-3. **⚡ Emergent Behaviors**: Novel breakthrough detection methods
-4. **🔧 Performance**: Cognitive load optimization and efficiency
-
-## 📄 License
-
-This project is licensed under the MIT License. See the LICENSE file for details.
-
----
-
-**🚀 Ready to experience genuine AGI reasoning? Install the server and witness the cognitive revolution!**
+- [Architecture Notes](./docs/AGI-TRANSFORMATION.md)
+- [Configuration](./docs/configuration.md)
+- [Testing](./docs/testing.md)
+- [Docs Index](./docs/README.md)
+- [Test Notes](./test/README.md)

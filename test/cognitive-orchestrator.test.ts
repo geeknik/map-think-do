@@ -121,6 +121,18 @@ async function testProcessThoughtUpdatesCognitiveState(): Promise<void> {
   console.log('  ✓ Process thought updates cognitive state');
 }
 
+async function testProcessThoughtGeneratesSessionId(): Promise<void> {
+  const orchestrator = await createTestCognitiveOrchestrator();
+  const thought = createMockThought();
+
+  const result = await orchestrator.processThought(thought);
+
+  assert.ok(result.cognitiveState.session_id, 'Should assign a session ID without explicit context');
+
+  await orchestrator.dispose();
+  console.log('  ✓ Process thought generates session id');
+}
+
 async function testProcessMultipleThoughts(): Promise<void> {
   const orchestrator = await createTestCognitiveOrchestrator({
     intervention_cooldown_ms: 0, // Disable cooldown for testing
@@ -689,6 +701,7 @@ const tests = [
   // Thought Processing
   { name: 'Process thought returns result', fn: testProcessThoughtReturnsResult },
   { name: 'Process thought updates cognitive state', fn: testProcessThoughtUpdatesCognitiveState },
+  { name: 'Process thought generates session id', fn: testProcessThoughtGeneratesSessionId },
   { name: 'Process multiple thoughts', fn: testProcessMultipleThoughts },
   { name: 'Process thought with session context', fn: testProcessThoughtWithSessionContext },
   { name: 'Process revision thought', fn: testProcessRevisionThought },

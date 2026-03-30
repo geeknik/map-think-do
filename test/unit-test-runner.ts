@@ -12,6 +12,8 @@ import { runTests as runSQLiteStoreTests } from './sqlite-store.test.js';
 import { runTests as runBiasDetectorTests } from './bias-detector.test.js';
 import { runLearningManagerTests } from './learning-manager.test.js';
 import { runCognitiveOrchestratorTests } from './cognitive-orchestrator.test.js';
+import { runFileSystemStoreTests } from './file-system-store.test.js';
+import { runPathValidatorTests } from './path-validator.test.js';
 
 interface TestSuite {
   name: string;
@@ -23,6 +25,8 @@ const testSuites: TestSuite[] = [
   { name: 'ErrorBoundary', runner: runErrorBoundaryTests },
   { name: 'SecureLogger', runner: runSecureLoggerTests },
   { name: 'StateManager', runner: runStateManagerTests },
+  { name: 'PathValidator', runner: runPathValidatorTests },
+  { name: 'FileSystemStore', runner: runFileSystemStoreTests },
   { name: 'SQLiteStore', runner: runSQLiteStoreTests },
   { name: 'BiasDetector', runner: runBiasDetectorTests },
   { name: 'LearningManager', runner: runLearningManagerTests },

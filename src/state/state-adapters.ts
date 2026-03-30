@@ -432,6 +432,7 @@ export class SessionStateAdapter {
    * Start a new session
    */
   startSession(sessionId: string): void {
+    this.currentSessionId = sessionId;
     this.totalSessions++;
     this.sessionStartTime = new Date();
 
@@ -474,7 +475,7 @@ export class SessionStateAdapter {
     this.stateManager.updateState(
       {
         session: {
-          currentSessionId: `session_${Date.now()}`,
+          currentSessionId: this.currentSessionId,
           sessionStartTime: this.sessionStartTime,
           totalSessions: this.totalSessions,
           activeConnections: this.activeConnections,

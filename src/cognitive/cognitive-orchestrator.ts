@@ -222,10 +222,16 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       // Record request performance
       this.stateService.recordRequest(event.processing_time, true);
 
+      const currentSession = this.stateService.getState().session;
+
       // Update cognitive state in unified state
       this.stateService.updateState(
         {
           cognitive: event.cognitiveState,
+          session: {
+            ...currentSession,
+            currentSessionId: event.cognitiveState.session_id,
+          },
         },
         'cognitive_orchestrator'
       );
