@@ -23,8 +23,8 @@ export async function runServerToolTests(): Promise<void> {
   );
   assert.match(
     description,
-    /hypothesis_ledger/i,
-    'tool description should mention the hypothesis ledger output now exposed by the server'
+    /hypothesis_ledger|confidence-change explanations/i,
+    'tool description should mention the hypothesis ledger and its confidence-change explanation output'
   );
   assert.match(
     description,
@@ -40,6 +40,11 @@ export async function runServerToolTests(): Promise<void> {
     description,
     /action_ranking/i,
     'tool description should mention structured action ranking output'
+  );
+  assert.match(
+    description,
+    /activation context|why they fired now/i,
+    'tool description should mention bounded intervention activation context'
   );
   assert.doesNotMatch(
     description,

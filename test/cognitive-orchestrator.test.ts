@@ -110,6 +110,40 @@ async function testProcessThoughtReturnsResult(): Promise<void> {
   console.log('  ✓ Process thought returns proper result');
 }
 
+async function testInterventionsExposeActivationContext(): Promise<void> {
+  const orchestrator = await createTestCognitiveOrchestrator({
+    intervention_cooldown_ms: 0,
+  });
+
+  const result = await orchestrator.processThought(
+    createMockThought({
+      thought:
+        'We need a creative design alternative, but the security risk means we should validate assumptions before committing.',
+    })
+  );
+
+  const interventionWithContext = result.interventions.find(
+    intervention => intervention.metadata.activation_context
+  );
+
+  assert.ok(interventionWithContext, 'At least one intervention should expose activation context');
+  assert.ok(
+    interventionWithContext?.metadata.activation_context?.reason,
+    'Activation context should include the activation reason'
+  );
+  assert.ok(
+    Array.isArray(interventionWithContext?.metadata.activation_context?.trigger_signals),
+    'Activation context should include bounded trigger signals'
+  );
+  assert.ok(
+    result.recommendations.some(recommendation => recommendation.includes('engaged now because')),
+    'Recommendations should explain why an intervention fired now'
+  );
+
+  await orchestrator.dispose();
+  console.log('  ✓ Interventions expose activation context');
+}
+
 async function testProcessThoughtUpdatesCognitiveState(): Promise<void> {
   const orchestrator = await createTestCognitiveOrchestrator();
   const thought = createMockThought();
@@ -205,9 +239,54 @@ async function testProcessThoughtBuildsHypothesisLedger(): Promise<void> {
     result.cognitiveState.hypothesis_ledger[0].next_validation_step.length > 0,
     'Should include a next validation step'
   );
+  assert.ok(
+    result.cognitiveState.hypothesis_ledger[0].last_confidence_update?.reason,
+    'Should explain the latest confidence update for the hypothesis'
+  );
 
   await orchestrator.dispose();
   console.log('  ✓ Process thought builds hypothesis ledger');
+}
+
+async function testSupportingEvidenceExplainsConfidenceIncrease(): Promise<void> {
+  const orchestrator = await createTestCognitiveOrchestrator({
+    intervention_cooldown_ms: 0,
+    emergence_detection_enabled: true,
+  });
+
+  await orchestrator.processThought(
+    createMockThought({
+      thought: 'The root cause is likely stale cache invalidation after deploy.',
+      thought_number: 1,
+    })
+  );
+
+  const result = await orchestrator.processThought(
+    createMockThought({
+      thought:
+        'The root cause still looks like stale cache invalidation after deploy because the issue disappears after the cache purge.',
+      thought_number: 2,
+    })
+  );
+
+  const matchingHypothesis = result.cognitiveState.hypothesis_ledger.find(entry =>
+    /root cause|stale cache invalidation|cache purge/i.test(entry.statement)
+  );
+
+  assert.ok(matchingHypothesis, 'Should keep the strengthened hypothesis in the ledger');
+  assert.equal(
+    matchingHypothesis?.last_confidence_update?.direction,
+    'increase',
+    'Supporting evidence should raise confidence'
+  );
+  assert.match(
+    matchingHypothesis?.last_confidence_update?.reason || '',
+    /supporting evidence|confidence increased/i,
+    'Confidence increase should explain the supporting evidence'
+  );
+
+  await orchestrator.dispose();
+  console.log('  ✓ Supporting evidence explains confidence increase');
 }
 
 async function testRevisionThoughtUpdatesHypothesisLedger(): Promise<void> {
@@ -245,6 +324,16 @@ async function testRevisionThoughtUpdatesHypothesisLedger(): Promise<void> {
   assert.ok(
     (matchingHypothesis?.contradicting_evidence.length || 0) > 0,
     'Revision should record contradicting evidence'
+  );
+  assert.equal(
+    matchingHypothesis?.last_confidence_update?.direction,
+    'decrease',
+    'Revision evidence should lower confidence'
+  );
+  assert.match(
+    matchingHypothesis?.last_confidence_update?.reason || '',
+    /revision|contradictory evidence|confidence decreased/i,
+    'Revision should explain why confidence fell'
   );
 
   await orchestrator.dispose();
@@ -1132,6 +1221,10 @@ const tests = [
 
   // Thought Processing
   { name: 'Process thought returns result', fn: testProcessThoughtReturnsResult },
+  {
+    name: 'Interventions expose activation context',
+    fn: testInterventionsExposeActivationContext,
+  },
   { name: 'Process thought updates cognitive state', fn: testProcessThoughtUpdatesCognitiveState },
   { name: 'Process thought generates session id', fn: testProcessThoughtGeneratesSessionId },
   { name: 'Process multiple thoughts', fn: testProcessMultipleThoughts },
@@ -1139,6 +1232,10 @@ const tests = [
   {
     name: 'Process thought builds hypothesis ledger',
     fn: testProcessThoughtBuildsHypothesisLedger,
+  },
+  {
+    name: 'Supporting evidence explains confidence increase',
+    fn: testSupportingEvidenceExplainsConfidenceIncrease,
   },
   {
     name: 'Revision thought updates hypothesis ledger',

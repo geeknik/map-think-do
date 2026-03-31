@@ -87,6 +87,13 @@ export interface PluginIntervention {
     confidence: number;
     expected_benefit: string;
     side_effects?: string[];
+    activation_context?: {
+      reason: string;
+      priority: number;
+      confidence: number;
+      estimated_impact: 'low' | 'medium' | 'high';
+      trigger_signals: string[];
+    };
     decision_focus?: {
       tradeoff: string;
       primary_action: string;
@@ -451,7 +458,11 @@ export class CognitivePluginManager extends EventEmitter {
       // Step 4: Execute interventions
       const interventionPromises = selectedPlugins.map(async ({ plugin, activation }) => {
         try {
-          const intervention = await plugin.intervene(context);
+          const intervention = this.annotateInterventionWithActivation(
+            await plugin.intervene(context),
+            activation,
+            context
+          );
           this.activeInterventions.set(plugin.id, intervention);
           return intervention;
         } catch (error) {
@@ -643,6 +654,58 @@ export class CognitivePluginManager extends EventEmitter {
     }
 
     return selected;
+  }
+
+  private annotateInterventionWithActivation(
+    intervention: PluginIntervention,
+    activation: PluginActivation,
+    context: CognitiveContext
+  ): PluginIntervention {
+    return {
+      ...intervention,
+      metadata: {
+        ...intervention.metadata,
+        activation_context: {
+          reason: activation.reason,
+          priority: activation.priority,
+          confidence: activation.confidence,
+          estimated_impact: activation.estimated_impact,
+          trigger_signals: this.deriveTriggerSignals(context, activation),
+        },
+      },
+    };
+  }
+
+  private deriveTriggerSignals(context: CognitiveContext, activation: PluginActivation): string[] {
+    const signals: string[] = [];
+
+    if (context.complexity >= 7) {
+      signals.push('high_complexity');
+    }
+    if (context.confidence_level < 0.4) {
+      signals.push('low_confidence');
+    }
+    if (context.urgency === 'high') {
+      signals.push('high_urgency');
+    }
+    if (context.time_constraints?.deadline) {
+      signals.push('explicit_deadline');
+    }
+    if (context.similar_past_sessions.length > 0) {
+      signals.push('memory_match');
+    }
+    if (activation.resource_requirements.creativity_required) {
+      signals.push('creative_reasoning');
+    }
+    if (activation.resource_requirements.analysis_required) {
+      signals.push('analytical_reasoning');
+    }
+
+    if (signals.length === 0) {
+      signals.push('general_reasoning_need');
+    }
+
+    return signals.slice(0, 4);
   }
 
   /**

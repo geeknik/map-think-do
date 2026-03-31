@@ -705,6 +705,13 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       );
     }
 
+    const primaryIntervention = interventions[0];
+    if (primaryIntervention?.metadata.activation_context) {
+      recommendations.push(
+        `Active intervention: ${primaryIntervention.metadata.plugin_id} engaged now because ${primaryIntervention.metadata.activation_context.reason}`
+      );
+    }
+
     // Insight-based recommendations
     if (insights.length > 0) {
       recommendations.push(
@@ -1507,6 +1514,9 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         ...entry,
         supporting_evidence: [...entry.supporting_evidence],
         contradicting_evidence: [...entry.contradicting_evidence],
+        last_confidence_update: entry.last_confidence_update
+          ? { ...entry.last_confidence_update }
+          : undefined,
       })),
       recent_mode_shifts: (this.cognitiveState.recent_mode_shifts || []).map(shift => ({
         ...shift,
@@ -1636,7 +1646,11 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
 
     for (let index = 0; index < candidates.length; index++) {
       const candidate = candidates[index];
-      const matchingIndex = this.findMatchingHypothesisIndex(updatedLedger, candidate.statement);
+      let matchingIndex = this.findMatchingHypothesisIndex(updatedLedger, candidate.statement);
+
+      if (matchingIndex < 0 && thoughtData.is_revision) {
+        matchingIndex = this.findRevisionTargetHypothesisIndex(updatedLedger, candidate.statement);
+      }
 
       if (matchingIndex >= 0) {
         updatedLedger[matchingIndex] = this.mergeHypothesisEntry(
@@ -1743,21 +1757,48 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
   ): number {
     const normalizedCandidate = this.normalizeThought(candidateStatement);
     let strongestIndex = -1;
-    let strongestSimilarity = 0;
+    let strongestScore = 0;
 
     for (let index = 0; index < ledger.length; index++) {
-      const similarity = this.calculateThoughtSimilarity(
+      const existingStatement = this.normalizeThought(ledger[index].statement);
+      const similarity = this.calculateThoughtSimilarity(normalizedCandidate, existingStatement);
+      const sharedTokenCount = this.countSharedSignificantTokens(
         normalizedCandidate,
-        this.normalizeThought(ledger[index].statement)
+        existingStatement
       );
+      const compositeScore = Math.max(similarity, sharedTokenCount >= 3 ? 0.4 : 0);
 
-      if (similarity > strongestSimilarity) {
-        strongestSimilarity = similarity;
+      if (compositeScore > strongestScore) {
+        strongestScore = compositeScore;
         strongestIndex = index;
       }
     }
 
-    return strongestSimilarity >= 0.45 ? strongestIndex : -1;
+    return strongestScore >= 0.35 ? strongestIndex : -1;
+  }
+
+  private findRevisionTargetHypothesisIndex(
+    ledger: HypothesisLedgerEntry[],
+    candidateStatement: string
+  ): number {
+    if (
+      !/\b(revision|earlier|previous|prior|wrong|no longer|still occurs|contradict)\b/i.test(
+        candidateStatement
+      )
+    ) {
+      return -1;
+    }
+
+    return ledger.findIndex(
+      hypothesis => hypothesis.status !== 'validated' && hypothesis.status !== 'rejected'
+    );
+  }
+
+  private countSharedSignificantTokens(current: string, previous: string): number {
+    const currentTokens = this.getSignificantTokens(current);
+    const previousTokens = this.getSignificantTokens(previous);
+
+    return [...currentTokens].filter(token => previousTokens.has(token)).length;
   }
 
   private createHypothesisEntry(
@@ -1782,8 +1823,13 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       last_updated_thought: thoughtData.thought_number,
     };
 
-    return this.normalizeHypothesisEntry(
-      this.applyHypothesisStatus(entry, thoughtData.is_revision || false)
+    return this.withHypothesisConfidenceUpdate(
+      undefined,
+      this.normalizeHypothesisEntry(
+        this.applyHypothesisStatus(entry, thoughtData.is_revision || false)
+      ),
+      candidate,
+      thoughtData.is_revision || false
     );
   }
 
@@ -1817,9 +1863,96 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       last_updated_thought: thoughtData.thought_number,
     };
 
-    return this.normalizeHypothesisEntry(
-      this.applyHypothesisStatus(merged, thoughtData.is_revision || false)
+    return this.withHypothesisConfidenceUpdate(
+      existing,
+      this.normalizeHypothesisEntry(
+        this.applyHypothesisStatus(merged, thoughtData.is_revision || false)
+      ),
+      candidate,
+      thoughtData.is_revision || false
     );
+  }
+
+  private withHypothesisConfidenceUpdate(
+    existing: HypothesisLedgerEntry | undefined,
+    entry: HypothesisLedgerEntry,
+    candidate: {
+      statement: string;
+      confidence: number;
+      supportingEvidence: string[];
+      contradictingEvidence: string[];
+      nextValidationStep: string;
+    },
+    isRevision: boolean
+  ): HypothesisLedgerEntry {
+    return {
+      ...entry,
+      last_confidence_update: this.describeHypothesisConfidenceUpdate(
+        existing,
+        entry,
+        candidate,
+        isRevision
+      ),
+    };
+  }
+
+  private describeHypothesisConfidenceUpdate(
+    existing: HypothesisLedgerEntry | undefined,
+    entry: HypothesisLedgerEntry,
+    candidate: {
+      statement: string;
+      confidence: number;
+      supportingEvidence: string[];
+      contradictingEvidence: string[];
+      nextValidationStep: string;
+    },
+    isRevision: boolean
+  ): HypothesisLedgerEntry['last_confidence_update'] {
+    const previousConfidence = Number((existing?.confidence ?? entry.confidence).toFixed(3));
+    const currentConfidence = Number(entry.confidence.toFixed(3));
+    const delta = Number((currentConfidence - previousConfidence).toFixed(3));
+    const direction = delta > 0.01 ? 'increase' : delta < -0.01 ? 'decrease' : ('stable' as const);
+
+    const latestSupport = candidate.supportingEvidence[0];
+    const latestContradiction = candidate.contradictingEvidence[0];
+
+    let reason: string;
+    if (!existing) {
+      reason = latestContradiction
+        ? `Initialized cautiously because the first evidence is contradictory: "${this.summarizeHypothesis(latestContradiction)}"`
+        : latestSupport
+          ? `Initialized from current supporting evidence: "${this.summarizeHypothesis(latestSupport)}"`
+          : 'Initialized from the current reasoning step without enough evidence to move confidence yet.';
+    } else if (direction === 'increase') {
+      reason =
+        entry.status === 'validated'
+          ? 'Confidence increased because supporting evidence accumulated and the hypothesis reached the validation threshold.'
+          : latestSupport
+            ? `Confidence increased because new supporting evidence was added: "${this.summarizeHypothesis(latestSupport)}"`
+            : 'Confidence increased because the latest update strengthened support without adding new contradictions.';
+    } else if (direction === 'decrease') {
+      reason =
+        isRevision && latestContradiction
+          ? `Confidence decreased because this revision added contradictory evidence: "${this.summarizeHypothesis(latestContradiction)}"`
+          : entry.status === 'rejected'
+            ? 'Confidence decreased because contradictory evidence outweighed support and the hypothesis was rejected.'
+            : latestContradiction
+              ? `Confidence decreased because contradictory evidence was added: "${this.summarizeHypothesis(latestContradiction)}"`
+              : 'Confidence decreased because the evidence balance weakened.';
+    } else {
+      reason =
+        latestSupport || latestContradiction
+          ? 'Confidence stayed roughly stable because the latest evidence balanced against the existing record.'
+          : 'Confidence stayed stable because the latest update did not materially change the evidence balance.';
+    }
+
+    return {
+      previous_confidence: previousConfidence,
+      current_confidence: currentConfidence,
+      delta,
+      direction,
+      reason,
+    };
   }
 
   private applyHypothesisStatus(
@@ -1842,11 +1975,15 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     }
 
     if (supportCount >= 2 && entry.confidence >= 0.75) {
-      return { ...entry, status: 'validated' };
+      return { ...entry, status: 'validated', confidence: Math.min(1, entry.confidence + 0.05) };
     }
 
     if (supportCount > 0) {
-      return { ...entry, status: 'strengthening' };
+      return {
+        ...entry,
+        status: 'strengthening',
+        confidence: Math.min(1, entry.confidence + (supportCount >= 2 ? 0.08 : 0.05)),
+      };
     }
 
     return { ...entry, status: 'active' };
@@ -1859,6 +1996,20 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       supporting_evidence: this.limitEvidence(entry.supporting_evidence),
       contradicting_evidence: this.limitEvidence(entry.contradicting_evidence),
       confidence: Math.min(1, Math.max(0, entry.confidence)),
+      last_confidence_update: entry.last_confidence_update
+        ? {
+            ...entry.last_confidence_update,
+            previous_confidence: Math.min(
+              1,
+              Math.max(0, entry.last_confidence_update.previous_confidence)
+            ),
+            current_confidence: Math.min(
+              1,
+              Math.max(0, entry.last_confidence_update.current_confidence)
+            ),
+            delta: Number(entry.last_confidence_update.delta.toFixed(3)),
+          }
+        : undefined,
     };
   }
 

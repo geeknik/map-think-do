@@ -90,7 +90,9 @@ Responses include the validated thought flow plus cognitive metadata. Common fie
 
 - `cognitive_insights`
 - `cognitive_interventions`
+  Each intervention now includes bounded activation context explaining why it fired now.
 - `hypothesis_ledger`
+  Each hypothesis now includes a bounded explanation of its latest confidence change.
 - `reasoning_mode`
 - `recent_mode_shifts`
 - `action_ranking`

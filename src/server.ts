@@ -211,8 +211,8 @@ structured reasoning with multiple cognitive perspectives, persisted state, and 
 
 📊 OUTPUTS:
 - cognitive_insights: Detected patterns and breakthroughs
-- cognitive_interventions: Applied reasoning strategies
-- hypothesis_ledger: Active working hypotheses with support, contradiction, and next validation steps
+- cognitive_interventions: Applied reasoning strategies with bounded activation context for why they fired now
+- hypothesis_ledger: Active working hypotheses with support, contradiction, next validation steps, and bounded confidence-change explanations
 - reasoning_mode: Current grounded reasoning posture (exploration, validation, revision, branching, convergence)
 - recent_mode_shifts: Bounded history of recent mode transitions and why they occurred
 - action_ranking: Structured next actions with primary, fallback, and do-not-do-yet guidance

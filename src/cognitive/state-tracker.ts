@@ -7,6 +7,14 @@ import { ReasoningSession } from '../memory/memory-store.js';
  */
 export type ConfidenceCalibrator = (rawConfidence: number, domain?: string) => number;
 
+export interface HypothesisConfidenceUpdate {
+  previous_confidence: number;
+  current_confidence: number;
+  delta: number;
+  direction: 'increase' | 'decrease' | 'stable';
+  reason: string;
+}
+
 export interface HypothesisLedgerEntry {
   id: string;
   statement: string;
@@ -16,6 +24,7 @@ export interface HypothesisLedgerEntry {
   contradicting_evidence: string[];
   next_validation_step: string;
   last_updated_thought: number;
+  last_confidence_update?: HypothesisConfidenceUpdate;
 }
 
 export type ReasoningMode = 'exploration' | 'validation' | 'revision' | 'branching' | 'convergence';
