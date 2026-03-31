@@ -18,12 +18,23 @@ export interface HypothesisLedgerEntry {
   last_updated_thought: number;
 }
 
+export type ReasoningMode = 'exploration' | 'validation' | 'revision' | 'branching' | 'convergence';
+
+export interface ReasoningModeShift {
+  from: ReasoningMode;
+  to: ReasoningMode;
+  reason: string;
+  thought_number: number;
+}
+
 export interface CognitiveState {
   session_id: string;
   thought_count: number;
   current_complexity: number;
   confidence_trajectory: number[];
   hypothesis_ledger: HypothesisLedgerEntry[];
+  reasoning_mode: ReasoningMode;
+  recent_mode_shifts: ReasoningModeShift[];
 
   metacognitive_awareness: number;
   creative_pressure: number;
@@ -59,6 +70,8 @@ export class StateTracker {
       current_complexity: 5,
       confidence_trajectory: [],
       hypothesis_ledger: [],
+      reasoning_mode: 'exploration',
+      recent_mode_shifts: [],
       metacognitive_awareness: 0.5,
       creative_pressure: 0.3,
       analytical_depth: 0.5,

@@ -31,7 +31,13 @@ import { ExternalReasoningPlugin } from './plugins/external-reasoning-plugin.js'
 import { Phase5IntegrationPlugin } from './plugins/phase5-integration-plugin.js';
 import { MemoryStore, StoredThought, ReasoningSession } from '../memory/memory-store.js';
 import { ValidatedThoughtData } from '../server.js';
-import { StateTracker, CognitiveState, HypothesisLedgerEntry } from './state-tracker.js';
+import {
+  StateTracker,
+  CognitiveState,
+  HypothesisLedgerEntry,
+  ReasoningMode,
+  ReasoningModeShift,
+} from './state-tracker.js';
 import { InsightDetector, CognitiveInsight } from './insight-detector.js';
 import { LearningManager } from './learning-manager.js';
 import { DependencyContainer, ServiceTokens, Disposable } from './dependency-container.js';
@@ -248,7 +254,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         return {
           interventions: [],
           insights: [],
-          cognitiveState: this.cognitiveState,
+          cognitiveState: this.snapshotCognitiveState(),
           recommendations: [`Error occurred during processing: ${error.message}`],
         };
       }
@@ -284,7 +290,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         return {
           interventions: [],
           insights: [],
-          cognitiveState: this.cognitiveState,
+          cognitiveState: this.snapshotCognitiveState(),
           recommendations: ['Cognitive cooldown active - allowing natural processing'],
         };
       }
@@ -310,6 +316,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       );
 
       this.updateHypothesisLedger(thoughtData, context, insights);
+      this.updateReasoningMode(thoughtData, context, insights);
 
       // Generate recommendations with error boundary
       const recommendations = await this.generalBoundary.execute(
@@ -374,14 +381,14 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         thought: thoughtData,
         interventions,
         insights,
-        cognitiveState: this.cognitiveState,
+        cognitiveState: this.snapshotCognitiveState(),
         processing_time: processingTime,
       });
 
       return {
         interventions,
         insights,
-        cognitiveState: this.cognitiveState,
+        cognitiveState: this.snapshotCognitiveState(),
         recommendations,
       };
     } catch (error) {
@@ -401,7 +408,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       return {
         interventions: [],
         insights: [],
-        cognitiveState: this.cognitiveState,
+        cognitiveState: this.snapshotCognitiveState(),
         recommendations: ['Error in cognitive processing - continuing with basic reasoning'],
       };
     }
@@ -442,7 +449,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
    * Get current cognitive state
    */
   getCognitiveState(): CognitiveState {
-    return { ...this.cognitiveState };
+    return this.snapshotCognitiveState();
   }
 
   /**
@@ -637,6 +644,18 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     const repeatedReasoning = this.findRepeatedReasoningSignal(context, thoughtData.thought);
     const deadlineHours = this.getHoursUntilDeadline(context);
     const topHypothesis = this.getTopUnresolvedHypothesis();
+    const currentMode = this.cognitiveState.reasoning_mode || 'exploration';
+    const latestModeShift = this.getLatestModeShift();
+
+    if (latestModeShift && latestModeShift.thought_number === thoughtData.thought_number) {
+      recommendations.push(
+        `Reasoning mode shifted from ${latestModeShift.from} to ${latestModeShift.to} - ${latestModeShift.reason}`
+      );
+    } else {
+      recommendations.push(
+        `Current reasoning mode: ${currentMode} - ${this.getReasoningModeGuidance(currentMode)}`
+      );
+    }
 
     // Complexity-based recommendations
     if (context.complexity >= 8) {
@@ -1054,6 +1073,132 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
 
   private dedupeRecommendations(recommendations: string[]): string[] {
     return Array.from(new Set(recommendations));
+  }
+
+  private snapshotCognitiveState(): CognitiveState {
+    return {
+      ...this.cognitiveState,
+      confidence_trajectory: [...(this.cognitiveState.confidence_trajectory || [])],
+      hypothesis_ledger: (this.cognitiveState.hypothesis_ledger || []).map(entry => ({
+        ...entry,
+        supporting_evidence: [...entry.supporting_evidence],
+        contradicting_evidence: [...entry.contradicting_evidence],
+      })),
+      recent_mode_shifts: (this.cognitiveState.recent_mode_shifts || []).map(shift => ({
+        ...shift,
+      })),
+    };
+  }
+
+  private updateReasoningMode(
+    thoughtData: ValidatedThoughtData,
+    context: CognitiveContext,
+    insights: CognitiveInsight[]
+  ): void {
+    const previousMode = this.cognitiveState.reasoning_mode || 'exploration';
+    const nextMode = this.inferReasoningMode(thoughtData, context, insights);
+
+    this.cognitiveState.reasoning_mode = nextMode.mode;
+
+    if (previousMode === nextMode.mode) {
+      return;
+    }
+
+    const nextShift: ReasoningModeShift = {
+      from: previousMode,
+      to: nextMode.mode,
+      reason: nextMode.reason,
+      thought_number: thoughtData.thought_number,
+    };
+
+    this.cognitiveState.recent_mode_shifts = [
+      ...(this.cognitiveState.recent_mode_shifts || []),
+      nextShift,
+    ].slice(-5);
+  }
+
+  private inferReasoningMode(
+    thoughtData: ValidatedThoughtData,
+    context: CognitiveContext,
+    insights: CognitiveInsight[]
+  ): { mode: ReasoningMode; reason: string } {
+    const remainingThoughts = Math.max(0, thoughtData.total_thoughts - thoughtData.thought_number);
+    const repeatedReasoning = this.findRepeatedReasoningSignal(context, thoughtData.thought);
+    const thought = thoughtData.thought.toLowerCase();
+    const topHypothesis = this.getTopUnresolvedHypothesis();
+
+    if (thoughtData.is_revision) {
+      return {
+        mode: 'revision',
+        reason: `thought ${thoughtData.thought_number} explicitly revises an earlier assumption`,
+      };
+    }
+
+    if (thoughtData.branch_from_thought) {
+      return {
+        mode: 'branching',
+        reason: `thought ${thoughtData.thought_number} explores an alternate branch from thought ${thoughtData.branch_from_thought}`,
+      };
+    }
+
+    if (
+      !thoughtData.next_thought_needed ||
+      (remainingThoughts <= 1 && (context.confidence_level >= 0.55 || insights.length > 0))
+    ) {
+      return {
+        mode: 'convergence',
+        reason: 'the reasoning sequence is near completion and should consolidate into a decision',
+      };
+    }
+
+    if (this.hasValidationIntent(thought) || context.confidence_level < 0.4) {
+      return {
+        mode: 'validation',
+        reason:
+          context.confidence_level < 0.4
+            ? 'low confidence means the next step should verify evidence before adding scope'
+            : 'the current thought is framed around testing, verification, or evidence gathering',
+      };
+    }
+
+    if (topHypothesis && repeatedReasoning) {
+      return {
+        mode: 'validation',
+        reason: `recent reasoning is looping around "${topHypothesis.statement}" and needs a concrete check`,
+      };
+    }
+
+    return {
+      mode: 'exploration',
+      reason: 'the current step is still mapping constraints, options, or unknowns',
+    };
+  }
+
+  private hasValidationIntent(thought: string): boolean {
+    return /\b(test|verify|validate|evidence|measure|prove|confirm|check|reproduce|compare|inspect|benchmark)\b/i.test(
+      thought
+    );
+  }
+
+  private getReasoningModeGuidance(mode: ReasoningMode): string {
+    switch (mode) {
+      case 'validation':
+        return 'test the strongest claim with evidence before widening the search';
+      case 'revision':
+        return 'document what changed and why the earlier assumption weakened';
+      case 'branching':
+        return 'compare this branch against the main path with explicit decision criteria';
+      case 'convergence':
+        return 'summarize the decision, supporting evidence, and immediate next action';
+      case 'exploration':
+      default:
+        return 'map constraints and alternatives before committing to a single explanation';
+    }
+  }
+
+  private getLatestModeShift(): ReasoningModeShift | undefined {
+    const shifts = this.cognitiveState.recent_mode_shifts || [];
+    return shifts[shifts.length - 1];
   }
 
   private updateHypothesisLedger(

@@ -329,6 +329,8 @@ export class StateManager extends EventEmitter {
         current_complexity: 5,
         confidence_trajectory: [0.5],
         hypothesis_ledger: [],
+        reasoning_mode: 'exploration',
+        recent_mode_shifts: [],
         metacognitive_awareness: 0.5,
         creative_pressure: 0.3,
         analytical_depth: 0.5,
@@ -432,6 +434,13 @@ export class StateManager extends EventEmitter {
     if (!state.cognitive) {
       errors.push('Missing cognitive state');
     } else {
+      if (
+        !['exploration', 'validation', 'revision', 'branching', 'convergence'].includes(
+          state.cognitive.reasoning_mode
+        )
+      ) {
+        errors.push('Invalid reasoning_mode');
+      }
       if (!state.cognitive.session_id) {
         errors.push('Missing cognitive session_id');
       }
@@ -440,6 +449,9 @@ export class StateManager extends EventEmitter {
       }
       if (state.cognitive.current_complexity < 1 || state.cognitive.current_complexity > 10) {
         warnings.push('Complexity value outside normal range (1-10)');
+      }
+      if (state.cognitive.recent_mode_shifts.length > 5) {
+        warnings.push('recent_mode_shifts exceeded expected bound');
       }
     }
 

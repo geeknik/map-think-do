@@ -213,6 +213,8 @@ structured reasoning with multiple cognitive perspectives, persisted state, and 
 - cognitive_insights: Detected patterns and breakthroughs
 - cognitive_interventions: Applied reasoning strategies
 - hypothesis_ledger: Active working hypotheses with support, contradiction, and next validation steps
+- reasoning_mode: Current grounded reasoning posture (exploration, validation, revision, branching, convergence)
+- recent_mode_shifts: Bounded history of recent mode transitions and why they occurred
 - detected_biases: Cognitive biases found in reasoning
 - ai_recommendations: Suggested next steps
 - metacognitive_awareness: Heuristic self-reflection score (0-1)
@@ -642,6 +644,8 @@ class CodeReasoningServer {
       cognitive_interventions: cognitiveResult?.interventions || [],
       cognitive_state: cognitiveResult?.cognitiveState || {},
       hypothesis_ledger: cognitiveResult?.cognitiveState?.hypothesis_ledger || [],
+      reasoning_mode: cognitiveResult?.cognitiveState?.reasoning_mode || 'exploration',
+      recent_mode_shifts: cognitiveResult?.cognitiveState?.recent_mode_shifts || [],
       ai_recommendations: cognitiveResult?.recommendations || [],
       // REAL Bias Detection Results
       detected_biases:

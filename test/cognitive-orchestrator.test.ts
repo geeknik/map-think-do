@@ -328,6 +328,8 @@ async function testGetCognitiveState(): Promise<void> {
   assert.ok(typeof state.session_id === 'string', 'Should have session_id');
   assert.ok(typeof state.thought_count === 'number', 'Should have thought_count');
   assert.ok(typeof state.current_complexity === 'number', 'Should have current_complexity');
+  assert.ok(typeof state.reasoning_mode === 'string', 'Should have reasoning_mode');
+  assert.ok(Array.isArray(state.recent_mode_shifts), 'Should have recent_mode_shifts');
   assert.ok(
     typeof state.metacognitive_awareness === 'number',
     'Should have metacognitive_awareness'
@@ -824,6 +826,116 @@ async function testRecommendationsReflectRevisionAndDeadlinePressure(): Promise<
   console.log('  ✓ Recommendations reflect revision and deadline pressure');
 }
 
+async function testReasoningModeShiftsToValidation(): Promise<void> {
+  const orchestrator = await createTestCognitiveOrchestrator({
+    intervention_cooldown_ms: 0,
+  });
+
+  const result = await orchestrator.processThought(
+    createMockThought({
+      thought:
+        'We should verify whether stale cache invalidation is the root cause by reproducing the failure after clearing cache.',
+    })
+  );
+
+  assert.strictEqual(
+    result.cognitiveState.reasoning_mode,
+    'validation',
+    'Evidence-oriented reasoning should enter validation mode'
+  );
+  assert.ok(
+    result.cognitiveState.recent_mode_shifts.some(
+      shift => shift.to === 'validation' && shift.thought_number === 1
+    ),
+    'Validation mode should record a bounded shift entry'
+  );
+  assert.ok(
+    result.recommendations.some(
+      recommendation =>
+        recommendation.includes('Reasoning mode shifted from exploration to validation') ||
+        recommendation.includes('Current reasoning mode: validation')
+    ),
+    'Recommendations should explain the active reasoning mode'
+  );
+
+  await orchestrator.dispose();
+  console.log('  ✓ Reasoning mode shifts to validation');
+}
+
+async function testReasoningModeTracksRevision(): Promise<void> {
+  const orchestrator = await createTestCognitiveOrchestrator({
+    intervention_cooldown_ms: 0,
+  });
+
+  await orchestrator.processThought(
+    createMockThought({
+      thought: 'We should verify the cache invalidation path with a reproducible test.',
+    })
+  );
+
+  const result = await orchestrator.processThought(
+    createMockThought({
+      thought:
+        'Revision: the earlier cache theory is weaker because the failure persists after cache clear.',
+      thought_number: 2,
+      is_revision: true,
+      revises_thought: 1,
+    })
+  );
+
+  assert.strictEqual(
+    result.cognitiveState.reasoning_mode,
+    'revision',
+    'Explicit revisions should switch the reasoning mode to revision'
+  );
+  assert.ok(
+    result.cognitiveState.recent_mode_shifts.some(
+      shift => shift.from === 'validation' && shift.to === 'revision' && shift.thought_number === 2
+    ),
+    'Revision mode should capture the transition from the prior mode'
+  );
+
+  await orchestrator.dispose();
+  console.log('  ✓ Reasoning mode tracks revision');
+}
+
+async function testReasoningModeConvergesAtSequenceEnd(): Promise<void> {
+  const orchestrator = await createTestCognitiveOrchestrator({
+    intervention_cooldown_ms: 0,
+  });
+
+  const result = await orchestrator.processThought(
+    createMockThought({
+      thought: 'The logs confirm the migration timeout, so we can stop exploring and act on that.',
+      total_thoughts: 1,
+      next_thought_needed: false,
+    })
+  );
+
+  assert.strictEqual(
+    result.cognitiveState.reasoning_mode,
+    'convergence',
+    'Completed reasoning should switch into convergence mode'
+  );
+  assert.ok(
+    result.cognitiveState.recent_mode_shifts.some(
+      shift => shift.to === 'convergence' && shift.thought_number === 1
+    ),
+    'Convergence mode should record the transition'
+  );
+  assert.ok(
+    result.recommendations.some(
+      recommendation =>
+        recommendation.includes('Reasoning mode shifted from exploration to convergence') ||
+        recommendation.includes('Current reasoning mode: convergence')
+    ),
+    'Recommendations should surface convergence mode'
+  );
+
+  await orchestrator.dispose();
+  console.log('  ✓ Reasoning mode converges at sequence end');
+}
+
 async function testRepeatedReasoningDetectionHandlesParaphrases(): Promise<void> {
   const orchestrator = await createTestCognitiveOrchestrator({
     intervention_cooldown_ms: 0,
@@ -988,6 +1100,18 @@ const tests = [
   {
     name: 'Recommendations reflect revision and deadline pressure',
     fn: testRecommendationsReflectRevisionAndDeadlinePressure,
+  },
+  {
+    name: 'Reasoning mode shifts to validation',
+    fn: testReasoningModeShiftsToValidation,
+  },
+  {
+    name: 'Reasoning mode tracks revision',
+    fn: testReasoningModeTracksRevision,
+  },
+  {
+    name: 'Reasoning mode converges at sequence end',
+    fn: testReasoningModeConvergesAtSequenceEnd,
   },
   {
     name: 'Repeated reasoning detection handles paraphrases',

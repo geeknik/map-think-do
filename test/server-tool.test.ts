@@ -26,6 +26,16 @@ export async function runServerToolTests(): Promise<void> {
     /hypothesis_ledger/i,
     'tool description should mention the hypothesis ledger output now exposed by the server'
   );
+  assert.match(
+    description,
+    /reasoning_mode/i,
+    'tool description should mention the grounded reasoning mode output'
+  );
+  assert.match(
+    description,
+    /recent_mode_shifts/i,
+    'tool description should mention bounded mode-shift history output'
+  );
   assert.doesNotMatch(
     description,
     /adaptive learning/i,

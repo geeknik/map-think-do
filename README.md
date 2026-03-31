@@ -91,6 +91,8 @@ Responses include the validated thought flow plus cognitive metadata. Common fie
 - `cognitive_insights`
 - `cognitive_interventions`
 - `hypothesis_ledger`
+- `reasoning_mode`
+- `recent_mode_shifts`
 - `detected_biases`
 - `ai_recommendations`
 - `metacognitive_awareness`

@@ -226,6 +226,8 @@ async function testStatePersistence(): Promise<void> {
       current_complexity: 5,
       confidence_trajectory: [0.5],
       hypothesis_ledger: [],
+      reasoning_mode: 'exploration' as const,
+      recent_mode_shifts: [],
       metacognitive_awareness: 0.5,
       creative_pressure: 0.3,
       analytical_depth: 0.5,
