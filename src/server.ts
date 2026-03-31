@@ -212,6 +212,7 @@ structured reasoning with multiple cognitive perspectives, persisted state, and 
 📊 OUTPUTS:
 - cognitive_insights: Detected patterns and breakthroughs
 - cognitive_interventions: Applied reasoning strategies
+- hypothesis_ledger: Active working hypotheses with support, contradiction, and next validation steps
 - detected_biases: Cognitive biases found in reasoning
 - ai_recommendations: Suggested next steps
 - metacognitive_awareness: Heuristic self-reflection score (0-1)
@@ -640,6 +641,7 @@ class CodeReasoningServer {
       cognitive_insights: cognitiveResult?.insights || [],
       cognitive_interventions: cognitiveResult?.interventions || [],
       cognitive_state: cognitiveResult?.cognitiveState || {},
+      hypothesis_ledger: cognitiveResult?.cognitiveState?.hypothesis_ledger || [],
       ai_recommendations: cognitiveResult?.recommendations || [],
       // REAL Bias Detection Results
       detected_biases:

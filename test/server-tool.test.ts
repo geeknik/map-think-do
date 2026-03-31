@@ -21,6 +21,11 @@ export async function runServerToolTests(): Promise<void> {
     /persisted state/i,
     'tool description should mention persisted state rather than implied sentience'
   );
+  assert.match(
+    description,
+    /hypothesis_ledger/i,
+    'tool description should mention the hypothesis ledger output now exposed by the server'
+  );
   assert.doesNotMatch(
     description,
     /adaptive learning/i,

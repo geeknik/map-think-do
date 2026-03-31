@@ -328,6 +328,7 @@ export class StateManager extends EventEmitter {
         thought_count: 0,
         current_complexity: 5,
         confidence_trajectory: [0.5],
+        hypothesis_ledger: [],
         metacognitive_awareness: 0.5,
         creative_pressure: 0.3,
         analytical_depth: 0.5,

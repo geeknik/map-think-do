@@ -225,6 +225,7 @@ async function testStatePersistence(): Promise<void> {
       thought_count: 100,
       current_complexity: 5,
       confidence_trajectory: [0.5],
+      hypothesis_ledger: [],
       metacognitive_awareness: 0.5,
       creative_pressure: 0.3,
       analytical_depth: 0.5,

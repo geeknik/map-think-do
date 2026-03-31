@@ -7,11 +7,23 @@ import { ReasoningSession } from '../memory/memory-store.js';
  */
 export type ConfidenceCalibrator = (rawConfidence: number, domain?: string) => number;
 
+export interface HypothesisLedgerEntry {
+  id: string;
+  statement: string;
+  status: 'active' | 'strengthening' | 'weakening' | 'validated' | 'rejected' | 'revised';
+  confidence: number;
+  supporting_evidence: string[];
+  contradicting_evidence: string[];
+  next_validation_step: string;
+  last_updated_thought: number;
+}
+
 export interface CognitiveState {
   session_id: string;
   thought_count: number;
   current_complexity: number;
   confidence_trajectory: number[];
+  hypothesis_ledger: HypothesisLedgerEntry[];
 
   metacognitive_awareness: number;
   creative_pressure: number;
@@ -46,6 +58,7 @@ export class StateTracker {
       thought_count: 0,
       current_complexity: 5,
       confidence_trajectory: [],
+      hypothesis_ledger: [],
       metacognitive_awareness: 0.5,
       creative_pressure: 0.3,
       analytical_depth: 0.5,

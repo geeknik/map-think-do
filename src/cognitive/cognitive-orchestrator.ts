@@ -31,7 +31,7 @@ import { ExternalReasoningPlugin } from './plugins/external-reasoning-plugin.js'
 import { Phase5IntegrationPlugin } from './plugins/phase5-integration-plugin.js';
 import { MemoryStore, StoredThought, ReasoningSession } from '../memory/memory-store.js';
 import { ValidatedThoughtData } from '../server.js';
-import { StateTracker, CognitiveState } from './state-tracker.js';
+import { StateTracker, CognitiveState, HypothesisLedgerEntry } from './state-tracker.js';
 import { InsightDetector, CognitiveInsight } from './insight-detector.js';
 import { LearningManager } from './learning-manager.js';
 import { DependencyContainer, ServiceTokens, Disposable } from './dependency-container.js';
@@ -308,6 +308,8 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
           return []; // Return empty insights as fallback
         }
       );
+
+      this.updateHypothesisLedger(thoughtData, context, insights);
 
       // Generate recommendations with error boundary
       const recommendations = await this.generalBoundary.execute(
@@ -634,6 +636,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     const remainingThoughts = Math.max(0, thoughtData.total_thoughts - thoughtData.thought_number);
     const repeatedReasoning = this.findRepeatedReasoningSignal(context, thoughtData.thought);
     const deadlineHours = this.getHoursUntilDeadline(context);
+    const topHypothesis = this.getTopUnresolvedHypothesis();
 
     // Complexity-based recommendations
     if (context.complexity >= 8) {
@@ -660,6 +663,12 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     if (insights.length > 0) {
       recommendations.push(
         `${insights.length} cognitive insight(s) detected - validate the highest-priority insight before expanding further`
+      );
+    }
+
+    if (topHypothesis) {
+      recommendations.push(
+        `Top hypothesis: "${topHypothesis.statement}" - ${topHypothesis.next_validation_step}`
       );
     }
 
@@ -1045,6 +1054,280 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
 
   private dedupeRecommendations(recommendations: string[]): string[] {
     return Array.from(new Set(recommendations));
+  }
+
+  private updateHypothesisLedger(
+    thoughtData: ValidatedThoughtData,
+    context: CognitiveContext,
+    insights: CognitiveInsight[]
+  ): void {
+    const existingLedger = this.cognitiveState.hypothesis_ledger || [];
+    const updatedLedger = [...existingLedger];
+    const candidates = this.extractHypothesisCandidates(thoughtData, context, insights);
+
+    for (let index = 0; index < candidates.length; index++) {
+      const candidate = candidates[index];
+      const matchingIndex = this.findMatchingHypothesisIndex(updatedLedger, candidate.statement);
+
+      if (matchingIndex >= 0) {
+        updatedLedger[matchingIndex] = this.mergeHypothesisEntry(
+          updatedLedger[matchingIndex],
+          candidate,
+          thoughtData
+        );
+      } else {
+        updatedLedger.push(
+          this.createHypothesisEntry(
+            candidate,
+            thoughtData,
+            `hyp_${thoughtData.thought_number}_${index}`
+          )
+        );
+      }
+    }
+
+    this.cognitiveState.hypothesis_ledger = updatedLedger
+      .map(entry => this.normalizeHypothesisEntry(entry))
+      .sort((a, b) => {
+        const rightStatusPriority = this.getHypothesisStatusPriority(b.status);
+        const leftStatusPriority = this.getHypothesisStatusPriority(a.status);
+        const statusDelta = rightStatusPriority - leftStatusPriority;
+        if (statusDelta !== 0) return statusDelta;
+
+        const thoughtDelta = b.last_updated_thought - a.last_updated_thought;
+        if (thoughtDelta !== 0) return thoughtDelta;
+
+        return b.confidence - a.confidence;
+      })
+      .slice(0, 6);
+  }
+
+  private extractHypothesisCandidates(
+    thoughtData: ValidatedThoughtData,
+    context: CognitiveContext,
+    insights: CognitiveInsight[]
+  ): Array<{
+    statement: string;
+    confidence: number;
+    supportingEvidence: string[];
+    contradictingEvidence: string[];
+    nextValidationStep: string;
+  }> {
+    const candidates: Array<{
+      statement: string;
+      confidence: number;
+      supportingEvidence: string[];
+      contradictingEvidence: string[];
+      nextValidationStep: string;
+    }> = [];
+
+    const thoughtSentences = thoughtData.thought
+      .split(/[.!?]\s+/)
+      .map(sentence => sentence.trim())
+      .filter(sentence => sentence.length > 0);
+
+    const hypothesisCue =
+      /\b(root cause|caused by|because|due to|suggests?|indicates?|likely|probably|appears?|seems?|assume|hypothesis|means|implies|points to)\b/i;
+
+    for (const sentence of thoughtSentences) {
+      if (
+        !hypothesisCue.test(sentence) &&
+        !thoughtData.is_revision &&
+        !thoughtData.branch_from_thought
+      ) {
+        continue;
+      }
+
+      candidates.push({
+        statement: sentence,
+        confidence: Math.max(0.2, context.confidence_level - (thoughtData.is_revision ? 0.1 : 0)),
+        supportingEvidence: thoughtData.is_revision ? [] : [sentence],
+        contradictingEvidence: thoughtData.is_revision ? [sentence] : [],
+        nextValidationStep:
+          insights[0]?.suggested_validation ||
+          'Test the weakest assumption in this hypothesis with one concrete piece of evidence.',
+      });
+    }
+
+    for (const insight of insights.slice(0, 3)) {
+      if (insight.confidence < 0.55) {
+        continue;
+      }
+
+      candidates.push({
+        statement: insight.description,
+        confidence: Math.min(1, (insight.confidence + (insight.evidence_strength || 0.5)) / 2),
+        supportingEvidence: insight.evidence.slice(0, 3),
+        contradictingEvidence: [],
+        nextValidationStep:
+          insight.suggested_validation ||
+          'Validate this insight against one concrete counterexample before relying on it.',
+      });
+    }
+
+    return candidates.filter(candidate => candidate.statement.trim().length > 0);
+  }
+
+  private findMatchingHypothesisIndex(
+    ledger: HypothesisLedgerEntry[],
+    candidateStatement: string
+  ): number {
+    const normalizedCandidate = this.normalizeThought(candidateStatement);
+    let strongestIndex = -1;
+    let strongestSimilarity = 0;
+
+    for (let index = 0; index < ledger.length; index++) {
+      const similarity = this.calculateThoughtSimilarity(
+        normalizedCandidate,
+        this.normalizeThought(ledger[index].statement)
+      );
+
+      if (similarity > strongestSimilarity) {
+        strongestSimilarity = similarity;
+        strongestIndex = index;
+      }
+    }
+
+    return strongestSimilarity >= 0.45 ? strongestIndex : -1;
+  }
+
+  private createHypothesisEntry(
+    candidate: {
+      statement: string;
+      confidence: number;
+      supportingEvidence: string[];
+      contradictingEvidence: string[];
+      nextValidationStep: string;
+    },
+    thoughtData: ValidatedThoughtData,
+    id: string
+  ): HypothesisLedgerEntry {
+    const entry: HypothesisLedgerEntry = {
+      id,
+      statement: candidate.statement,
+      status: 'active',
+      confidence: candidate.confidence,
+      supporting_evidence: candidate.supportingEvidence,
+      contradicting_evidence: candidate.contradictingEvidence,
+      next_validation_step: candidate.nextValidationStep,
+      last_updated_thought: thoughtData.thought_number,
+    };
+
+    return this.normalizeHypothesisEntry(
+      this.applyHypothesisStatus(entry, thoughtData.is_revision || false)
+    );
+  }
+
+  private mergeHypothesisEntry(
+    existing: HypothesisLedgerEntry,
+    candidate: {
+      statement: string;
+      confidence: number;
+      supportingEvidence: string[];
+      contradictingEvidence: string[];
+      nextValidationStep: string;
+    },
+    thoughtData: ValidatedThoughtData
+  ): HypothesisLedgerEntry {
+    const merged: HypothesisLedgerEntry = {
+      ...existing,
+      statement:
+        candidate.statement.length > existing.statement.length
+          ? candidate.statement
+          : existing.statement,
+      confidence: Math.min(1, existing.confidence * 0.6 + candidate.confidence * 0.4),
+      supporting_evidence: this.mergeEvidence(
+        existing.supporting_evidence,
+        candidate.supportingEvidence
+      ),
+      contradicting_evidence: this.mergeEvidence(
+        existing.contradicting_evidence,
+        candidate.contradictingEvidence
+      ),
+      next_validation_step: candidate.nextValidationStep || existing.next_validation_step,
+      last_updated_thought: thoughtData.thought_number,
+    };
+
+    return this.normalizeHypothesisEntry(
+      this.applyHypothesisStatus(merged, thoughtData.is_revision || false)
+    );
+  }
+
+  private applyHypothesisStatus(
+    entry: HypothesisLedgerEntry,
+    isRevision: boolean
+  ): HypothesisLedgerEntry {
+    const supportCount = entry.supporting_evidence.length;
+    const contradictionCount = entry.contradicting_evidence.length;
+
+    if (contradictionCount >= 2 && entry.confidence < 0.35) {
+      return { ...entry, status: 'rejected' };
+    }
+
+    if (isRevision && contradictionCount > 0) {
+      return { ...entry, status: 'revised', confidence: Math.max(0.2, entry.confidence - 0.1) };
+    }
+
+    if (contradictionCount > supportCount) {
+      return { ...entry, status: 'weakening', confidence: Math.max(0.2, entry.confidence - 0.05) };
+    }
+
+    if (supportCount >= 2 && entry.confidence >= 0.75) {
+      return { ...entry, status: 'validated' };
+    }
+
+    if (supportCount > 0) {
+      return { ...entry, status: 'strengthening' };
+    }
+
+    return { ...entry, status: 'active' };
+  }
+
+  private normalizeHypothesisEntry(entry: HypothesisLedgerEntry): HypothesisLedgerEntry {
+    return {
+      ...entry,
+      statement: entry.statement.replace(/\s+/g, ' ').trim(),
+      supporting_evidence: this.limitEvidence(entry.supporting_evidence),
+      contradicting_evidence: this.limitEvidence(entry.contradicting_evidence),
+      confidence: Math.min(1, Math.max(0, entry.confidence)),
+    };
+  }
+
+  private mergeEvidence(existing: string[], incoming: string[]): string[] {
+    return this.limitEvidence([...existing, ...incoming]);
+  }
+
+  private limitEvidence(evidence: string[]): string[] {
+    return Array.from(
+      new Set(
+        evidence.map(item => item.replace(/\s+/g, ' ').trim()).filter(item => item.length > 0)
+      )
+    ).slice(0, 3);
+  }
+
+  private getHypothesisStatusPriority(status: HypothesisLedgerEntry['status']): number {
+    switch (status) {
+      case 'active':
+        return 6;
+      case 'revised':
+        return 5;
+      case 'strengthening':
+        return 4;
+      case 'weakening':
+        return 3;
+      case 'validated':
+        return 2;
+      case 'rejected':
+        return 1;
+      default:
+        return 0;
+    }
+  }
+
+  private getTopUnresolvedHypothesis(): HypothesisLedgerEntry | undefined {
+    return (this.cognitiveState.hypothesis_ledger || []).find(
+      hypothesis => hypothesis.status !== 'validated' && hypothesis.status !== 'rejected'
+    );
   }
 
   private async getSimilarSessions(

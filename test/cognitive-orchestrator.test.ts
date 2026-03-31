@@ -170,6 +170,104 @@ async function testProcessThoughtWithSessionContext(): Promise<void> {
   console.log('  ✓ Process thought with session context works');
 }
 
+async function testProcessThoughtBuildsHypothesisLedger(): Promise<void> {
+  const orchestrator = await createTestCognitiveOrchestrator({
+    intervention_cooldown_ms: 0,
+    emergence_detection_enabled: true,
+  });
+
+  const result = await orchestrator.processThought(
+    createMockThought({
+      thought:
+        'The root cause is likely stale cache invalidation because the deployment issue appears after config changes.',
+    })
+  );
+
+  assert.ok(
+    Array.isArray(result.cognitiveState.hypothesis_ledger),
+    'Should expose hypothesis ledger'
+  );
+  assert.ok(
+    result.cognitiveState.hypothesis_ledger.length > 0,
+    'Should create a working hypothesis'
+  );
+  assert.match(
+    result.cognitiveState.hypothesis_ledger[0].statement,
+    /root cause|stale cache invalidation|deployment issue/i,
+    'Should capture a concrete working hypothesis'
+  );
+  assert.ok(
+    result.cognitiveState.hypothesis_ledger[0].next_validation_step.length > 0,
+    'Should include a next validation step'
+  );
+
+  await orchestrator.dispose();
+  console.log('  ✓ Process thought builds hypothesis ledger');
+}
+
+async function testRevisionThoughtUpdatesHypothesisLedger(): Promise<void> {
+  const orchestrator = await createTestCognitiveOrchestrator({
+    intervention_cooldown_ms: 0,
+    emergence_detection_enabled: true,
+  });
+
+  await orchestrator.processThought(
+    createMockThought({
+      thought: 'The root cause appears to be stale cache invalidation after deploy.',
+      thought_number: 1,
+    })
+  );
+
+  const revisionResult = await orchestrator.processThought(
+    createMockThought({
+      thought:
+        'Revision: the earlier root cause hypothesis was wrong because the issue still occurs after clearing cache.',
+      thought_number: 2,
+      is_revision: true,
+      revises_thought: 1,
+    })
+  );
+
+  const matchingHypothesis = revisionResult.cognitiveState.hypothesis_ledger.find(entry =>
+    /root cause|cache/i.test(entry.statement)
+  );
+
+  assert.ok(matchingHypothesis, 'Should keep the revised hypothesis in the ledger');
+  assert.ok(
+    matchingHypothesis?.status === 'revised' || matchingHypothesis?.status === 'weakening',
+    'Revision should weaken or revise the hypothesis'
+  );
+  assert.ok(
+    (matchingHypothesis?.contradicting_evidence.length || 0) > 0,
+    'Revision should record contradicting evidence'
+  );
+
+  await orchestrator.dispose();
+  console.log('  ✓ Revision thought updates hypothesis ledger');
+}
+
+async function testRecommendationsPrioritizeTopHypothesis(): Promise<void> {
+  const orchestrator = await createTestCognitiveOrchestrator({
+    intervention_cooldown_ms: 0,
+    emergence_detection_enabled: true,
+  });
+
+  const result = await orchestrator.processThought(
+    createMockThought({
+      thought:
+        'This likely indicates that a background migration is blocking startup because the timeout appears after schema changes.',
+    })
+  );
+
+  assert.ok(
+    result.recommendations.some(recommendation => recommendation.includes('Top hypothesis:')),
+    'Recommendations should reference the top unresolved hypothesis'
+  );
+
+  await orchestrator.dispose();
+  console.log('  ✓ Recommendations prioritize top hypothesis');
+}
+
 async function testProcessRevisionThought(): Promise<void> {
   const orchestrator = await createTestCognitiveOrchestrator({
     intervention_cooldown_ms: 0,
@@ -826,6 +924,18 @@ const tests = [
   { name: 'Process thought generates session id', fn: testProcessThoughtGeneratesSessionId },
   { name: 'Process multiple thoughts', fn: testProcessMultipleThoughts },
   { name: 'Process thought with session context', fn: testProcessThoughtWithSessionContext },
+  {
+    name: 'Process thought builds hypothesis ledger',
+    fn: testProcessThoughtBuildsHypothesisLedger,
+  },
+  {
+    name: 'Revision thought updates hypothesis ledger',
+    fn: testRevisionThoughtUpdatesHypothesisLedger,
+  },
+  {
+    name: 'Recommendations prioritize top hypothesis',
+    fn: testRecommendationsPrioritizeTopHypothesis,
+  },
   { name: 'Process revision thought', fn: testProcessRevisionThought },
   { name: 'Process branching thought', fn: testProcessBranchingThought },
 
