@@ -483,6 +483,7 @@ export class PersonaPlugin extends CognitivePlugin {
         0,
         this.config.max_active_personas
       );
+      const decisionFocus = this.buildDecisionFocus(selectedPersonas, context);
 
       // Generate multi-persona intervention
       const content = await this.generatePersonaIntervention(selectedPersonas, context);
@@ -499,6 +500,7 @@ export class PersonaPlugin extends CognitivePlugin {
           confidence: this.calculateInterventionConfidence(selectedPersonas),
           expected_benefit: 'Diverse perspectives and reduced single-viewpoint bias',
           side_effects: ['Potential decision complexity', 'Analysis paralysis if overused'],
+          decision_focus: decisionFocus,
         },
         follow_up_needed: selectedPersonas.length > 1,
         next_check_after: 2,
@@ -1145,6 +1147,73 @@ ${balancedApproach}`;
     }
 
     return null;
+  }
+
+  private buildDecisionFocus(
+    selectedPersonas: Array<{ persona: CognitivePersona; score: number }>,
+    context: CognitiveContext
+  ): { tradeoff: string; primary_action: string; deferred_action: string } | undefined {
+    if (selectedPersonas.length < 2) {
+      return undefined;
+    }
+
+    const positions = selectedPersonas.map(({ persona }) => this.buildPersonaPosition(persona));
+    const disagreement =
+      this.detectPersonaDisagreement(positions) || this.inferSynthesisTradeoff(positions, context);
+
+    if (!disagreement) {
+      return undefined;
+    }
+
+    return {
+      tradeoff: disagreement.summary,
+      primary_action: this.generateBalancedApproach(positions, disagreement, context).replace(
+        /^Next move:\s*/,
+        ''
+      ),
+      deferred_action: this.getDeferredTradeoffAction(disagreement),
+    };
+  }
+
+  private inferSynthesisTradeoff(
+    positions: PersonaPosition[],
+    context: CognitiveContext
+  ): PersonaDisagreement | null {
+    if (positions.length < 2) {
+      return null;
+    }
+
+    const allValidate = positions.every(position => position.stance === 'validate');
+    if (allValidate && context.confidence_level < 0.5) {
+      return {
+        topic: 'Speed vs verification',
+        summary:
+          'The active perspectives are aligned on caution, which means progress should continue only through a step that produces evidence before commitment.',
+      };
+    }
+
+    return {
+      topic: 'Guardrail balance',
+      summary:
+        'The active perspectives emphasize different guardrails, so the next step should preserve momentum while keeping the main risk explicit.',
+    };
+  }
+
+  private getDeferredTradeoffAction(disagreement: PersonaDisagreement): string {
+    switch (disagreement.topic) {
+      case 'Execution horizon':
+        return 'Do not optimize for immediate delivery alone if it violates the long-term constraint.';
+      case 'Risk posture':
+        return 'Do not commit to the bold option until it has a rollback boundary and comparison metric.';
+      case 'Speed vs verification':
+        return 'Do not treat momentum as progress until the critical assumption is tested.';
+      case 'Option breadth vs proof':
+        return 'Do not open more branches until the current claim is either supported or falsified.';
+      case 'Guardrail balance':
+        return 'Do not optimize for one guardrail while ignoring the rest of the active constraints.';
+      default:
+        return 'Do not collapse the tradeoff to one side without an explicit reason.';
+    }
   }
 
   private selectDeterministicTemplate(

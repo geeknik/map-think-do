@@ -333,7 +333,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
 
       this.updateHypothesisLedger(thoughtData, context, insights);
       this.updateReasoningMode(thoughtData, context, insights);
-      const actionRanking = this.buildActionRanking(thoughtData, context, insights);
+      const actionRanking = this.buildActionRanking(thoughtData, context, interventions, insights);
 
       // Generate recommendations with error boundary
       const recommendations = await this.generalBoundary.execute(
@@ -1107,6 +1107,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
   private buildActionRanking(
     thoughtData: ValidatedThoughtData,
     context: CognitiveContext,
+    interventions: PluginIntervention[],
     insights: CognitiveInsight[]
   ): ActionRanking {
     const remainingThoughts = Math.max(0, thoughtData.total_thoughts - thoughtData.thought_number);
@@ -1114,11 +1115,13 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     const deadlineHours = this.getHoursUntilDeadline(context);
     const topHypothesis = this.getTopUnresolvedHypothesis();
     const mode = this.cognitiveState.reasoning_mode || 'exploration';
+    const decisionFocus = this.extractDecisionFocus(interventions);
     const signals = this.collectActionSignals(
       thoughtData,
       context,
       insights,
       topHypothesis,
+      decisionFocus,
       repeatedReasoning,
       deadlineHours,
       remainingThoughts
@@ -1128,16 +1131,25 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       thoughtData,
       context,
       topHypothesis,
+      decisionFocus,
       mode,
       repeatedReasoning,
       remainingThoughts,
       signals
     );
-    const fallback = this.buildFallbackAction(thoughtData, context, topHypothesis, mode, signals);
+    const fallback = this.buildFallbackAction(
+      thoughtData,
+      context,
+      topHypothesis,
+      decisionFocus,
+      mode,
+      signals
+    );
     const doNotDoYet = this.buildDeferredAction(
       thoughtData,
       context,
       topHypothesis,
+      decisionFocus,
       mode,
       repeatedReasoning,
       deadlineHours,
@@ -1179,6 +1191,13 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     context: CognitiveContext,
     insights: CognitiveInsight[],
     topHypothesis: HypothesisLedgerEntry | undefined,
+    decisionFocus:
+      | {
+          tradeoff: string;
+          primary_action: string;
+          deferred_action: string;
+        }
+      | undefined,
     repeatedReasoning: { previousThought: string; similarity: number } | null,
     deadlineHours: number | undefined,
     remainingThoughts: number
@@ -1187,6 +1206,9 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
 
     if (topHypothesis) {
       signals.push(`hypothesis:${topHypothesis.status}`);
+    }
+    if (decisionFocus) {
+      signals.push('persona_tradeoff');
     }
     if (context.confidence_level < 0.4) {
       signals.push('low_confidence');
@@ -1217,6 +1239,13 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     thoughtData: ValidatedThoughtData,
     context: CognitiveContext,
     topHypothesis: HypothesisLedgerEntry | undefined,
+    decisionFocus:
+      | {
+          tradeoff: string;
+          primary_action: string;
+          deferred_action: string;
+        }
+      | undefined,
     mode: ReasoningMode,
     repeatedReasoning: { previousThought: string; similarity: number } | null,
     remainingThoughts: number,
@@ -1226,7 +1255,18 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       const personalizedValidationAction = this.personalizeValidationAction(topHypothesis);
       return {
         action: personalizedValidationAction,
-        rationale: `This is the most valuable next check because the current top hypothesis is ${topHypothesis.status} and still unresolved.`,
+        rationale: this.appendDecisionFocusRationale(
+          `This is the most valuable next check because the current top hypothesis is ${topHypothesis.status} and still unresolved.`,
+          decisionFocus
+        ),
+        signals,
+      };
+    }
+
+    if (decisionFocus) {
+      return {
+        action: decisionFocus.primary_action,
+        rationale: `This primary action is selected to resolve the active persona tradeoff: ${decisionFocus.tradeoff}`,
         signals,
       };
     }
@@ -1281,6 +1321,13 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     thoughtData: ValidatedThoughtData,
     context: CognitiveContext,
     topHypothesis: HypothesisLedgerEntry | undefined,
+    decisionFocus:
+      | {
+          tradeoff: string;
+          primary_action: string;
+          deferred_action: string;
+        }
+      | undefined,
     mode: ReasoningMode,
     signals: string[]
   ): RankedAction {
@@ -1289,6 +1336,14 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         action: `Document what evidence would strengthen or reject "${topHypothesis.statement}".`,
         rationale:
           'If the primary check is blocked, the next-best move is to make the validation threshold explicit.',
+        signals,
+      };
+    }
+
+    if (decisionFocus) {
+      return {
+        action: 'Write down the decision rule that will tell you when this tradeoff is resolved.',
+        rationale: `If the primary action is blocked, make the tradeoff explicit and measurable: ${decisionFocus.tradeoff}`,
         signals,
       };
     }
@@ -1330,6 +1385,13 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     thoughtData: ValidatedThoughtData,
     context: CognitiveContext,
     topHypothesis: HypothesisLedgerEntry | undefined,
+    decisionFocus:
+      | {
+          tradeoff: string;
+          primary_action: string;
+          deferred_action: string;
+        }
+      | undefined,
     mode: ReasoningMode,
     repeatedReasoning: { previousThought: string; similarity: number } | null,
     deadlineHours: number | undefined,
@@ -1356,6 +1418,14 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
       return {
         action: 'Do not commit to implementation or declare the root cause settled yet.',
         rationale: 'Evidence quality is still too weak to justify commitment.',
+        signals,
+      };
+    }
+
+    if (decisionFocus) {
+      return {
+        action: decisionFocus.deferred_action,
+        rationale: `Avoid collapsing the current persona tradeoff too early: ${decisionFocus.tradeoff}`,
         signals,
       };
     }
@@ -1397,6 +1467,36 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
   private summarizeHypothesis(statement: string): string {
     const normalized = statement.replace(/\s+/g, ' ').trim();
     return normalized.length > 100 ? `${normalized.slice(0, 97)}...` : normalized;
+  }
+
+  private extractDecisionFocus(interventions: PluginIntervention[]):
+    | {
+        tradeoff: string;
+        primary_action: string;
+        deferred_action: string;
+      }
+    | undefined {
+    return interventions.find(
+      intervention =>
+        intervention.metadata.plugin_id === 'persona' && intervention.metadata.decision_focus
+    )?.metadata.decision_focus;
+  }
+
+  private appendDecisionFocusRationale(
+    rationale: string,
+    decisionFocus:
+      | {
+          tradeoff: string;
+          primary_action: string;
+          deferred_action: string;
+        }
+      | undefined
+  ): string {
+    if (!decisionFocus) {
+      return rationale;
+    }
+
+    return `${rationale} This also resolves the active persona tradeoff: ${decisionFocus.tradeoff}`;
   }
 
   private snapshotCognitiveState(): CognitiveState {

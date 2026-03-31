@@ -300,6 +300,46 @@ async function testActionRankingPrioritizesTopHypothesisValidation(): Promise<vo
   console.log('  ✓ Action ranking prioritizes top hypothesis validation');
 }
 
+async function testActionRankingReflectsPersonaTradeoff(): Promise<void> {
+  const orchestrator = await createTestCognitiveOrchestrator({
+    intervention_cooldown_ms: 0,
+  });
+
+  const result = await orchestrator.processThought(
+    createMockThought({
+      thought:
+        'We need a creative design alternative, but the security risk means we should validate assumptions before committing.',
+    })
+  );
+
+  const personaIntervention = result.interventions.find(
+    intervention =>
+      intervention.metadata.plugin_id === 'persona' && intervention.metadata.decision_focus
+  );
+
+  assert.ok(
+    personaIntervention,
+    'Should include a persona intervention with structured tradeoff metadata'
+  );
+  assert.ok(
+    result.actionRanking.primary.signals.includes('persona_tradeoff'),
+    'Primary action should carry the persona tradeoff signal'
+  );
+  assert.match(
+    result.actionRanking.primary.rationale,
+    /persona tradeoff/i,
+    'Primary action rationale should explain the active tradeoff'
+  );
+  assert.strictEqual(
+    result.actionRanking.do_not_do_yet.action,
+    personaIntervention?.metadata.decision_focus?.deferred_action,
+    'Deferred action should reuse the persona tradeoff guardrail'
+  );
+
+  await orchestrator.dispose();
+  console.log('  ✓ Action ranking reflects persona tradeoff');
+}
+
 async function testProcessRevisionThought(): Promise<void> {
   const orchestrator = await createTestCognitiveOrchestrator({
     intervention_cooldown_ms: 0,
@@ -1111,6 +1151,10 @@ const tests = [
   {
     name: 'Action ranking prioritizes top hypothesis validation',
     fn: testActionRankingPrioritizesTopHypothesisValidation,
+  },
+  {
+    name: 'Action ranking reflects persona tradeoff',
+    fn: testActionRankingReflectsPersonaTradeoff,
   },
   { name: 'Process revision thought', fn: testProcessRevisionThought },
   { name: 'Process branching thought', fn: testProcessBranchingThought },

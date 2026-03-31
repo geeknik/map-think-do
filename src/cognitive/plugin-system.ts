@@ -87,6 +87,11 @@ export interface PluginIntervention {
     confidence: number;
     expected_benefit: string;
     side_effects?: string[];
+    decision_focus?: {
+      tradeoff: string;
+      primary_action: string;
+      deferred_action: string;
+    };
   };
 
   // Follow-up actions

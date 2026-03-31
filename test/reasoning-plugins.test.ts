@@ -75,6 +75,22 @@ async function testPersonaPluginSurfacesDisagreementAndSynthesis(): Promise<void
     /Next move:/,
     'multi-persona synthesis should end with a concrete next move'
   );
+  assert.ok(
+    intervention.metadata.decision_focus,
+    'persona output should expose structured tradeoff metadata'
+  );
+  assert.ok(
+    intervention.metadata.decision_focus?.tradeoff,
+    'decision focus should include the active tradeoff'
+  );
+  assert.ok(
+    intervention.metadata.decision_focus?.primary_action,
+    'decision focus should include a primary action'
+  );
+  assert.ok(
+    intervention.metadata.decision_focus?.deferred_action,
+    'decision focus should include a deferred action'
+  );
 
   await plugin.destroy();
 }
