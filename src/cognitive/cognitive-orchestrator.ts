@@ -69,6 +69,18 @@ export interface OrchestratorConfig {
   cognitive_load_balancing: boolean;
 }
 
+export interface RankedAction {
+  action: string;
+  rationale: string;
+  signals: string[];
+}
+
+export interface ActionRanking {
+  primary: RankedAction;
+  fallback: RankedAction;
+  do_not_do_yet: RankedAction;
+}
+
 /**
  * Main Cognitive Orchestrator with Dependency Injection
  */
@@ -240,6 +252,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     insights: CognitiveInsight[];
     cognitiveState: CognitiveState;
     recommendations: string[];
+    actionRanking: ActionRanking;
   }> {
     return this.generalBoundary.execute(
       async () => this.processThoughtInternal(thoughtData, sessionContext),
@@ -256,6 +269,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
           insights: [],
           cognitiveState: this.snapshotCognitiveState(),
           recommendations: [`Error occurred during processing: ${error.message}`],
+          actionRanking: this.buildDefaultActionRanking(thoughtData),
         };
       }
     );
@@ -269,6 +283,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     insights: CognitiveInsight[];
     cognitiveState: CognitiveState;
     recommendations: string[];
+    actionRanking: ActionRanking;
   }> {
     const startTime = Date.now();
 
@@ -292,6 +307,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
           insights: [],
           cognitiveState: this.snapshotCognitiveState(),
           recommendations: ['Cognitive cooldown active - allowing natural processing'],
+          actionRanking: this.buildDefaultActionRanking(thoughtData),
         };
       }
 
@@ -317,10 +333,18 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
 
       this.updateHypothesisLedger(thoughtData, context, insights);
       this.updateReasoningMode(thoughtData, context, insights);
+      const actionRanking = this.buildActionRanking(thoughtData, context, insights);
 
       // Generate recommendations with error boundary
       const recommendations = await this.generalBoundary.execute(
-        () => this.generateRecommendations(thoughtData, context, interventions, insights),
+        () =>
+          this.generateRecommendations(
+            thoughtData,
+            context,
+            interventions,
+            insights,
+            actionRanking
+          ),
         { component: 'CognitiveOrchestrator', method: 'generateRecommendations' },
         async error => {
           console.error('💡 Recommendation generation failed, using fallback');
@@ -390,6 +414,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         insights,
         cognitiveState: this.snapshotCognitiveState(),
         recommendations,
+        actionRanking,
       };
     } catch (error) {
       handleError('CognitiveOrchestrator', 'processThought', error, ErrorSeverity.ERROR, {
@@ -410,6 +435,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         insights: [],
         cognitiveState: this.snapshotCognitiveState(),
         recommendations: ['Error in cognitive processing - continuing with basic reasoning'],
+        actionRanking: this.buildDefaultActionRanking(thoughtData),
       };
     }
   }
@@ -637,7 +663,8 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
     thoughtData: ValidatedThoughtData,
     context: CognitiveContext,
     interventions: PluginIntervention[],
-    insights: CognitiveInsight[]
+    insights: CognitiveInsight[],
+    actionRanking: ActionRanking
   ): Promise<string[]> {
     const recommendations: string[] = [];
     const remainingThoughts = Math.max(0, thoughtData.total_thoughts - thoughtData.thought_number);
@@ -734,6 +761,8 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         'You are near the planned end of the sequence - converge on a decision or revise total_thoughts explicitly'
       );
     }
+
+    recommendations.push(`Primary next action: ${actionRanking.primary.action}`);
 
     if (recommendations.length === 0) {
       recommendations.push(
@@ -1073,6 +1102,301 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
 
   private dedupeRecommendations(recommendations: string[]): string[] {
     return Array.from(new Set(recommendations));
+  }
+
+  private buildActionRanking(
+    thoughtData: ValidatedThoughtData,
+    context: CognitiveContext,
+    insights: CognitiveInsight[]
+  ): ActionRanking {
+    const remainingThoughts = Math.max(0, thoughtData.total_thoughts - thoughtData.thought_number);
+    const repeatedReasoning = this.findRepeatedReasoningSignal(context, thoughtData.thought);
+    const deadlineHours = this.getHoursUntilDeadline(context);
+    const topHypothesis = this.getTopUnresolvedHypothesis();
+    const mode = this.cognitiveState.reasoning_mode || 'exploration';
+    const signals = this.collectActionSignals(
+      thoughtData,
+      context,
+      insights,
+      topHypothesis,
+      repeatedReasoning,
+      deadlineHours,
+      remainingThoughts
+    );
+
+    const primary = this.buildPrimaryAction(
+      thoughtData,
+      context,
+      topHypothesis,
+      mode,
+      repeatedReasoning,
+      remainingThoughts,
+      signals
+    );
+    const fallback = this.buildFallbackAction(thoughtData, context, topHypothesis, mode, signals);
+    const doNotDoYet = this.buildDeferredAction(
+      thoughtData,
+      context,
+      topHypothesis,
+      mode,
+      repeatedReasoning,
+      deadlineHours,
+      signals
+    );
+
+    return {
+      primary,
+      fallback,
+      do_not_do_yet: doNotDoYet,
+    };
+  }
+
+  private buildDefaultActionRanking(thoughtData: ValidatedThoughtData): ActionRanking {
+    return {
+      primary: {
+        action: thoughtData.next_thought_needed
+          ? 'Test the strongest remaining assumption with one concrete check.'
+          : 'Summarize the decision, evidence, and immediate next implementation step.',
+        rationale:
+          'Fallback planning is in effect because richer cognitive signals were unavailable.',
+        signals: ['fallback'],
+      },
+      fallback: {
+        action: 'Document the current assumption and the evidence still missing.',
+        rationale: 'Keeps the reasoning recoverable if the primary step is blocked.',
+        signals: ['fallback'],
+      },
+      do_not_do_yet: {
+        action: 'Do not widen scope or open new branches until one assumption is tested.',
+        rationale: 'Avoids adding complexity while operating with reduced orchestration context.',
+        signals: ['fallback'],
+      },
+    };
+  }
+
+  private collectActionSignals(
+    thoughtData: ValidatedThoughtData,
+    context: CognitiveContext,
+    insights: CognitiveInsight[],
+    topHypothesis: HypothesisLedgerEntry | undefined,
+    repeatedReasoning: { previousThought: string; similarity: number } | null,
+    deadlineHours: number | undefined,
+    remainingThoughts: number
+  ): string[] {
+    const signals: string[] = [`mode:${this.cognitiveState.reasoning_mode || 'exploration'}`];
+
+    if (topHypothesis) {
+      signals.push(`hypothesis:${topHypothesis.status}`);
+    }
+    if (context.confidence_level < 0.4) {
+      signals.push('low_confidence');
+    }
+    if (thoughtData.is_revision) {
+      signals.push('revision');
+    }
+    if (thoughtData.branch_from_thought) {
+      signals.push('branching');
+    }
+    if (repeatedReasoning) {
+      signals.push('repeated_reasoning');
+    }
+    if (deadlineHours !== undefined && deadlineHours <= 2) {
+      signals.push('near_deadline');
+    }
+    if (remainingThoughts <= 1) {
+      signals.push('near_sequence_end');
+    }
+    if (insights.length > 0) {
+      signals.push('insight_available');
+    }
+
+    return signals.slice(0, 4);
+  }
+
+  private buildPrimaryAction(
+    thoughtData: ValidatedThoughtData,
+    context: CognitiveContext,
+    topHypothesis: HypothesisLedgerEntry | undefined,
+    mode: ReasoningMode,
+    repeatedReasoning: { previousThought: string; similarity: number } | null,
+    remainingThoughts: number,
+    signals: string[]
+  ): RankedAction {
+    if (topHypothesis) {
+      const personalizedValidationAction = this.personalizeValidationAction(topHypothesis);
+      return {
+        action: personalizedValidationAction,
+        rationale: `This is the most valuable next check because the current top hypothesis is ${topHypothesis.status} and still unresolved.`,
+        signals,
+      };
+    }
+
+    if (mode === 'revision') {
+      return {
+        action:
+          'List what changed, what evidence broke the prior view, and the replacement assumption now under test.',
+        rationale:
+          'Revision mode is active, so belief update quality matters more than adding new scope.',
+        signals,
+      };
+    }
+
+    if (mode === 'branching') {
+      return {
+        action:
+          'Define the decision criterion that will determine whether this branch beats the main path.',
+        rationale: 'Branching only helps if the branch can be compared against the incumbent path.',
+        signals,
+      };
+    }
+
+    if (mode === 'convergence' || (!thoughtData.next_thought_needed && remainingThoughts <= 1)) {
+      return {
+        action:
+          'Summarize the chosen path, the evidence supporting it, and the next executable step.',
+        rationale:
+          'The sequence is already converging, so the best move is to lock in the decision and act.',
+        signals,
+      };
+    }
+
+    if (repeatedReasoning || context.confidence_level < 0.4) {
+      return {
+        action: 'Run one targeted check that can falsify the current strongest assumption.',
+        rationale:
+          'The reasoning is either looping or low-confidence, so new evidence is more valuable than more elaboration.',
+        signals,
+      };
+    }
+
+    return {
+      action: 'Write down the key constraint and choose one assumption to test next.',
+      rationale:
+        'The problem is still in exploration mode and benefits from narrowing to one learnable step.',
+      signals,
+    };
+  }
+
+  private buildFallbackAction(
+    thoughtData: ValidatedThoughtData,
+    context: CognitiveContext,
+    topHypothesis: HypothesisLedgerEntry | undefined,
+    mode: ReasoningMode,
+    signals: string[]
+  ): RankedAction {
+    if (topHypothesis) {
+      return {
+        action: `Document what evidence would strengthen or reject "${topHypothesis.statement}".`,
+        rationale:
+          'If the primary check is blocked, the next-best move is to make the validation threshold explicit.',
+        signals,
+      };
+    }
+
+    if (mode === 'convergence') {
+      return {
+        action: 'Record the tradeoff you are accepting before implementation starts.',
+        rationale:
+          'A captured tradeoff keeps convergence honest if the chosen path is questioned later.',
+        signals,
+      };
+    }
+
+    if (thoughtData.branch_from_thought) {
+      return {
+        action: 'Compare this branch against the main path using one shared success metric.',
+        rationale: 'A branch without a comparison rule turns into open-ended exploration.',
+        signals,
+      };
+    }
+
+    if (context.complexity >= 8) {
+      return {
+        action: 'List the main interfaces and failure modes before expanding the solution.',
+        rationale: 'High complexity makes structural clarity the safest fallback move.',
+        signals,
+      };
+    }
+
+    return {
+      action: 'Capture the current assumption, missing evidence, and the cheapest next check.',
+      rationale:
+        'This preserves momentum even if the preferred action is not immediately possible.',
+      signals,
+    };
+  }
+
+  private buildDeferredAction(
+    thoughtData: ValidatedThoughtData,
+    context: CognitiveContext,
+    topHypothesis: HypothesisLedgerEntry | undefined,
+    mode: ReasoningMode,
+    repeatedReasoning: { previousThought: string; similarity: number } | null,
+    deadlineHours: number | undefined,
+    signals: string[]
+  ): RankedAction {
+    if (deadlineHours !== undefined && deadlineHours <= 2) {
+      return {
+        action:
+          'Do not open a new branch or redesign the approach before the next concrete check lands.',
+        rationale: 'Near-deadline work should reduce uncertainty, not expand the option tree.',
+        signals,
+      };
+    }
+
+    if (mode === 'convergence') {
+      return {
+        action: 'Do not restart broad exploration unless new contradictory evidence appears.',
+        rationale: 'Convergence is only useful if it resists avoidable thrash.',
+        signals,
+      };
+    }
+
+    if (repeatedReasoning || context.confidence_level < 0.4) {
+      return {
+        action: 'Do not commit to implementation or declare the root cause settled yet.',
+        rationale: 'Evidence quality is still too weak to justify commitment.',
+        signals,
+      };
+    }
+
+    if (thoughtData.branch_from_thought || topHypothesis?.status === 'weakening') {
+      return {
+        action:
+          'Do not treat this branch or weakening hypothesis as the chosen answer without a comparison check.',
+        rationale: 'Alternative paths need explicit validation before they become commitments.',
+        signals,
+      };
+    }
+
+    return {
+      action: 'Do not add more scope until the next action produces a concrete signal.',
+      rationale: 'Limiting expansion keeps the reasoning grounded and testable.',
+      signals,
+    };
+  }
+
+  private personalizeValidationAction(topHypothesis: HypothesisLedgerEntry): string {
+    if (!this.isGenericValidationStep(topHypothesis.next_validation_step)) {
+      return topHypothesis.next_validation_step;
+    }
+
+    return `Test whether "${this.summarizeHypothesis(topHypothesis.statement)}" holds by collecting one concrete confirming or falsifying signal.`;
+  }
+
+  private isGenericValidationStep(step: string): boolean {
+    const normalizedStep = step.trim().toLowerCase();
+    const genericSteps = [
+      'test the weakest assumption in this hypothesis with one concrete piece of evidence.',
+      'validate this insight against one concrete counterexample before relying on it.',
+    ];
+
+    return genericSteps.includes(normalizedStep);
+  }
+
+  private summarizeHypothesis(statement: string): string {
+    const normalized = statement.replace(/\s+/g, ' ').trim();
+    return normalized.length > 100 ? `${normalized.slice(0, 97)}...` : normalized;
   }
 
   private snapshotCognitiveState(): CognitiveState {

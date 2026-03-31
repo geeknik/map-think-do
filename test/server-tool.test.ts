@@ -36,6 +36,11 @@ export async function runServerToolTests(): Promise<void> {
     /recent_mode_shifts/i,
     'tool description should mention bounded mode-shift history output'
   );
+  assert.match(
+    description,
+    /action_ranking/i,
+    'tool description should mention structured action ranking output'
+  );
   assert.doesNotMatch(
     description,
     /adaptive learning/i,

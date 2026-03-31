@@ -49,6 +49,36 @@ async function testPersonaPluginUsesContextualGuidance(): Promise<void> {
   await plugin.destroy();
 }
 
+async function testPersonaPluginSurfacesDisagreementAndSynthesis(): Promise<void> {
+  const plugin = new PersonaPlugin();
+  const context = createContext({
+    current_thought:
+      'We need a creative design alternative, but the security risk means we should validate assumptions before committing.',
+    confidence_level: 0.35,
+    urgency: 'medium',
+  });
+
+  const intervention = await plugin.intervene(context);
+
+  assert.match(
+    intervention.content,
+    /Where they disagree:/,
+    'multi-persona output should surface a concrete disagreement'
+  );
+  assert.match(
+    intervention.content,
+    /Tradeoff accepted:/,
+    'multi-persona synthesis should state the tradeoff it is making'
+  );
+  assert.match(
+    intervention.content,
+    /Next move:/,
+    'multi-persona synthesis should end with a concrete next move'
+  );
+
+  await plugin.destroy();
+}
+
 async function testExternalReasoningPluginReportsGroundedFindings(): Promise<void> {
   const plugin = new ExternalReasoningPlugin();
   const context = createContext({
@@ -79,6 +109,7 @@ async function testExternalReasoningPluginReportsGroundedFindings(): Promise<voi
 
 export async function runReasoningPluginTests(): Promise<void> {
   await testPersonaPluginUsesContextualGuidance();
+  await testPersonaPluginSurfacesDisagreementAndSynthesis();
   await testExternalReasoningPluginReportsGroundedFindings();
   console.log('✅ reasoning-plugin tests passed');
 }

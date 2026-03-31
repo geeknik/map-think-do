@@ -34,6 +34,19 @@ interface CognitivePersona {
   complexity_preference: 'simple' | 'moderate' | 'complex';
 }
 
+interface PersonaPosition {
+  persona: CognitivePersona;
+  recommendation: string;
+  concern: string;
+  validation_check: string;
+  stance: 'accelerate' | 'validate' | 'expand' | 'balance';
+}
+
+interface PersonaDisagreement {
+  topic: string;
+  summary: string;
+}
+
 /**
  * Persona Plugin Implementation
  */
@@ -762,14 +775,21 @@ ${this.generatePersonaQuestions(persona, context)}`;
     selectedPersonas: Array<{ persona: CognitivePersona; score: number }>,
     context: CognitiveContext
   ): string {
+    const positions = selectedPersonas.map(({ persona }) => this.buildPersonaPosition(persona));
     const perspectives = selectedPersonas
-      .map(({ persona }) => {
+      .map(({ persona }, index) => {
         const perspective = this.generatePersonaPerspective(persona, context);
-        return `**${persona.name}**: ${perspective}`;
+        const position = positions[index];
+        return `**${persona.name}**: ${perspective}
+Recommendation: ${position.recommendation}
+Primary concern: ${position.concern}
+Validation focus: ${position.validation_check}`;
       })
       .join('\n\n');
 
-    const synthesis = this.generatePerspectiveSynthesis(selectedPersonas, context);
+    const disagreement = this.detectPersonaDisagreement(positions);
+    const synthesis = this.generatePerspectiveSynthesis(positions, disagreement, context);
+    const balancedApproach = this.generateBalancedApproach(positions, disagreement, context);
 
     const ids = selectedPersonas.map(p => p.persona.id);
     let feedbackLoop = '';
@@ -784,11 +804,14 @@ ${this.generatePersonaQuestions(persona, context)}`;
 
 ${perspectives}${feedbackLoop}
 
+**Where they disagree:**
+${disagreement?.summary || 'The selected perspectives are broadly aligned, but they emphasize different guardrails.'}
+
 **Synthesis & Integration:**
 ${synthesis}
 
 **Balanced Approach:**
-${this.generateBalancedApproach(selectedPersonas, context)}`;
+${balancedApproach}`;
   }
 
   /**
@@ -947,60 +970,181 @@ ${this.generateBalancedApproach(selectedPersonas, context)}`;
    * Generate synthesis of multiple perspectives
    */
   private generatePerspectiveSynthesis(
-    selectedPersonas: Array<{ persona: CognitivePersona; score: number }>,
+    positions: PersonaPosition[],
+    disagreement: PersonaDisagreement | null,
     context: CognitiveContext
   ): string {
-    const personaNames = selectedPersonas.map(p => p.persona.name);
-
-    if (personaNames.includes('The Strategist') && personaNames.includes('The Pragmatist')) {
-      return 'The strategic vision needs to be balanced with practical implementation realities. Consider a phased approach that achieves long-term goals through achievable short-term steps.';
+    if (disagreement?.topic === 'Execution horizon') {
+      return 'Decision: protect the long-term constraint, but express it as the smallest reversible slice that can be executed now.\nTradeoff accepted: less immediate scope in exchange for lower rework and lock-in risk.';
     }
 
-    if (personaNames.includes('The Creative') && personaNames.includes('The Engineer')) {
-      return 'Innovation must be grounded in technical feasibility. Look for creative solutions that can be reliably implemented within current technical constraints.';
-    }
-
-    if (personaNames.includes('The Analyst') && personaNames.includes('The Philosopher')) {
-      return 'Data-driven decisions should be guided by clear values and principles. Ensure that quantitative analysis serves meaningful purposes aligned with core values.';
+    if (disagreement?.topic === 'Risk posture') {
+      return 'Decision: keep one bold option alive, but force it through an explicit safety boundary and comparison against the conservative path.\nTradeoff accepted: a small amount of extra exploration to avoid defaulting into the wrong answer.';
     }
 
     if (
-      personaNames.includes('The Engineer') &&
-      personaNames.includes('The Philosopher') &&
-      personaNames.includes('The Synthesizer')
+      disagreement?.topic === 'Speed vs verification' ||
+      disagreement?.topic === 'Option breadth vs proof' ||
+      context.confidence_level < 0.4
     ) {
-      return 'Technical practicality should be questioned through philosophical reflection and then merged into an integrated approach.';
+      return 'Decision: take the smallest step that both moves the work forward and produces evidence on the highest-risk assumption.\nTradeoff accepted: slower momentum right now in exchange for less false confidence later.';
     }
 
-    if (context.urgency === 'high') {
-      return 'Each perspective adds value, but the synthesis should collapse into one reversible next step that can be executed under time pressure.';
-    }
-
-    return 'Each perspective offers valuable insights. The key is finding an approach that leverages the strengths of each viewpoint while mitigating their respective blind spots.';
+    const personaNames = positions.map(position => position.persona.name).join(' + ');
+    return `Decision: combine ${personaNames} into one plan with explicit guardrails before expanding scope.\nTradeoff accepted: a narrower next move in exchange for a clearer decision path.`;
   }
 
   /**
    * Generate balanced approach recommendation
    */
   private generateBalancedApproach(
-    selectedPersonas: Array<{ persona: CognitivePersona; score: number }>,
+    positions: PersonaPosition[],
+    disagreement: PersonaDisagreement | null,
     context: CognitiveContext
   ): string {
-    const thinkingStyles = selectedPersonas.map(p => p.persona.thinking_style);
-
-    if (thinkingStyles.includes('creative') && thinkingStyles.includes('critical')) {
-      return 'Combine creative exploration with rigorous evaluation. Generate multiple innovative options, then critically assess each for feasibility and risks.';
+    if (disagreement?.topic === 'Execution horizon') {
+      return 'Next move: write the interface, constraint, or success boundary that preserves the long-term path, then implement the smallest useful increment against it.';
     }
 
-    if (thinkingStyles.includes('strategic') && thinkingStyles.includes('practical')) {
-      return 'Develop a strategic framework that can be implemented through practical, incremental steps. Balance long-term vision with immediate actionability.';
+    if (disagreement?.topic === 'Risk posture') {
+      return 'Next move: prototype the boldest plausible option behind a rollback boundary and compare it against the safer baseline using one shared success metric.';
     }
 
-    if (context.confidence_level < 0.4) {
-      return 'Integrate the perspectives into a small, testable next step so confidence can be earned with evidence instead of assumption.';
+    if (
+      disagreement?.topic === 'Speed vs verification' ||
+      disagreement?.topic === 'Option breadth vs proof' ||
+      context.confidence_level < 0.4
+    ) {
+      return 'Next move: name the assumption most likely to fail, run one targeted check, and only expand scope if that check passes.';
     }
 
-    return 'Integrate insights from all perspectives to create a well-rounded approach that addresses multiple dimensions of the problem.';
+    const orderedChecks = positions.map(position => position.validation_check).slice(0, 2);
+    return `Next move: ${orderedChecks.join(' Then ')}`;
+  }
+
+  private buildPersonaPosition(persona: CognitivePersona): PersonaPosition {
+    switch (persona.id) {
+      case 'strategist':
+        return {
+          persona,
+          recommendation:
+            'Preserve long-term scalability and avoid local fixes that create future lock-in.',
+          concern: 'A quick answer may undermine roadmap flexibility or architectural leverage.',
+          validation_check: 'State the long-term constraint this step must not violate.',
+          stance: 'expand',
+        };
+      case 'engineer':
+        return {
+          persona,
+          recommendation:
+            'Reduce the problem to interfaces, failure modes, and implementation constraints before committing.',
+          concern: 'Unseen technical complexity can break an otherwise attractive plan.',
+          validation_check: 'Prototype or benchmark the riskiest technical boundary.',
+          stance: 'validate',
+        };
+      case 'skeptic':
+        return {
+          persona,
+          recommendation: 'Pressure-test the strongest assumption before treating it as a fact.',
+          concern: 'The current path may rest on unverified or contradictory evidence.',
+          validation_check: 'Try to falsify the assumption most likely to fail.',
+          stance: 'validate',
+        };
+      case 'creative':
+        return {
+          persona,
+          recommendation:
+            'Generate one non-obvious alternative before the team converges on the default plan.',
+          concern: 'The obvious solution may hide a simpler or higher-leverage option.',
+          validation_check: 'Compare the default path against one unconventional alternative.',
+          stance: 'expand',
+        };
+      case 'analyst':
+        return {
+          persona,
+          recommendation:
+            'Choose the next move that can be judged by a concrete metric or observation.',
+          concern: 'Reasoning may drift if the decision is not anchored to evidence.',
+          validation_check: 'Define the metric or observation that would change the decision.',
+          stance: 'validate',
+        };
+      case 'philosopher':
+        return {
+          persona,
+          recommendation:
+            'Make the principle behind the decision explicit before optimizing for convenience.',
+          concern: 'A locally efficient move may conflict with broader values or precedent.',
+          validation_check: 'State the principle that would make this path unacceptable.',
+          stance: 'balance',
+        };
+      case 'pragmatist':
+        return {
+          persona,
+          recommendation:
+            'Pick the smallest reversible step that delivers real progress under current constraints.',
+          concern: 'Further analysis may cost more than it teaches right now.',
+          validation_check:
+            'Timebox the next step so it produces progress within current resource limits.',
+          stance: 'accelerate',
+        };
+      case 'synthesizer':
+      default:
+        return {
+          persona,
+          recommendation:
+            'Combine the best parts of competing views into one bounded plan with explicit tradeoffs.',
+          concern: 'The team may optimize for one dimension and ignore the rest.',
+          validation_check: 'List the tradeoff being accepted and the guardrail that contains it.',
+          stance: 'balance',
+        };
+    }
+  }
+
+  private detectPersonaDisagreement(positions: PersonaPosition[]): PersonaDisagreement | null {
+    const highRiskPosition = positions.find(position => position.persona.risk_tolerance === 'high');
+    const lowRiskPosition = positions.find(position => position.persona.risk_tolerance === 'low');
+
+    if (highRiskPosition && lowRiskPosition) {
+      return {
+        topic: 'Risk posture',
+        summary: `${lowRiskPosition.persona.name} wants stronger proof before commitment, while ${highRiskPosition.persona.name} wants to keep a bolder alternative alive instead of defaulting early.`,
+      };
+    }
+
+    const shortHorizonPosition = positions.find(
+      position => position.persona.time_horizon === 'short'
+    );
+    const longHorizonPosition = positions.find(
+      position => position.persona.time_horizon === 'long'
+    );
+
+    if (shortHorizonPosition && longHorizonPosition) {
+      return {
+        topic: 'Execution horizon',
+        summary: `${shortHorizonPosition.persona.name} is optimizing for the next deliverable, while ${longHorizonPosition.persona.name} is guarding against long-term rework or strategic drift.`,
+      };
+    }
+
+    const acceleratePosition = positions.find(position => position.stance === 'accelerate');
+    const validatePosition = positions.find(position => position.stance === 'validate');
+
+    if (acceleratePosition && validatePosition) {
+      return {
+        topic: 'Speed vs verification',
+        summary: `${acceleratePosition.persona.name} wants immediate forward motion, while ${validatePosition.persona.name} wants evidence before expanding the plan.`,
+      };
+    }
+
+    const expandPosition = positions.find(position => position.stance === 'expand');
+
+    if (expandPosition && validatePosition) {
+      return {
+        topic: 'Option breadth vs proof',
+        summary: `${expandPosition.persona.name} wants to widen the option set, while ${validatePosition.persona.name} wants to prove the current claim before adding more branches.`,
+      };
+    }
+
+    return null;
   }
 
   private selectDeterministicTemplate(

@@ -100,6 +100,11 @@ async function testProcessThoughtReturnsResult(): Promise<void> {
   assert.ok(Array.isArray(result.insights), 'Should have insights array');
   assert.ok(result.cognitiveState, 'Should have cognitiveState');
   assert.ok(Array.isArray(result.recommendations), 'Should have recommendations array');
+  assert.ok(result.actionRanking, 'Should have structured action ranking');
+  assert.ok(
+    typeof result.actionRanking.primary.action === 'string',
+    'Should rank a primary action'
+  );
 
   await orchestrator.dispose();
   console.log('  ✓ Process thought returns proper result');
@@ -266,6 +271,33 @@ async function testRecommendationsPrioritizeTopHypothesis(): Promise<void> {
 
   await orchestrator.dispose();
   console.log('  ✓ Recommendations prioritize top hypothesis');
+}
+
+async function testActionRankingPrioritizesTopHypothesisValidation(): Promise<void> {
+  const orchestrator = await createTestCognitiveOrchestrator({
+    intervention_cooldown_ms: 0,
+    emergence_detection_enabled: true,
+  });
+
+  const result = await orchestrator.processThought(
+    createMockThought({
+      thought:
+        'This likely indicates that a background migration is blocking startup because the timeout appears after schema changes.',
+    })
+  );
+
+  assert.match(
+    result.actionRanking.primary.action,
+    /check whether the evidence supports this hypothesis|background migration|startup|schema/i,
+    'Primary ranked action should focus on validating the top hypothesis'
+  );
+  assert.ok(
+    result.actionRanking.primary.signals.some(signal => signal.startsWith('hypothesis:')),
+    'Primary action should carry hypothesis-derived signals'
+  );
+
+  await orchestrator.dispose();
+  console.log('  ✓ Action ranking prioritizes top hypothesis validation');
 }
 
 async function testProcessRevisionThought(): Promise<void> {
@@ -936,6 +968,34 @@ async function testReasoningModeConvergesAtSequenceEnd(): Promise<void> {
   console.log('  ✓ Reasoning mode converges at sequence end');
 }
 
+async function testActionRankingDefersScopeExpansionUnderDeadline(): Promise<void> {
+  const orchestrator = await createTestCognitiveOrchestrator({
+    intervention_cooldown_ms: 0,
+  });
+
+  const result = await orchestrator.processThought(
+    createMockThought({
+      thought:
+        'This is urgent and we need to verify the production timeout immediately before opening any new design branches.',
+    })
+  );
+
+  assert.match(
+    result.actionRanking.do_not_do_yet.action,
+    /Do not open a new branch|Do not commit to implementation|Do not add more scope/i,
+    'Deferred action should warn against expanding scope under uncertainty'
+  );
+  assert.ok(
+    result.actionRanking.do_not_do_yet.signals.includes('near_deadline') ||
+      result.actionRanking.do_not_do_yet.signals.includes('low_confidence') ||
+      result.actionRanking.do_not_do_yet.signals.includes('mode:validation'),
+    'Deferred action should explain the signal that caused the warning'
+  );
+
+  await orchestrator.dispose();
+  console.log('  ✓ Action ranking defers scope expansion under deadline');
+}
+
 async function testRepeatedReasoningDetectionHandlesParaphrases(): Promise<void> {
   const orchestrator = await createTestCognitiveOrchestrator({
     intervention_cooldown_ms: 0,
@@ -1048,6 +1108,10 @@ const tests = [
     name: 'Recommendations prioritize top hypothesis',
     fn: testRecommendationsPrioritizeTopHypothesis,
   },
+  {
+    name: 'Action ranking prioritizes top hypothesis validation',
+    fn: testActionRankingPrioritizesTopHypothesisValidation,
+  },
   { name: 'Process revision thought', fn: testProcessRevisionThought },
   { name: 'Process branching thought', fn: testProcessBranchingThought },
 
@@ -1112,6 +1176,10 @@ const tests = [
   {
     name: 'Reasoning mode converges at sequence end',
     fn: testReasoningModeConvergesAtSequenceEnd,
+  },
+  {
+    name: 'Action ranking defers scope expansion under deadline',
+    fn: testActionRankingDefersScopeExpansionUnderDeadline,
   },
   {
     name: 'Repeated reasoning detection handles paraphrases',

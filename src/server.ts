@@ -75,7 +75,7 @@ import {
   MAX_PREVIOUS_THOUGHTS_CONTEXT,
   CUSTOM_PROMPTS_DIR,
 } from './utils/config.js';
-import { CognitiveOrchestrator } from './cognitive/cognitive-orchestrator.js';
+import { ActionRanking, CognitiveOrchestrator } from './cognitive/cognitive-orchestrator.js';
 import { createCognitiveOrchestrator } from './cognitive/cognitive-orchestrator-factory.js';
 import { Mutex } from './utils/mutex.js';
 import { StoredThought } from './memory/memory-store.js';
@@ -215,6 +215,7 @@ structured reasoning with multiple cognitive perspectives, persisted state, and 
 - hypothesis_ledger: Active working hypotheses with support, contradiction, and next validation steps
 - reasoning_mode: Current grounded reasoning posture (exploration, validation, revision, branching, convergence)
 - recent_mode_shifts: Bounded history of recent mode transitions and why they occurred
+- action_ranking: Structured next actions with primary, fallback, and do-not-do-yet guidance
 - detected_biases: Cognitive biases found in reasoning
 - ai_recommendations: Suggested next steps
 - metacognitive_awareness: Heuristic self-reflection score (0-1)
@@ -612,6 +613,7 @@ class CodeReasoningServer {
       insights: any[];
       cognitiveState: any;
       recommendations: string[];
+      actionRanking: ActionRanking;
     },
     biasDetections?: Array<{
       bias_id: string;
@@ -646,6 +648,7 @@ class CodeReasoningServer {
       hypothesis_ledger: cognitiveResult?.cognitiveState?.hypothesis_ledger || [],
       reasoning_mode: cognitiveResult?.cognitiveState?.reasoning_mode || 'exploration',
       recent_mode_shifts: cognitiveResult?.cognitiveState?.recent_mode_shifts || [],
+      action_ranking: cognitiveResult?.actionRanking || null,
       ai_recommendations: cognitiveResult?.recommendations || [],
       // REAL Bias Detection Results
       detected_biases:
