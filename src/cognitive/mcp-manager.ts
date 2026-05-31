@@ -9,6 +9,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { randomUUID } from 'node:crypto';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -311,7 +312,7 @@ export class MCPIntegrationManager extends EventEmitter {
   private recordToolOutcome(toolName: string, success: boolean, executionTime: number): void {
     try {
       this.memoryStore.recordOutcome({
-        id: `tool_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: `tool_${randomUUID()}`,
         thought_id: `tool_call_${toolName}`,
         session_id: 'mcp_manager',
         prediction: `Tool ${toolName} execution`,

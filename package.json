@@ -5,6 +5,9 @@
   "author": "Brian Carpenter (geeknik) | Original: Matt Westgate",
   "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "keywords": [
     "map-think-do",
     "cognitive-reasoning",

@@ -15,6 +15,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { randomUUID } from 'node:crypto';
 import { MemoryStore, StoredThought } from '../memory/memory-store.js';
 import { getIntervalManager } from '../utils/interval-manager.js';
 
@@ -127,7 +128,7 @@ export class ConsciousnessSimulator extends EventEmitter {
 
   constructor(memoryStore: MemoryStore, config?: Partial<ConsciousnessPersistenceConfig>) {
     super();
-    this.instanceId = `cs_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    this.instanceId = `cs_${randomUUID()}`;
     this.memoryStore = memoryStore;
     this.persistenceConfig = {
       persistState: config?.persistState ?? true,
@@ -328,7 +329,7 @@ export class ConsciousnessSimulator extends EventEmitter {
     const content = introspectivePrompts[Math.floor(Math.random() * introspectivePrompts.length)];
 
     return {
-      id: `introspection_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `introspection_${randomUUID()}`,
       content,
       origin: 'spontaneous',
       depth: 0.7 + Math.random() * 0.3,
@@ -510,7 +511,7 @@ export class ConsciousnessSimulator extends EventEmitter {
     const content = spontaneousPrompts[Math.floor(Math.random() * spontaneousPrompts.length)];
 
     return {
-      id: `spontaneous_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `spontaneous_${randomUUID()}`,
       content,
       origin: 'spontaneous',
       depth: Math.random() * 0.6,

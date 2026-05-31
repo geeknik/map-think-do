@@ -13,6 +13,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { randomUUID } from 'node:crypto';
 import { MemoryStore } from '../memory/memory-store.js';
 import { getIntervalManager } from '../utils/interval-manager.js';
 
@@ -106,7 +107,7 @@ export class MCPIntegrationSystem extends EventEmitter {
 
   constructor(memoryStore: MemoryStore) {
     super();
-    this.instanceId = `mcp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    this.instanceId = `mcp_${randomUUID()}`;
     // Lazy initialization - don't start intervals in constructor
     // Call initialize() explicitly when needed
   }

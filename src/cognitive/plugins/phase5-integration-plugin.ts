@@ -20,6 +20,7 @@ import {
   PluginActivation,
   PluginIntervention,
 } from '../plugin-system.js';
+import { randomUUID } from 'node:crypto';
 import { MCPIntegrationSystem } from '../mcp-integration.js';
 import { ConsciousnessSimulator } from '../consciousness-simulator.js';
 import { SelfModifyingArchitecture } from '../self-modifying-architecture.js';
@@ -339,7 +340,7 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    */
   private generateRecursivePrompt(prompt: string, origin: string): void {
     const recursivePrompt: RecursivePrompt = {
-      id: `recursive_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `recursive_${randomUUID()}`,
       prompt,
       depth: 0,
       origin,

@@ -15,6 +15,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { randomUUID } from 'node:crypto';
 import { MemoryStore } from '../memory/memory-store.js';
 import { getIntervalManager } from '../utils/interval-manager.js';
 
@@ -131,7 +132,7 @@ export class SelfModifyingArchitecture extends EventEmitter {
 
   constructor(memoryStore: MemoryStore) {
     super();
-    this.instanceId = `sma_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    this.instanceId = `sma_${randomUUID()}`;
     this.initializeArchitecture();
     // Lazy initialization - don't start interval in constructor
     // Call startAdaptationLoop() explicitly when needed
@@ -506,7 +507,7 @@ export class SelfModifyingArchitecture extends EventEmitter {
    * Create specific mutation
    */
   private createMutation(opportunity: string): ArchitecturalMutation | null {
-    const mutationId = `mutation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const mutationId = `mutation_${randomUUID()}`;
 
     if (opportunity.startsWith('optimize_component_')) {
       const componentId = opportunity.replace('optimize_component_', '');
