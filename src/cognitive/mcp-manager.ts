@@ -470,7 +470,7 @@ export default class ${pluginId.replace(/-/g, '')}Plugin {
   capabilities = ${JSON.stringify(manifest.capabilities)};
 
   async initialize(config) {
-    console.log('${manifest.name} initialized');
+    console.error('${manifest.name} initialized');
   }
 
   async shouldActivate(context) {
@@ -495,7 +495,7 @@ export default class ${pluginId.replace(/-/g, '')}Plugin {
   }
 
   async destroy() {
-    console.log('${manifest.name} destroyed');
+    console.error('${manifest.name} destroyed');
   }
 }
 `;

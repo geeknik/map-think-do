@@ -12,6 +12,7 @@ import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import Database from 'better-sqlite3';
 import { SQLiteStore } from '../src/memory/sqlite-store.js';
 import { StoredThought, ReasoningSession } from '../src/memory/memory-store.js';
 
@@ -19,6 +20,16 @@ import { StoredThought, ReasoningSession } from '../src/memory/memory-store.js';
 const TEST_DB_PATH = path.join(os.tmpdir(), `map-think-do-test-${Date.now()}.db`);
 
 let store: SQLiteStore;
+
+function cleanupDatabaseFiles(dbPath: string): void {
+  for (const suffix of ['', '-wal', '-shm']) {
+    try {
+      fs.unlinkSync(dbPath + suffix);
+    } catch {
+      // Ignore cleanup errors for temp files.
+    }
+  }
+}
 
 // Helper to create a test thought
 function createTestThought(overrides: Partial<StoredThought> = {}): StoredThought {
@@ -90,6 +101,71 @@ async function testStoreAndRetrieveSession(): Promise<void> {
   assert.strictEqual(retrieved.domain, session.domain, 'Domain should match');
 
   console.log('  ✓ Store and retrieve session');
+}
+
+async function testMigratesLegacySchema(): Promise<void> {
+  const legacyDbPath = path.join(
+    os.tmpdir(),
+    `map-think-do-legacy-${Date.now()}-${Math.random().toString(36).slice(2)}.db`
+  );
+
+  const legacyDb = new Database(legacyDbPath);
+  legacyDb.exec(`
+    CREATE TABLE thoughts (
+      id TEXT PRIMARY KEY,
+      thought TEXT NOT NULL,
+      thought_number INTEGER NOT NULL,
+      total_thoughts INTEGER NOT NULL,
+      next_thought_needed INTEGER DEFAULT 1,
+      timestamp TEXT NOT NULL,
+      session_id TEXT NOT NULL
+    );
+    CREATE TABLE sessions (
+      id TEXT PRIMARY KEY,
+      start_time TEXT NOT NULL,
+      objective TEXT NOT NULL,
+      goal_achieved INTEGER DEFAULT 0,
+      confidence_level REAL DEFAULT 0.5,
+      total_thoughts INTEGER DEFAULT 0,
+      revision_count INTEGER DEFAULT 0,
+      branch_count INTEGER DEFAULT 0
+    );
+  `);
+  legacyDb.close();
+
+  const legacyStore = new SQLiteStore(legacyDbPath);
+
+  try {
+    const sessionId = `legacy_session_${Date.now()}`;
+    await legacyStore.storeSession(
+      createTestSession({
+        id: sessionId,
+        domain: 'legacy_testing',
+      })
+    );
+
+    const thoughtId = `legacy_thought_${Date.now()}`;
+    await legacyStore.storeThought(
+      createTestThought({
+        id: thoughtId,
+        session_id: sessionId,
+        domain: 'legacy_testing',
+      })
+    );
+
+    const stored = await legacyStore.getThought(thoughtId);
+    assert.ok(stored, 'Legacy database should accept writes after migration');
+    assert.strictEqual(
+      stored.domain,
+      'legacy_testing',
+      'Migrated schema should persist new columns'
+    );
+
+    console.log('  ✓ Legacy schema migration works');
+  } finally {
+    await legacyStore.close();
+    cleanupDatabaseFiles(legacyDbPath);
+  }
 }
 
 async function testUpdateThought(): Promise<void> {
@@ -488,6 +564,7 @@ async function runTests(): Promise<void> {
     console.log('Basic Operations:');
     await testStoreAndRetrieveThought();
     await testStoreAndRetrieveSession();
+    await testMigratesLegacySchema();
     await testUpdateThought();
     await testQueryThoughts();
 
@@ -517,13 +594,7 @@ async function runTests(): Promise<void> {
   } finally {
     // Cleanup
     await store.close();
-    try {
-      fs.unlinkSync(TEST_DB_PATH);
-      fs.unlinkSync(TEST_DB_PATH + '-wal');
-      fs.unlinkSync(TEST_DB_PATH + '-shm');
-    } catch {
-      // Ignore cleanup errors
-    }
+    cleanupDatabaseFiles(TEST_DB_PATH);
   }
 }
 

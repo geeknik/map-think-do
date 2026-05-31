@@ -46,6 +46,7 @@
  */
 
 import process from 'node:process';
+import { randomUUID } from 'node:crypto';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import {
   CallToolRequestSchema,
@@ -90,6 +91,10 @@ import os from 'os';
 /*                               CONFIGURATION                                */
 /* -------------------------------------------------------------------------- */
 
+export const GENERIC_PROCESSING_ERROR_MESSAGE =
+  'An unexpected internal error occurred while processing the thought. Retry with a simpler thought or try again later.';
+export const GENERIC_PROMPT_ERROR_MESSAGE = 'Prompt processing failed.';
+
 // Compile-time enum -> const enum would be erased, but we keep values for logs.
 export enum LogLevel {
   ERROR = 0,
@@ -130,6 +135,7 @@ const ThoughtDataSchema = z
     branch_id: z.string().trim().min(1).optional(),
     needs_more_thoughts: z.boolean().optional(),
   })
+  .strict()
   .refine(
     d =>
       d.is_revision
@@ -153,6 +159,10 @@ const ThoughtDataSchema = z
   );
 
 export type ValidatedThoughtData = z.infer<typeof ThoughtDataSchema>;
+
+export function validateThoughtData(input: unknown): ValidatedThoughtData {
+  return ThoughtDataSchema.parse(input);
+}
 
 /**
  * Cached JSON schema: avoids rebuilding on every ListTools call.
@@ -232,6 +242,17 @@ export const CODE_REASONING_TOOL = MAP_THINK_DO_TOOL;
 
 function isSupportedToolName(name: string): boolean {
   return name === MAP_THINK_DO_TOOL_NAME || name === LEGACY_TOOL_NAME;
+}
+
+function summarizePromptArgsForLogging(args: Record<string, string>): {
+  argCount: number;
+  argNames: string[];
+} {
+  const argNames = Object.keys(args).sort().slice(0, 10);
+  return {
+    argCount: Object.keys(args).length,
+    argNames,
+  };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -545,7 +566,7 @@ class CodeReasoningServer {
    * Generate unique session ID for reasoning sessions
    */
   private generateSessionId(): string {
-    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `session_${randomUUID()}`;
   }
 
   /* ----------------------------- Helper Methods ---------------------------- */
@@ -722,7 +743,7 @@ class CodeReasoningServer {
     const t0 = performance.now();
 
     try {
-      const data = ThoughtDataSchema.parse(input);
+      const data = validateThoughtData(input);
 
       // Sanity limits with contextual guidance for AI recovery
       if (data.thought_number > MAX_THOUGHTS) {
@@ -868,9 +889,7 @@ class CodeReasoningServer {
       }
 
       // Handle unknown errors with smart recovery guidance
-      return this.buildToolError(
-        `An unexpected error occurred: ${e.message}. Try rephrasing your thought or simplifying the reasoning. If this persists after 2-3 attempts, this may indicate a system limitation with your current approach. Consider breaking the problem into smaller steps or using different terminology.`
-      );
+      return this.buildToolError(GENERIC_PROCESSING_ERROR_MESSAGE);
     }
   }
 
@@ -878,7 +897,7 @@ class CodeReasoningServer {
    * Helper methods for cognitive processing
    */
   private generateThoughtId(): string {
-    return `thought_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `thought_${randomUUID()}`;
   }
 
   private inferObjective(data: ValidatedThoughtData): string {
@@ -1082,15 +1101,18 @@ export async function runServer(debugFlag = false): Promise<void> {
     });
 
     srv.setRequestHandler(GetPromptRequestSchema, async req => {
+      const promptName = req.params.name;
+      const args = (req.params.arguments || {}) as Record<string, string>;
+
       try {
         if (!promptManager) {
           throw new McpError(ErrorCode.InternalError, 'Prompt manager not initialized');
         }
 
-        const promptName = req.params.name;
-        const args = req.params.arguments || {};
-
-        console.error(`Getting prompt: ${promptName} with args:`, args);
+        console.error('Getting prompt', {
+          promptName,
+          ...summarizePromptArgsForLogging(args),
+        });
 
         // Get the prompt result
         const result = promptManager.applyPrompt(promptName, args);
@@ -1102,8 +1124,12 @@ export async function runServer(debugFlag = false): Promise<void> {
         };
       } catch (err) {
         const e = err as Error;
-        console.error('Prompt error:', e.message);
-        throw new McpError(ErrorCode.InternalError, `Prompt error: ${e.message}`);
+        console.error('Prompt error', {
+          promptName,
+          ...summarizePromptArgsForLogging(args),
+          error: e.message,
+        });
+        throw new McpError(ErrorCode.InternalError, GENERIC_PROMPT_ERROR_MESSAGE);
       }
     });
 
@@ -1126,24 +1152,12 @@ export async function runServer(debugFlag = false): Promise<void> {
         const promptName = req.params.ref.name;
         const argName = req.params.argument.name;
 
-        console.error(`Completing argument: ${argName} for prompt: ${promptName}`);
+        console.error('Completing prompt argument', { promptName, argName });
 
-        // Get stored values for this prompt using the public method
-        const storedValues = promptManager.getStoredValues(promptName);
-
-        // Return the stored value for this argument if available
-        if (storedValues[argName]) {
-          return {
-            completion: {
-              values: [storedValues[argName]],
-            },
-          };
-        }
-
-        // Return empty array if no stored value
+        const completionValues = promptManager.getCompletionValues(promptName, argName);
         return {
           completion: {
-            values: [],
+            values: completionValues,
           },
         };
       } catch (err) {

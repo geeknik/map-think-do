@@ -36,6 +36,7 @@ const MAX_TEMPLATE_LENGTH = 10000;
  * Uses the CompleteRequestSchema MCP protocol for argument completion.
  */
 export class PromptManager {
+  private readonly configDirPath: string;
   private prompts: Record<string, Prompt>;
   private templates: Record<string, (args: Record<string, string>) => PromptResult>;
   private valueManager: PromptValueManager;
@@ -89,18 +90,24 @@ export class PromptManager {
     });
 
   // Schema for PromptArgument with added validation
-  private readonly PromptArgumentSchema = z.object({
-    name: z
-      .string()
-      .min(1)
-      .max(MAX_NAME_LENGTH)
-      .regex(
-        /^[a-zA-Z0-9_]+$/,
-        'Argument name must contain only alphanumeric characters and underscores'
-      ),
-    description: z.string().min(1).max(MAX_DESCRIPTION_LENGTH),
-    required: z.boolean(), // Removed .strict() as it's not available in this Zod version
-  });
+  private readonly PromptArgumentSchema = z
+    .object({
+      name: z
+        .string()
+        .min(1)
+        .max(MAX_NAME_LENGTH)
+        .regex(
+          /^[a-zA-Z0-9_]+$/,
+          'Argument name must contain only alphanumeric characters and underscores'
+        ),
+      description: z.string().min(1).max(MAX_DESCRIPTION_LENGTH),
+      required: z.boolean(),
+    })
+    .strict();
+
+  private readonly PromptArgsSchema = z.record(
+    z.string().max(MAX_CODE_LENGTH, `Input exceeds maximum length of ${MAX_CODE_LENGTH} characters`)
+  );
 
   // Schema for the entire prompt data with template sanitization
   private readonly PromptDataSchema = z
@@ -137,6 +144,7 @@ export class PromptManager {
 
     // Use provided config directory or default to CONFIG_DIR
     const resolvedConfigDir = configDir || CONFIG_DIR;
+    this.configDirPath = resolvedConfigDir;
 
     // Create main config directory if it doesn't exist
     if (!fs.existsSync(resolvedConfigDir)) {
@@ -217,7 +225,31 @@ export class PromptManager {
    * @returns The stored values for the prompt
    */
   getStoredValues(name: string): Record<string, string> {
-    return this.valueManager.getStoredValues(name);
+    const prompt = this.getPrompt(name);
+    if (!prompt) {
+      return {};
+    }
+
+    return this.filterValuesForPrompt(prompt, this.valueManager.getStoredValues(name));
+  }
+
+  /**
+   * Gets completion values for a specific prompt argument.
+   * Returns no values unless the prompt exists, declares the argument,
+   * and a stored value is available for that declared argument.
+   *
+   * @param promptName The name of the prompt
+   * @param argName The argument name being completed
+   * @returns A list of completion values for the declared argument
+   */
+  getCompletionValues(promptName: string, argName: string): string[] {
+    const prompt = this.getPrompt(promptName);
+    if (!prompt || !this.promptDeclaresArgument(prompt, argName)) {
+      return [];
+    }
+
+    const storedValue = this.getStoredValues(promptName)[argName];
+    return storedValue ? [storedValue] : [];
   }
 
   /**
@@ -247,6 +279,26 @@ export class PromptManager {
     return { ...storedValues, ...filteredArgs };
   }
 
+  private promptDeclaresArgument(prompt: Prompt, argName: string): boolean {
+    return (prompt.arguments || []).some(arg => arg.name === argName);
+  }
+
+  private filterValuesForPrompt(
+    prompt: Prompt,
+    values: Record<string, string>
+  ): Record<string, string> {
+    const allowedArgNames = new Set((prompt.arguments || []).map(arg => arg.name));
+    const filteredValues: Record<string, string> = {};
+
+    Object.entries(values).forEach(([key, value]) => {
+      if (allowedArgNames.has(key)) {
+        filteredValues[key] = value;
+      }
+    });
+
+    return filteredValues;
+  }
+
   /**
    * Applies a prompt with the given arguments.
    * Merges provided arguments with previously stored values,
@@ -257,14 +309,16 @@ export class PromptManager {
    * @returns The result of applying the prompt
    * @throws Error if the prompt doesn't exist or arguments are invalid
    */
-  applyPrompt(name: string, args: Record<string, string> = {}): PromptResult {
+  applyPrompt(name: string, args: Record<string, unknown> = {}): PromptResult {
     const prompt = this.getPrompt(name);
     if (!prompt) {
       throw new Error(`Prompt not found: ${name}`);
     }
 
+    const normalizedArgs = this.normalizePromptArguments(args);
+
     // Merge with stored values
-    const mergedArgs = this.mergeWithStoredValues(name, args);
+    const mergedArgs = this.mergeWithStoredValues(name, normalizedArgs);
 
     // Validate arguments
     const validationErrors = this.validatePromptArguments(prompt, mergedArgs);
@@ -272,17 +326,19 @@ export class PromptManager {
       throw new Error(`Validation errors:\n${validationErrors.join('\n')}`);
     }
 
+    const sanitizedArgs = this.sanitizePromptArguments(name, mergedArgs);
+
     // Get the template function
     const templateFn = this.templates[name];
     if (!templateFn) {
       throw new Error(`Template implementation not found for prompt: ${name}`);
     }
 
-    // Update stored values with the new ones
-    this.valueManager.updateStoredValues(name, mergedArgs);
+    // Update stored values with the sanitized ones
+    void this.valueManager.updateStoredValues(name, sanitizedArgs);
 
-    // Apply the template with merged args
-    return templateFn(mergedArgs);
+    // Apply the template with sanitized args
+    return templateFn(sanitizedArgs);
   }
 
   /**
@@ -293,7 +349,7 @@ export class PromptManager {
   async loadCustomPrompts(directory: string): Promise<void> {
     try {
       // Validate directory is safe
-      const baseDir = path.resolve(CONFIG_DIR);
+      const baseDir = path.resolve(this.configDirPath);
       if (!isPathSafe(directory, baseDir)) {
         console.error(`Path validation failed: directory must be within ${baseDir}`);
         return;
@@ -352,7 +408,7 @@ export class PromptManager {
                     role: 'user',
                     content: {
                       type: 'text',
-                      text: this.applyTemplate(promptData.template, args, promptData.name),
+                      text: this.applyTemplate(promptData.template, args),
                     },
                   },
                 ],
@@ -388,6 +444,37 @@ export class PromptManager {
     }
     // Use default string schema for all other args
     return this.baseStringSchema;
+  }
+
+  private normalizePromptArguments(args: Record<string, unknown>): Record<string, string> {
+    const result = this.PromptArgsSchema.safeParse(args);
+    if (!result.success) {
+      const errorMessage = result.error.issues.map(issue => issue.message).join(', ');
+      throw new Error(`Invalid prompt arguments: ${errorMessage}`);
+    }
+
+    return result.data;
+  }
+
+  private sanitizePromptArguments(
+    promptName: string,
+    args: Record<string, string>
+  ): Record<string, string> {
+    const sanitized: Record<string, string> = {};
+
+    Object.entries(args).forEach(([key, value]) => {
+      const schema = this.getSchemaForArg(key, promptName);
+      const sanitizeResult = schema.safeParse(value || '');
+
+      if (!sanitizeResult.success) {
+        const message = sanitizeResult.error.issues.map(issue => issue.message).join(', ');
+        throw new Error(`Invalid value for argument '${key}': ${message}`);
+      }
+
+      sanitized[key] = sanitizeResult.data;
+    });
+
+    return sanitized;
   }
 
   /**
@@ -426,39 +513,15 @@ export class PromptManager {
    *
    * @param template The template string
    * @param args The argument values to apply
-   * @param promptName The name of the prompt (for context-aware sanitization)
    * @returns The template with arguments applied
    */
-  private applyTemplate(
-    template: string,
-    args: Record<string, string>,
-    promptName: string = ''
-  ): string {
+  private applyTemplate(template: string, args: Record<string, string>): string {
     let result = template;
 
-    // Replace {arg_name} with sanitized values
+    // Replace {arg_name} with already-sanitized values.
     Object.entries(args).forEach(([key, value]: [string, string]) => {
-      // Get the appropriate schema for this argument
-      const schema = this.getSchemaForArg(key, promptName);
-
-      // Parse and transform the value (sanitize)
-      const sanitizeResult = schema.safeParse(value || '');
-
-      // Apply replacement
       const regex = new RegExp(`\\{${key}\\}`, 'g');
-
-      if (sanitizeResult.success) {
-        result = result.replace(regex, sanitizeResult.data);
-      } else {
-        // Log validation errors with context for debugging
-        console.error(
-          `Validation failed for argument '${key}' in prompt '${promptName}':`,
-          sanitizeResult.error.issues.map(i => `${i.path}: ${i.message}`).join(', ')
-        );
-
-        // Fallback to empty string or safe default
-        result = result.replace(regex, '');
-      }
+      result = result.replace(regex, value);
     });
 
     return result;

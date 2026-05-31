@@ -13,6 +13,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { randomUUID } from 'node:crypto';
 import { ErrorSeverity, handleError } from '../utils/error-handler.js';
 import { Mutex } from '../utils/mutex.js';
 import { SecureLogger } from '../utils/secure-logger.js';
@@ -80,6 +81,9 @@ export interface ActionRanking {
   fallback: RankedAction;
   do_not_do_yet: RankedAction;
 }
+
+const GENERIC_REDUCED_FUNCTIONALITY_RECOMMENDATION =
+  'Cognitive processing completed with reduced functionality due to an internal error.';
 
 /**
  * Main Cognitive Orchestrator with Dependency Injection
@@ -268,7 +272,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
           interventions: [],
           insights: [],
           cognitiveState: this.snapshotCognitiveState(),
-          recommendations: [`Error occurred during processing: ${error.message}`],
+          recommendations: [GENERIC_REDUCED_FUNCTIONALITY_RECOMMENDATION],
           actionRanking: this.buildDefaultActionRanking(thoughtData),
         };
       }
@@ -434,7 +438,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
         interventions: [],
         insights: [],
         cognitiveState: this.snapshotCognitiveState(),
-        recommendations: ['Error in cognitive processing - continuing with basic reasoning'],
+        recommendations: [GENERIC_REDUCED_FUNCTIONALITY_RECOMMENDATION],
         actionRanking: this.buildDefaultActionRanking(thoughtData),
       };
     }
@@ -2462,7 +2466,7 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
 
   // Utility methods
   private generateThoughtId(): string {
-    return `thought_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `thought_${randomUUID()}`;
   }
 
   private calculateCognitiveLoad(interventions: PluginIntervention[]): number {

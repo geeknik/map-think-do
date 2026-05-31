@@ -23,4 +23,4 @@ node test/transport-failure.test.js
 
 - The e2e runner writes logs to `logs/` and structured results to `test-results/`.
 - The JavaScript protocol and transport scripts run directly from `test/`; they are not compiled into `dist/`.
-- Debug mode can expose raw input content in logs, so use it only in controlled environments.
+- Debug mode increases verbosity but still keeps request-content redaction enabled.

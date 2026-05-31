@@ -60,6 +60,43 @@ export interface LearningPattern {
 }
 
 export class SQLiteStore extends MemoryStore {
+  private static readonly CURRENT_SCHEMA_VERSION = 1;
+  private static readonly LEGACY_THOUGHT_COLUMN_MIGRATIONS: Record<string, string> = {
+    is_revision: 'INTEGER DEFAULT 0',
+    revises_thought: 'INTEGER',
+    branch_from_thought: 'INTEGER',
+    branch_id: 'TEXT',
+    needs_more_thoughts: 'INTEGER DEFAULT 0',
+    confidence: 'REAL',
+    domain: 'TEXT',
+    objective: 'TEXT',
+    complexity: 'INTEGER',
+    success: 'INTEGER',
+    effectiveness_score: 'REAL',
+    user_feedback: 'TEXT',
+    context: "TEXT DEFAULT '{}'",
+    tags: "TEXT DEFAULT '[]'",
+    patterns_detected: "TEXT DEFAULT '[]'",
+    similar_thoughts: "TEXT DEFAULT '[]'",
+    outcome_quality: 'TEXT',
+    output: 'TEXT',
+    context_trace: "TEXT DEFAULT '[]'",
+    created_at: 'TEXT',
+  };
+  private static readonly LEGACY_SESSION_COLUMN_MIGRATIONS: Record<string, string> = {
+    end_time: 'TEXT',
+    domain: 'TEXT',
+    initial_complexity: 'INTEGER',
+    final_complexity: 'INTEGER',
+    cognitive_roles_used: "TEXT DEFAULT '[]'",
+    metacognitive_interventions: 'INTEGER DEFAULT 0',
+    effectiveness_score: 'REAL',
+    lessons_learned: "TEXT DEFAULT '[]'",
+    successful_strategies: "TEXT DEFAULT '[]'",
+    failed_approaches: "TEXT DEFAULT '[]'",
+    tags: "TEXT DEFAULT '[]'",
+    created_at: 'TEXT',
+  };
   private db: Database.Database;
   private dbPath: string;
 
@@ -81,6 +118,19 @@ export class SQLiteStore extends MemoryStore {
   }
 
   private initializeSchema(): void {
+    const currentSchemaVersion = this.getSchemaVersion();
+    const needsFtsRebuild =
+      currentSchemaVersion < SQLiteStore.CURRENT_SCHEMA_VERSION ||
+      !this.tableExists('thoughts_fts');
+
+    this.createTables();
+    this.migrateLegacySchema();
+    this.createIndexes();
+    this.ensureFullTextSearchArtifacts(needsFtsRebuild);
+    this.db.pragma(`user_version = ${SQLiteStore.CURRENT_SCHEMA_VERSION}`);
+  }
+
+  private createTables(): void {
     // Thoughts table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS thoughts (
@@ -190,7 +240,42 @@ export class SQLiteStore extends MemoryStore {
         UNIQUE(pattern_type, pattern_signature)
       )
     `);
+  }
 
+  private migrateLegacySchema(): void {
+    this.ensureColumns('thoughts', SQLiteStore.LEGACY_THOUGHT_COLUMN_MIGRATIONS);
+    this.ensureColumns('sessions', SQLiteStore.LEGACY_SESSION_COLUMN_MIGRATIONS);
+  }
+
+  private ensureColumns(tableName: string, columnDefinitions: Record<string, string>): void {
+    const existingColumns = new Set(
+      (this.db.prepare(`PRAGMA table_info("${tableName}")`).all() as Array<{ name: string }>).map(
+        column => column.name
+      )
+    );
+
+    for (const [columnName, definition] of Object.entries(columnDefinitions)) {
+      if (existingColumns.has(columnName)) {
+        continue;
+      }
+
+      this.db.exec(`ALTER TABLE "${tableName}" ADD COLUMN "${columnName}" ${definition}`);
+    }
+  }
+
+  private getSchemaVersion(): number {
+    return Number(this.db.pragma('user_version', { simple: true }) || 0);
+  }
+
+  private tableExists(tableName: string): boolean {
+    const row = this.db
+      .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`)
+      .get(tableName) as { name?: string } | undefined;
+
+    return row?.name === tableName;
+  }
+
+  private createIndexes(): void {
     // Create indexes for faster queries
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_thoughts_session ON thoughts(session_id);
@@ -200,7 +285,9 @@ export class SQLiteStore extends MemoryStore {
       CREATE INDEX IF NOT EXISTS idx_outcomes_domain ON outcomes(domain);
       CREATE INDEX IF NOT EXISTS idx_patterns_type ON learning_patterns(pattern_type);
     `);
+  }
 
+  private ensureFullTextSearchArtifacts(rebuildIndex: boolean): void {
     // FTS5 virtual table for disk-based full-text search (avoids in-memory vocabulary bloat)
     this.db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS thoughts_fts USING fts5(
@@ -223,6 +310,10 @@ export class SQLiteStore extends MemoryStore {
         INSERT INTO thoughts_fts(rowid, thought) VALUES (new.rowid, new.thought);
       END;
     `);
+
+    if (rebuildIndex) {
+      this.db.exec(`INSERT INTO thoughts_fts(thoughts_fts) VALUES('rebuild')`);
+    }
   }
 
   // ============================================================================
@@ -362,7 +453,7 @@ export class SQLiteStore extends MemoryStore {
     }
 
     const rows = this.db.prepare(sql).all(...params) as Record<string, unknown>[];
-    return rows.map(this.rowToThought);
+    return rows.map(row => this.rowToThought(row));
   }
 
   async getThought(id: string): Promise<StoredThought | null> {
@@ -394,7 +485,7 @@ export class SQLiteStore extends MemoryStore {
     }
 
     const rows = this.db.prepare(sql).all(...params) as Record<string, unknown>[];
-    return rows.map(this.rowToSession);
+    return rows.map(row => this.rowToSession(row));
   }
 
   async findSimilarThoughts(thought: string, limit: number = 10): Promise<StoredThought[]> {
@@ -416,7 +507,7 @@ export class SQLiteStore extends MemoryStore {
     `;
 
     const rows = this.db.prepare(sql).all(...params, ...params, limit) as Record<string, unknown>[];
-    return rows.map(this.rowToThought);
+    return rows.map(row => this.rowToThought(row));
   }
 
   async updateThought(id: string, updates: Partial<StoredThought>): Promise<void> {
@@ -751,7 +842,7 @@ export class SQLiteStore extends MemoryStore {
         const total = newSuccessCount + newFailureCount;
         const newSuccessRate = newSuccessCount / total;
 
-        const domains = JSON.parse((existing.domains as string) || '[]');
+        const domains = this.safeJsonParse<string[]>(existing.domains, []);
         if (!domains.includes(domain)) {
           domains.push(domain);
         }
@@ -856,7 +947,7 @@ export class SQLiteStore extends MemoryStore {
     sql += ' ORDER BY success_rate DESC, success_count DESC LIMIT 10';
 
     const rows = this.db.prepare(sql).all(...params) as Record<string, unknown>[];
-    return rows.map(this.rowToPattern);
+    return rows.map(row => this.rowToPattern(row));
   }
 
   /**
@@ -877,7 +968,7 @@ export class SQLiteStore extends MemoryStore {
     sql += ' ORDER BY success_rate ASC, failure_count DESC LIMIT 10';
 
     const rows = this.db.prepare(sql).all(...params) as Record<string, unknown>[];
-    return rows.map(this.rowToPattern);
+    return rows.map(row => this.rowToPattern(row));
   }
 
   // ============================================================================
@@ -969,6 +1060,23 @@ export class SQLiteStore extends MemoryStore {
   // Utility Methods
   // ============================================================================
 
+  /**
+   * Parse JSON stored in a column, returning a fallback when the value is
+   * missing or malformed. Prevents a single corrupted row from throwing and
+   * breaking retrieval of the entire result set.
+   */
+  private safeJsonParse<T>(value: unknown, fallback: T): T {
+    if (typeof value !== 'string' || value.trim() === '') {
+      return fallback;
+    }
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      console.error('Discarding malformed JSON column value during row mapping');
+      return fallback;
+    }
+  }
+
   private rowToThought(row: Record<string, unknown>): StoredThought {
     return {
       id: row.id as string,
@@ -990,13 +1098,13 @@ export class SQLiteStore extends MemoryStore {
       success: row.success === 1,
       effectiveness_score: row.effectiveness_score as number | undefined,
       user_feedback: row.user_feedback as string | undefined,
-      context: JSON.parse((row.context as string) || '{}'),
-      tags: JSON.parse((row.tags as string) || '[]'),
-      patterns_detected: JSON.parse((row.patterns_detected as string) || '[]'),
-      similar_thoughts: JSON.parse((row.similar_thoughts as string) || '[]'),
+      context: this.safeJsonParse<StoredThought['context']>(row.context, {}),
+      tags: this.safeJsonParse<string[]>(row.tags, []),
+      patterns_detected: this.safeJsonParse<string[]>(row.patterns_detected, []),
+      similar_thoughts: this.safeJsonParse<string[]>(row.similar_thoughts, []),
       outcome_quality: row.outcome_quality as 'excellent' | 'good' | 'fair' | 'poor' | undefined,
       output: row.output as string | undefined,
-      context_trace: JSON.parse((row.context_trace as string) || '[]'),
+      context_trace: this.safeJsonParse<string[]>(row.context_trace, []),
     };
   }
 
@@ -1014,13 +1122,13 @@ export class SQLiteStore extends MemoryStore {
       total_thoughts: row.total_thoughts as number,
       revision_count: row.revision_count as number,
       branch_count: row.branch_count as number,
-      cognitive_roles_used: JSON.parse((row.cognitive_roles_used as string) || '[]'),
+      cognitive_roles_used: this.safeJsonParse<string[]>(row.cognitive_roles_used, []),
       metacognitive_interventions: row.metacognitive_interventions as number | undefined,
       effectiveness_score: row.effectiveness_score as number | undefined,
-      lessons_learned: JSON.parse((row.lessons_learned as string) || '[]'),
-      successful_strategies: JSON.parse((row.successful_strategies as string) || '[]'),
-      failed_approaches: JSON.parse((row.failed_approaches as string) || '[]'),
-      tags: JSON.parse((row.tags as string) || '[]'),
+      lessons_learned: this.safeJsonParse<string[]>(row.lessons_learned, []),
+      successful_strategies: this.safeJsonParse<string[]>(row.successful_strategies, []),
+      failed_approaches: this.safeJsonParse<string[]>(row.failed_approaches, []),
+      tags: this.safeJsonParse<string[]>(row.tags, []),
     };
   }
 
@@ -1033,10 +1141,10 @@ export class SQLiteStore extends MemoryStore {
       failure_count: row.failure_count as number,
       success_rate: row.success_rate as number,
       avg_confidence: row.avg_confidence as number,
-      domains: JSON.parse((row.domains as string) || '[]'),
+      domains: this.safeJsonParse<string[]>(row.domains, []),
       first_seen: new Date(row.first_seen as string),
       last_seen: new Date(row.last_seen as string),
-      insights: JSON.parse((row.insights as string) || '[]'),
+      insights: this.safeJsonParse<string[]>(row.insights, []),
     };
   }
 
@@ -1500,7 +1608,7 @@ export class SQLiteStore extends MemoryStore {
     params.push(limit * 2); // Get more to filter by success
 
     const rows = this.db.prepare(sql).all(...params) as Record<string, unknown>[];
-    const thoughts = rows.map(this.rowToThought);
+    const thoughts = rows.map(row => this.rowToThought(row));
 
     // Filter by success rate if we have enough data
     if (thoughts.length > 5) {

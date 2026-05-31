@@ -28,7 +28,7 @@ Usage:
   map-think-do [--debug] [--help]
 
 Options:
-  --debug    Enable verbose logging and disable secure redaction for debug output
+  --debug    Enable verbose logging while keeping request-content redaction enabled
   --help     Show this help text
 `);
   process.exit(0);
@@ -39,7 +39,7 @@ import('./src/server.js')
   .then(module => {
     // Debug flag is passed to runServer
     if (values.debug) {
-      console.info('Starting server in debug mode');
+      console.error('Starting server in debug mode');
     }
 
     module.runServer(values.debug);

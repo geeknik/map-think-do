@@ -72,10 +72,10 @@ export class ErrorHandler {
 
     switch (context.severity) {
       case ErrorSeverity.DEBUG:
-        console.debug(errorMessage);
+        console.error(errorMessage);
         break;
       case ErrorSeverity.INFO:
-        console.info(errorMessage);
+        console.error(errorMessage);
         break;
       case ErrorSeverity.WARNING:
         console.warn(errorMessage);

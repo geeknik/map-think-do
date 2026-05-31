@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 /**
  * @fileoverview Memory store interface and types for persistent thought storage
  *
@@ -293,14 +295,14 @@ export class MemoryUtils {
    * Generate a unique thought ID
    */
   static generateThoughtId(): string {
-    return `thought_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `thought_${randomUUID()}`;
   }
 
   /**
    * Generate a unique session ID
    */
   static generateSessionId(): string {
-    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `session_${randomUUID()}`;
   }
 
   /**

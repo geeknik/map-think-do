@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Mutex } from '../utils/mutex.js';
 import { ValidatedThoughtData } from '../server.js';
 import { ReasoningSession } from '../memory/memory-store.js';
@@ -102,7 +103,7 @@ export class StateTracker {
   }
 
   private static generateSessionId(): string {
-    return `session_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    return `session_${randomUUID()}`;
   }
 
   public getState(): CognitiveState {

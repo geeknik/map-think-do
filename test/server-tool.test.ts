@@ -1,7 +1,9 @@
 import assert from 'assert/strict';
-import { MAP_THINK_DO_TOOL, LEGACY_TOOL_NAME } from '../src/server.js';
+import { MAP_THINK_DO_TOOL, LEGACY_TOOL_NAME, validateThoughtData } from '../src/server.js';
 
 export async function runServerToolTests(): Promise<void> {
+  testToolSchemaMatchesRuntimeValidation();
+
   const description = MAP_THINK_DO_TOOL.description ?? '';
 
   assert.equal(
@@ -58,6 +60,40 @@ export async function runServerToolTests(): Promise<void> {
   );
 
   console.log('✅ server-tool tests passed');
+}
+
+function testToolSchemaMatchesRuntimeValidation(): void {
+  const validThought = validateThoughtData({
+    thought: 'Investigate the failure mode before choosing a fix.',
+    thought_number: 1,
+    total_thoughts: 3,
+    next_thought_needed: true,
+  });
+
+  assert.equal(
+    validThought.thought_number,
+    1,
+    'runtime validation should accept valid thought input'
+  );
+
+  assert.throws(
+    () =>
+      validateThoughtData({
+        thought: 'Unexpected input should be rejected.',
+        thought_number: 1,
+        total_thoughts: 1,
+        next_thought_needed: false,
+        unexpected_field: 'reject me',
+      }),
+    /unexpected_field|Unrecognized key/i,
+    'runtime validation should reject unknown input fields'
+  );
+
+  assert.equal(
+    (MAP_THINK_DO_TOOL.inputSchema as Record<string, unknown>).additionalProperties,
+    false,
+    'tool schema should advertise closed input objects'
+  );
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

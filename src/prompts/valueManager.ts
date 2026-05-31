@@ -20,6 +20,9 @@ interface StoredPromptValues {
  * Manages the storage and retrieval of prompt argument values.
  */
 export class PromptValueManager {
+  private static readonly MAX_STORED_VALUE_LENGTH = 4096;
+  private static readonly GLOBAL_PERSISTED_ARGUMENTS = new Set(['working_directory']);
+  private static readonly PROMPT_PERSISTED_ARGUMENTS = new Set(['language']);
   private valuesFilePath: string;
   private values: StoredPromptValues;
 
@@ -81,12 +84,64 @@ export class PromptValueManager {
       }
 
       const fileContent = fs.readFileSync(this.valuesFilePath, 'utf8');
-      return JSON.parse(fileContent) as StoredPromptValues;
+      return this.sanitizeLoadedValues(JSON.parse(fileContent));
     } catch (err) {
       console.error('Error loading prompt values:', err);
       // Return empty default structure on error
       return { global: {}, prompts: {} };
     }
+  }
+
+  private sanitizeLoadedValues(input: unknown): StoredPromptValues {
+    if (!input || typeof input !== 'object') {
+      return { global: {}, prompts: {} };
+    }
+
+    const raw = input as {
+      global?: unknown;
+      prompts?: unknown;
+    };
+
+    const sanitized: StoredPromptValues = {
+      global: this.filterStoredRecord(raw.global, PromptValueManager.GLOBAL_PERSISTED_ARGUMENTS),
+      prompts: {},
+    };
+
+    if (raw.prompts && typeof raw.prompts === 'object' && !Array.isArray(raw.prompts)) {
+      for (const [promptName, promptValues] of Object.entries(raw.prompts)) {
+        sanitized.prompts[promptName] = this.filterStoredRecord(
+          promptValues,
+          PromptValueManager.PROMPT_PERSISTED_ARGUMENTS
+        );
+      }
+    }
+
+    return sanitized;
+  }
+
+  private filterStoredRecord(
+    value: unknown,
+    allowedKeys: ReadonlySet<string>
+  ): Record<string, string> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return {};
+    }
+
+    const sanitized: Record<string, string> = {};
+    for (const [key, entryValue] of Object.entries(value)) {
+      if (!allowedKeys.has(key) || typeof entryValue !== 'string') {
+        continue;
+      }
+
+      const trimmed = entryValue.trim();
+      if (trimmed.length === 0 || trimmed.length > PromptValueManager.MAX_STORED_VALUE_LENGTH) {
+        continue;
+      }
+
+      sanitized[key] = trimmed;
+    }
+
+    return sanitized;
   }
 
   /**
@@ -136,27 +191,52 @@ export class PromptValueManager {
    * @param args The argument values to store
    */
   async updateStoredValues(promptName: string, args: Record<string, string>): Promise<void> {
-    // Extract global values (like working_directory)
-    if (args.working_directory) {
-      this.values.global.working_directory = args.working_directory;
-    }
-
     try {
       // Ensure prompt entry exists
       if (!this.values.prompts[promptName]) {
         this.values.prompts[promptName] = {};
       }
 
-      // Update prompt-specific values (excluding global ones)
       const promptValues = this.values.prompts[promptName];
-      const globalKeys = Object.keys(this.values.global);
-
       Object.entries(args).forEach(([key, value]) => {
-        // Skip global keys and empty values
-        if (!globalKeys.includes(key) && value.trim() !== '') {
-          promptValues[key] = value;
+        const trimmedValue = value.trim();
+        if (
+          trimmedValue === '' ||
+          trimmedValue.length > PromptValueManager.MAX_STORED_VALUE_LENGTH
+        ) {
+          return;
+        }
+
+        if (PromptValueManager.GLOBAL_PERSISTED_ARGUMENTS.has(key)) {
+          this.values.global[key] = trimmedValue;
+          return;
+        }
+
+        if (PromptValueManager.PROMPT_PERSISTED_ARGUMENTS.has(key)) {
+          promptValues[key] = trimmedValue;
+          return;
+        }
+
+        if (key in promptValues) {
+          delete promptValues[key];
         }
       });
+
+      Object.keys(promptValues).forEach(key => {
+        if (!PromptValueManager.PROMPT_PERSISTED_ARGUMENTS.has(key)) {
+          delete promptValues[key];
+        }
+      });
+
+      Object.keys(this.values.global).forEach(key => {
+        if (!PromptValueManager.GLOBAL_PERSISTED_ARGUMENTS.has(key)) {
+          delete this.values.global[key];
+        }
+      });
+
+      if (Object.keys(promptValues).length === 0) {
+        delete this.values.prompts[promptName];
+      }
 
       // Save updated values
       await this.saveValues();

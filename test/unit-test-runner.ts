@@ -6,6 +6,7 @@
 
 import { runCircularBufferTests } from './circular-buffer.test.js';
 import { runErrorBoundaryTests } from './error-boundary.test.js';
+import { runErrorHandlerTests } from './error-handler.test.js';
 import { runSecureLoggerTests } from './secure-logger.test.js';
 import { runStateManagerTests } from './state-manager.test.js';
 import { runTests as runSQLiteStoreTests } from './sqlite-store.test.js';
@@ -17,6 +18,8 @@ import { runPathValidatorTests } from './path-validator.test.js';
 import { runServerToolTests } from './server-tool.test.js';
 import { runReasoningPluginTests } from './reasoning-plugins.test.js';
 import { runInsightDetectorTests } from './insight-detector.test.js';
+import { runPromptManagerTests } from './prompt-manager.test.js';
+import { runServerPromptTests } from './server-prompts.test.js';
 
 interface TestSuite {
   name: string;
@@ -26,6 +29,7 @@ interface TestSuite {
 const testSuites: TestSuite[] = [
   { name: 'CircularBuffer', runner: runCircularBufferTests },
   { name: 'ErrorBoundary', runner: runErrorBoundaryTests },
+  { name: 'ErrorHandler', runner: runErrorHandlerTests },
   { name: 'SecureLogger', runner: runSecureLoggerTests },
   { name: 'StateManager', runner: runStateManagerTests },
   { name: 'PathValidator', runner: runPathValidatorTests },
@@ -33,6 +37,8 @@ const testSuites: TestSuite[] = [
   { name: 'ServerTool', runner: runServerToolTests },
   { name: 'ReasoningPlugins', runner: runReasoningPluginTests },
   { name: 'InsightDetector', runner: runInsightDetectorTests },
+  { name: 'PromptManager', runner: runPromptManagerTests },
+  { name: 'ServerPrompts', runner: runServerPromptTests },
   { name: 'SQLiteStore', runner: runSQLiteStoreTests },
   { name: 'BiasDetector', runner: runBiasDetectorTests },
   { name: 'LearningManager', runner: runLearningManagerTests },

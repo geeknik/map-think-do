@@ -3,13 +3,12 @@
  *
  * This utility provides secure logging capabilities with:
  * - Automatic redaction of sensitive content
- * - Content hashing for non-debug environments
- * - Raw content logging only in debug mode
+ * - Content hashing for correlation without exposing raw payloads
+ * - No raw content logging, even in debug mode
  * - Configurable redaction patterns
  */
 
 import crypto from 'crypto';
-import { configManager } from './config-manager.js';
 
 export enum LogLevel {
   DEBUG = 'debug',
@@ -97,23 +96,13 @@ export class SecureLogger {
     context: LogContext,
     forceRedact: boolean = false
   ): Promise<void> {
-    const isDebugMode = await configManager.getValue('debug');
     const timestamp = new Date().toISOString();
+    const redactionResult = this.redactSensitiveContent(content);
+    const contentWasModified = redactionResult.redacted !== content || forceRedact;
 
-    let loggedContent: string;
-    let contentHash: string | undefined;
-    let redacted = false;
-
-    if (isDebugMode && !forceRedact) {
-      // In debug mode, log raw content unless forced redaction
-      loggedContent = content;
-    } else {
-      // In non-debug mode or forced redaction, redact and hash
-      const redactionResult = this.redactSensitiveContent(content);
-      loggedContent = redactionResult.redacted;
-      contentHash = this.hashContent(content);
-      redacted = true;
-    }
+    const loggedContent = contentWasModified ? redactionResult.redacted : '[CONTENT REDACTED]';
+    const contentHash = this.hashContent(content);
+    const redacted = true;
 
     const logEntry: SecureLogEntry = {
       timestamp,
@@ -193,13 +182,13 @@ export class SecureLogger {
 
     switch (entry.level) {
       case LogLevel.DEBUG:
-        console.debug(`🔍 ${message}`);
+        console.error(`🔍 ${message}`);
         break;
       case LogLevel.INFO:
-        console.info(`ℹ️  ${message}`);
+        console.error(`ℹ️  ${message}`);
         break;
       case LogLevel.WARN:
-        console.warn(`⚠️  ${message}`);
+        console.error(`⚠️  ${message}`);
         break;
       case LogLevel.ERROR:
         console.error(`❌ ${message}`);
@@ -228,7 +217,7 @@ export class SecureLogger {
   }
 
   /**
-   * Log sensitive debugging information (always redacted unless debug mode)
+   * Log sensitive debugging information with forced redaction.
    */
   async logDebugSensitive(
     content: string,
@@ -236,12 +225,16 @@ export class SecureLogger {
     method: string,
     metadata?: Record<string, unknown>
   ): Promise<void> {
-    await this.logSecure(content, {
-      component,
-      method,
-      level: LogLevel.DEBUG,
-      metadata,
-    });
+    await this.logSecure(
+      content,
+      {
+        component,
+        method,
+        level: LogLevel.DEBUG,
+        metadata,
+      },
+      true
+    );
   }
 
   /**
@@ -285,7 +278,8 @@ export class SecureLogger {
   containsSensitiveContent(content: string): boolean {
     // Check patterns
     for (const pattern of SENSITIVE_PATTERNS) {
-      if (pattern.test(content)) {
+      const safePattern = new RegExp(pattern.source, pattern.flags);
+      if (safePattern.test(content)) {
         return true;
       }
     }

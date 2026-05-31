@@ -39,3 +39,5 @@ test/prompt-evaluation/reports/
 # Claude/AI assistant files
 CLAUDE.md
 .claude/
+# Added by code-review-graph
+.code-review-graph/

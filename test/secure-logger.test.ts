@@ -12,6 +12,7 @@ async function runSecureLoggerTests() {
   await testBasicLogging();
   await testContentRedaction();
   await testDebugModeControl();
+  await testDebugSensitiveAlwaysRedacts();
   await testSensitiveContentDetection();
   await testLoggingStatistics();
 
@@ -32,6 +33,9 @@ async function testBasicLogging() {
   assert.strictEqual(logs[0].component, 'TestComponent');
   assert.strictEqual(logs[0].method, 'testMethod');
   assert.strictEqual(logs[0].level, LogLevel.INFO);
+  assert.strictEqual(logs[0].redacted, true);
+  assert.ok(logs[0].contentHash);
+  assert.notStrictEqual(logs[0].message, 'This is a test thought');
 
   console.log('    ✓ Basic logging works correctly');
 }
@@ -65,28 +69,59 @@ async function testDebugModeControl() {
   const logger = SecureLogger.getInstance();
   logger.clearHistory();
 
-  // Test debug mode - should log raw content
+  // Debug mode must not disable redaction for request payloads.
   await configManager.setValue('debug', true);
 
-  const testContent = 'Debug mode test with password: secret123';
-  await logger.logThought(testContent, 'TestComponent', 'testDebug');
+  const safeDebugContent = 'Debug mode safe message';
+  await logger.logThought(safeDebugContent, 'TestComponent', 'testDebugSafe');
 
   const debugLogs = logger.getRecentLogs(1);
-  assert.strictEqual(debugLogs[0].redacted, false);
-  assert.strictEqual(debugLogs[0].message, testContent);
+  assert.strictEqual(debugLogs[0].redacted, true);
+  assert.notStrictEqual(debugLogs[0].message, safeDebugContent);
+  assert.ok(debugLogs[0].contentHash);
+
+  // Sensitive content must still be redacted in debug mode.
+  logger.clearHistory();
+  const sensitiveDebugContent = 'Debug mode test with password: secret123';
+  await logger.logThought(sensitiveDebugContent, 'TestComponent', 'testDebugSensitive');
+
+  const sensitiveDebugLogs = logger.getRecentLogs(1);
+  assert.strictEqual(sensitiveDebugLogs[0].redacted, true);
+  assert.notStrictEqual(sensitiveDebugLogs[0].message, sensitiveDebugContent);
+  assert.ok(sensitiveDebugLogs[0].message.includes('[REDACTED]'));
 
   // Test production mode - should redact
   await configManager.setValue('debug', false);
   logger.clearHistory();
 
-  await logger.logThought(testContent, 'TestComponent', 'testProduction');
+  await logger.logThought(sensitiveDebugContent, 'TestComponent', 'testProduction');
 
   const prodLogs = logger.getRecentLogs(1);
   assert.strictEqual(prodLogs[0].redacted, true);
   // The message should be different from the original (redacted)
-  assert.notStrictEqual(prodLogs[0].message, testContent);
+  assert.notStrictEqual(prodLogs[0].message, sensitiveDebugContent);
 
   console.log('    ✓ Debug mode control works correctly');
+}
+
+async function testDebugSensitiveAlwaysRedacts() {
+  console.log('  Testing forced redaction for sensitive debug logs...');
+
+  const logger = SecureLogger.getInstance();
+  logger.clearHistory();
+  await configManager.setValue('debug', true);
+
+  const sensitiveContent = 'token=abc123def456ghi789abc';
+  await logger.logDebugSensitive(sensitiveContent, 'TestComponent', 'testDebugSensitiveForce');
+
+  const logs = logger.getRecentLogs(1);
+  assert.strictEqual(logs.length, 1);
+  assert.strictEqual(logs[0].redacted, true);
+  assert.notStrictEqual(logs[0].message, sensitiveContent);
+  assert.ok(logs[0].message.includes('[REDACTED]'));
+
+  await configManager.setValue('debug', false);
+  console.log('    ✓ Sensitive debug logging always redacts');
 }
 
 async function testSensitiveContentDetection() {
@@ -112,6 +147,9 @@ async function testSensitiveContentDetection() {
     const detected = logger.containsSensitiveContent(testCase.content);
     assert.strictEqual(detected, testCase.shouldDetect, `Failed for: "${testCase.content}"`);
   }
+
+  const repeatedDetection = logger.containsSensitiveContent('password: mysecret');
+  assert.strictEqual(repeatedDetection, true, 'Sensitive pattern detection should be stable');
 
   console.log('    ✓ Sensitive content detection works correctly');
 }
