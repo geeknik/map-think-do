@@ -3,7 +3,7 @@
  */
 
 import assert from 'assert';
-import { SecureLogger, LogLevel, secureLogger } from '../src/utils/secure-logger.js';
+import { SecureLogger, LogLevel } from '../src/utils/secure-logger.js';
 import { configManager } from '../src/utils/config-manager.js';
 
 async function runSecureLoggerTests() {

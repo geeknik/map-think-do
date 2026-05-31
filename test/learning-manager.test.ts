@@ -481,11 +481,6 @@ async function testShouldAdapt(): Promise<void> {
 async function testPerformAdaptation(): Promise<void> {
   const manager = new LearningManager(0.1);
 
-  let eventFired = false;
-  manager.on('adaptation_performed', () => {
-    eventFired = true;
-  });
-
   // Should not throw even if no adaptation needed
   await manager.performAdaptation();
 

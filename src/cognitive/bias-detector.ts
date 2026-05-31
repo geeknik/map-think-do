@@ -62,14 +62,12 @@ export interface BiasLearningRecord {
 }
 
 export class BiasDetector extends EventEmitter {
-  private memoryStore: SQLiteStore;
   private biasDefinitions: Map<string, BiasDefinition> = new Map();
   private learningRecords: Map<string, BiasLearningRecord> = new Map();
   private recentDetections: BiasDetectionResult[] = [];
 
-  constructor(memoryStore: SQLiteStore) {
+  constructor(_memoryStore: SQLiteStore) {
     super();
-    this.memoryStore = memoryStore;
     this.initializeBiasDefinitions();
   }
 

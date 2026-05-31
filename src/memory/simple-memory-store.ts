@@ -315,38 +315,6 @@ export class SimpleMemoryStore extends MemoryStore {
     this.sessions.clear();
   }
 
-  private getMostCommonDomains(thoughts: StoredThought[]): string[] {
-    const domainCounts = new Map<string, number>();
-
-    thoughts.forEach(t => {
-      if (t.domain) {
-        domainCounts.set(t.domain, (domainCounts.get(t.domain) || 0) + 1);
-      }
-    });
-
-    return Array.from(domainCounts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([domain]) => domain);
-  }
-
-  private getMostCommonPatterns(thoughts: StoredThought[]): string[] {
-    const patternCounts = new Map<string, number>();
-
-    thoughts.forEach(t => {
-      if (t.patterns_detected) {
-        t.patterns_detected.forEach(pattern => {
-          patternCounts.set(pattern, (patternCounts.get(pattern) || 0) + 1);
-        });
-      }
-    });
-
-    return Array.from(patternCounts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([pattern]) => pattern);
-  }
-
   private estimateStorageSize(): number {
     // Rough estimation of memory usage
     let size = 0;

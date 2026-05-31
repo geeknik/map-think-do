@@ -6,7 +6,7 @@
  */
 
 import assert from 'node:assert';
-import { StateManager, UnifiedState } from '../src/state/state-manager.js';
+import { StateManager } from '../src/state/state-manager.js';
 import { StateService } from '../src/state/state-service.js';
 
 /**

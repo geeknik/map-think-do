@@ -20,8 +20,8 @@ export class InsightDetector {
 
   constructor(
     private readonly memoryStore: MemoryStore | undefined,
-    private readonly state: CognitiveState,
-    private readonly performanceMetrics: Map<string, number>
+    _state: CognitiveState,
+    _performanceMetrics: Map<string, number>
   ) {}
 
   public getHistory(): CognitiveInsight[] {

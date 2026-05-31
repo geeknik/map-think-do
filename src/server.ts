@@ -602,31 +602,6 @@ class CodeReasoningServer {
     return `\n${header}\n--- [Content logged securely] ---`;
   }
 
-  private formatThought(t: ValidatedThoughtData): string {
-    const {
-      thought_number,
-      total_thoughts,
-      thought,
-      is_revision,
-      revises_thought,
-      branch_id,
-      branch_from_thought,
-    } = t;
-
-    const header = is_revision
-      ? `🔄 Revision ${thought_number}/${total_thoughts} (of ${revises_thought})`
-      : branch_id
-        ? `🌿 Branch ${thought_number}/${total_thoughts} (from ${branch_from_thought}, id:${branch_id})`
-        : `💭 Thought ${thought_number}/${total_thoughts}`;
-
-    const body = thought
-      .split('\n')
-      .map(l => `  ${l}`)
-      .join('\n');
-
-    return `\n${header}\n---\n${body}\n---`;
-  }
-
   private buildSuccess(
     t: ValidatedThoughtData,
     cognitiveResult?: {

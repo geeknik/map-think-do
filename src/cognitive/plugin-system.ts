@@ -331,7 +331,6 @@ export class CognitivePluginManager extends EventEmitter {
   // Configuration
   private maxConcurrentPlugins: number = 3;
   private adaptivePriority: boolean = true;
-  private learningEnabled: boolean = true;
 
   constructor(
     config: {
@@ -343,7 +342,6 @@ export class CognitivePluginManager extends EventEmitter {
     super();
     this.maxConcurrentPlugins = config.maxConcurrentPlugins ?? 3;
     this.adaptivePriority = config.adaptivePriority ?? true;
-    this.learningEnabled = config.learningEnabled ?? true;
   }
 
   /**

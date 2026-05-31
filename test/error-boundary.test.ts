@@ -3,18 +3,18 @@
  */
 
 import assert from 'assert';
-import {
-  ErrorBoundary,
-  ErrorBoundaryFactory,
-  GlobalErrorBoundary,
-} from '../src/utils/error-boundary.js';
+import { ErrorBoundary, ErrorBoundaryFactory } from '../src/utils/error-boundary.js';
 
 async function runErrorBoundaryTests() {
   console.log('🧪 Running ErrorBoundary tests...');
 
   try {
     await testBasicErrorHandling();
+    await testRetryMechanism();
+    await testCircuitBreaker();
     await testFallbackBehavior();
+    await testTimeoutHandling();
+    await testBatchExecution();
     testErrorBoundaryFactory();
 
     console.log('✅ All ErrorBoundary tests passed');
@@ -185,11 +185,6 @@ function testErrorBoundaryFactory() {
   assert.ok(criticalBoundary instanceof ErrorBoundary);
 
   console.log('    ✓ ErrorBoundaryFactory works correctly');
-}
-
-// Helper function to delay execution
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // Run tests if called directly

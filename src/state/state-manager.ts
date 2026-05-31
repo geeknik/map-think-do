@@ -113,7 +113,6 @@ export class StateManager extends EventEmitter {
   private stateHistory: Array<{ state: Partial<UnifiedState>; timestamp: Date }> = [];
   private persistenceOptions: StatePersistenceOptions;
   private saveTimer?: NodeJS.Timeout;
-  private readonly MAX_HISTORY_SIZE = 100;
 
   constructor(
     initialState?: Partial<UnifiedState>,

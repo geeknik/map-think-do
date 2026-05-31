@@ -91,16 +91,6 @@ export class MetacognitivePlugin extends CognitivePlugin {
     },
   ];
 
-  private readonly biasDetectors = [
-    'anchoring',
-    'availability',
-    'confirmation',
-    'overconfidence',
-    'planning_fallacy',
-    'sunk_cost',
-    'representativeness',
-  ];
-
   constructor() {
     super(
       'metacognitive',

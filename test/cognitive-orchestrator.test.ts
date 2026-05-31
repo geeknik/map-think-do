@@ -688,9 +688,6 @@ async function testReset(): Promise<void> {
   const stateBeforeReset = orchestrator.getCognitiveState();
   assert.strictEqual(stateBeforeReset.thought_count, 3, 'Should have 3 thoughts before reset');
 
-  // Record intervention/insight history sizes before reset
-  const insightsBefore = orchestrator.getInsightHistory().length;
-
   await orchestrator.reset();
 
   // Reset clears local buffers (intervention history, insight history, thought output)
@@ -898,7 +895,7 @@ async function testUrgencyRecommendations(): Promise<void> {
     thought: 'This is urgent and critical - we need an immediate solution ASAP',
   });
 
-  const result = await orchestrator.processThought(urgentThought);
+  await orchestrator.processThought(urgentThought);
   // Should complete without error - urgency is handled internally
 
   await orchestrator.dispose();
