@@ -565,8 +565,11 @@ class CodeReasoningServer {
    * Initialize the cognitive orchestrator with dependency injection
    */
   async initialize(): Promise<void> {
-    // Initialize cognitive orchestrator with dependency injection
+    // Initialize cognitive orchestrator with dependency injection.
+    // Share the server's SQLiteStore so the orchestrator persists to the same
+    // durable database (single source of truth) rather than an in-memory store.
     this.cognitiveOrchestrator = await createCognitiveOrchestrator({
+      memoryStore: this.memoryStore,
       config: {
         max_concurrent_interventions: 5,
         intervention_cooldown_ms: 500,
@@ -817,37 +820,9 @@ class CodeReasoningServer {
         branch_count: this.branches.size,
       });
 
-      // Store thought in memory with cognitive enrichment
-      const storedThought: StoredThought = {
-        id: this.generateThoughtId(),
-        thought: data.thought,
-        thought_number: data.thought_number,
-        total_thoughts: data.total_thoughts,
-        next_thought_needed: data.next_thought_needed,
-        is_revision: data.is_revision,
-        revises_thought: data.revises_thought,
-        branch_from_thought: data.branch_from_thought,
-        branch_id: data.branch_id,
-        needs_more_thoughts: data.needs_more_thoughts,
-        timestamp: new Date(),
-        session_id: this.currentSessionId,
-        confidence:
-          cognitiveResult.cognitiveState.confidence_trajectory[
-            cognitiveResult.cognitiveState.confidence_trajectory.length - 1
-          ],
-        domain: this.inferDomain(data),
-        objective: this.inferObjective(data),
-        complexity: cognitiveResult.cognitiveState.current_complexity,
-        context: {
-          cognitive_load: cognitiveResult.cognitiveState.current_complexity,
-          problem_type: this.inferProblemType(data),
-        },
-        output: cognitiveResult.interventions.map(i => i.content).join('\n'),
-        tags: this.generateTags(data, cognitiveResult),
-        outcome_quality: this.assessOutcomeQuality(cognitiveResult),
-      };
-
-      await this.memoryStore.storeThought(storedThought);
+      // Thought persistence is owned by the cognitive orchestrator, which writes
+      // the enriched thought to the shared SQLiteStore (single source of truth)
+      // under this.currentSessionId. See initialize().
 
       // Stats & storage -----------------------------------------------------
       // Use mutex to prevent race conditions in shared state mutations
@@ -1029,10 +1004,6 @@ class CodeReasoningServer {
   /**
    * Helper methods for cognitive processing
    */
-  private generateThoughtId(): string {
-    return `thought_${randomUUID()}`;
-  }
-
   private inferObjective(data: ValidatedThoughtData): string {
     // Simple objective inference based on thought content
     if (
@@ -1075,35 +1046,6 @@ class CodeReasoningServer {
       return 'data_management';
     }
     return 'general';
-  }
-
-  private inferProblemType(data: ValidatedThoughtData): string {
-    if (data.is_revision) return 'revision';
-    if (data.branch_id) return 'exploration';
-    if (data.thought_number === 1) return 'initial_analysis';
-    return 'progressive_reasoning';
-  }
-
-  private generateTags(data: ValidatedThoughtData, cognitiveResult: any): string[] {
-    const tags = [];
-
-    if (data.is_revision) tags.push('revision');
-    if (data.branch_id) tags.push('branching');
-    if (cognitiveResult.insights.length > 0) tags.push('insightful');
-    if (cognitiveResult.cognitiveState.breakthrough_likelihood > 0.7)
-      tags.push('breakthrough_potential');
-    if (cognitiveResult.cognitiveState.creative_pressure > 0.6) tags.push('creative');
-    if (cognitiveResult.cognitiveState.metacognitive_awareness > 0.7) tags.push('metacognitive');
-
-    return tags;
-  }
-
-  private assessOutcomeQuality(cognitiveResult: any): 'excellent' | 'good' | 'fair' | 'poor' {
-    const score = cognitiveResult.cognitiveState.cognitive_efficiency;
-    if (score > 0.8) return 'excellent';
-    if (score > 0.6) return 'good';
-    if (score > 0.4) return 'fair';
-    return 'poor';
   }
 
   /**
