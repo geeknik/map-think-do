@@ -79,7 +79,7 @@ import {
 import { ActionRanking, CognitiveOrchestrator } from './cognitive/cognitive-orchestrator.js';
 import { createCognitiveOrchestrator } from './cognitive/cognitive-orchestrator-factory.js';
 import { Mutex } from './utils/mutex.js';
-import { StoredThought } from './memory/memory-store.js';
+import { StoredThought, ReasoningSession } from './memory/memory-store.js';
 import { SQLiteStore } from './memory/sqlite-store.js';
 import { BiasDetector } from './cognitive/bias-detector.js';
 import { secureLogger } from './utils/secure-logger.js';
@@ -866,6 +866,11 @@ class CodeReasoningServer {
         }
       });
 
+      // Persist the session row so the sessions table is the single source of
+      // truth for session-level data (and the outcomes->sessions FK is satisfied
+      // natively). Best-effort — runs after stats so counts are current.
+      await this.persistCurrentSession(data, cognitiveResult);
+
       // Enhanced logging with cognitive insights (secure)
       console.error(await this.formatThoughtSecure(data));
       console.error('🧠 Cognitive Summary:', {
@@ -1001,6 +1006,52 @@ class CodeReasoningServer {
    * foreign key to sessions). Creates a minimal row from the latest thought if
    * absent; never overwrites an existing session.
    */
+  /**
+   * Upsert the current reasoning session so the sessions table is the single
+   * source of truth for session-level data and the outcomes->sessions FK is
+   * satisfied natively. Server-owned fields (counts, confidence) are refreshed
+   * each thought; objective/domain/start_time are set once; any enrichment on an
+   * existing row is preserved by merging. Best-effort: logged, never throws.
+   */
+  private async persistCurrentSession(
+    data: ValidatedThoughtData,
+    cognitiveResult: { cognitiveState: { confidence_trajectory: number[] } }
+  ): Promise<void> {
+    try {
+      const existing = await this.memoryStore.getSession(this.currentSessionId);
+      const trajectory = cognitiveResult.cognitiveState.confidence_trajectory;
+      const confidenceLevel = trajectory.length ? trajectory[trajectory.length - 1] : 0.5;
+
+      const base: ReasoningSession = existing ?? {
+        id: this.currentSessionId,
+        start_time: this.sessionStartedAt,
+        objective: this.inferObjective(data),
+        goal_achieved: false,
+        confidence_level: confidenceLevel,
+        total_thoughts: 0,
+        revision_count: 0,
+        branch_count: 0,
+      };
+
+      await this.memoryStore.storeSession({
+        ...base,
+        id: this.currentSessionId,
+        start_time: existing?.start_time ?? this.sessionStartedAt,
+        objective: existing?.objective ?? this.inferObjective(data),
+        domain: existing?.domain ?? this.inferDomain(data),
+        confidence_level: confidenceLevel,
+        total_thoughts: this.thoughtHistory.length,
+        revision_count: this.revisionCount,
+        branch_count: this.branches.size,
+      });
+    } catch (err) {
+      console.error('Failed to persist session', {
+        sessionId: this.currentSessionId,
+        error: (err as Error).message,
+      });
+    }
+  }
+
   private async ensureSessionPersisted(sessionId: string, latest: StoredThought): Promise<void> {
     const existing = await this.memoryStore.getSession(sessionId);
     if (existing) {
