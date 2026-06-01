@@ -448,10 +448,9 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
     // Update temporal horizon based on consciousness level
     this.state.temporal_horizon = Math.floor(300 + this.state.consciousness_level * 600); // 5-15 minutes
 
-    // Clean up old predictions
-    this.temporalPredictions = this.temporalPredictions.filter(
-      p => Date.now() - p.timeframe < 900000 // Keep for 15 minutes
-    );
+    // Clean up predictions whose target time has already passed. (timeframe is
+    // an absolute future timestamp set at creation, so keep only future ones.)
+    this.temporalPredictions = this.temporalPredictions.filter(p => p.timeframe > Date.now());
   }
 
   /**
@@ -498,10 +497,9 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
       this.ethicalEvaluations.push(evaluation);
     }
 
-    // Update ethical alignment based on evaluations
-    const recentEvaluations = this.ethicalEvaluations.filter(
-      e => Date.now() - e.scenario.length < 300000 // Rough time filter
-    );
+    // Update ethical alignment based on the most recent evaluations. (Use a
+    // bounded recency window; EthicalEvaluation carries no timestamp to filter on.)
+    const recentEvaluations = this.ethicalEvaluations.slice(-10);
 
     if (recentEvaluations.length > 0) {
       const avgAlignment =

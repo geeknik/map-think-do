@@ -302,6 +302,20 @@ function summarizePromptArgsForLogging(args: Record<string, string>): {
   };
 }
 
+/**
+ * Distinguish caller-input errors (missing/invalid args, unknown prompt) from
+ * genuine internal errors. Client errors describe the request — not server
+ * internals or secrets — so it is safe and useful to surface their message.
+ */
+function isPromptClientError(message: string): boolean {
+  return (
+    message.startsWith('Prompt not found:') ||
+    message.startsWith('Validation errors:') ||
+    message.startsWith('Invalid prompt arguments:') ||
+    message.startsWith('Invalid value for argument')
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /*                        STDIO TRANSPORT WITH FILTERING                      */
 /* -------------------------------------------------------------------------- */
@@ -1274,6 +1288,14 @@ export async function runServer(debugFlag = false): Promise<void> {
           ...summarizePromptArgsForLogging(args),
           error: e.message,
         });
+        if (err instanceof McpError) {
+          throw err;
+        }
+        // Surface caller-input errors so the client can correct the request;
+        // keep genuinely-internal failures generic.
+        if (isPromptClientError(e.message)) {
+          throw new McpError(ErrorCode.InvalidParams, e.message);
+        }
         throw new McpError(ErrorCode.InternalError, GENERIC_PROMPT_ERROR_MESSAGE);
       }
     });

@@ -151,12 +151,27 @@ export class MCPIntegrationManager extends EventEmitter {
   }
 
   /**
+   * Read the external server config, failing closed to an empty config if the
+   * file is missing or contains malformed JSON (it is user-editable).
+   */
+  private readServerConfigSafe(): ExternalServerConfig {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(this.configPath, 'utf-8')) as ExternalServerConfig;
+      if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.servers)) {
+        return { servers: [] };
+      }
+      return parsed;
+    } catch {
+      return { servers: [] };
+    }
+  }
+
+  /**
    * Add a new MCP server configuration and connect
    */
   async addServer(serverConfig: MCPServerConfig): Promise<string> {
     // Add to config file
-    const configContent = fs.readFileSync(this.configPath, 'utf-8');
-    const config: ExternalServerConfig = JSON.parse(configContent);
+    const config = this.readServerConfigSafe();
 
     // Check if server already exists
     const exists = config.servers.some(s => s.name === serverConfig.name);
@@ -178,8 +193,7 @@ export class MCPIntegrationManager extends EventEmitter {
    */
   async removeServer(serverName: string): Promise<void> {
     // Remove from config file
-    const configContent = fs.readFileSync(this.configPath, 'utf-8');
-    const config: ExternalServerConfig = JSON.parse(configContent);
+    const config = this.readServerConfigSafe();
     config.servers = config.servers.filter(s => s.name !== serverName);
     fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2));
 
