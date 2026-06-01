@@ -550,6 +550,76 @@ async function testCleanupOldThoughts(): Promise<void> {
   console.log('  ✓ Cleanup old thoughts');
 }
 
+async function testPruneThoughts(): Promise<void> {
+  const sessionId = `prune_session_${Date.now()}`;
+  await store.storeSession(createTestSession({ id: sessionId }));
+
+  const lowSignal = createTestThought({
+    id: `prune_low_${Date.now()}`,
+    session_id: sessionId,
+    success: false,
+    effectiveness_score: 0,
+  });
+  const successful = createTestThought({
+    id: `prune_success_${Date.now()}`,
+    session_id: sessionId,
+    success: true,
+    effectiveness_score: 0,
+  });
+  const highEff = createTestThought({
+    id: `prune_eff_${Date.now()}`,
+    session_id: sessionId,
+    success: false,
+    effectiveness_score: 0.95,
+  });
+  const withOutcome = createTestThought({
+    id: `prune_outcome_${Date.now()}`,
+    session_id: sessionId,
+    success: false,
+    effectiveness_score: 0,
+  });
+
+  await store.storeThought(lowSignal);
+  await store.storeThought(successful);
+  await store.storeThought(highEff);
+  await store.storeThought(withOutcome);
+
+  // Record a low-scoring outcome so withOutcome stays success=0 but is protected
+  // purely by the outcomes reference (and would otherwise violate the FK).
+  store.recordOutcome({
+    id: `prune_outcome_rec_${Date.now()}`,
+    thought_id: withOutcome.id,
+    session_id: sessionId,
+    prediction: '',
+    predicted_confidence: 0.5,
+    actual_outcome: 'failure',
+    outcome_score: 0.2,
+    recorded_at: new Date(),
+    domain: 'testing',
+  });
+
+  // maxThoughts=0 disables recency protection, isolating the signal-based rules.
+  const pruned = store.pruneThoughts(0);
+  assert.ok(pruned >= 1, 'Should prune at least the low-signal thought');
+
+  assert.strictEqual(
+    await store.getThought(lowSignal.id),
+    null,
+    'Low-signal thought should be pruned'
+  );
+  assert.ok(await store.getThought(successful.id), 'Successful thought should be retained');
+  assert.ok(await store.getThought(highEff.id), 'High-effectiveness thought should be retained');
+  assert.ok(
+    await store.getThought(withOutcome.id),
+    'Outcome-referenced thought should be retained (FK-safe)'
+  );
+
+  // Under the cap → no-op.
+  assert.strictEqual(store.pruneThoughts(1_000_000), 0, 'Should not prune when under the cap');
+
+  console.log('  ✓ Outcome-weighted prune retains high-signal thoughts');
+}
+
 // ============================================================================
 // Test Runner
 // ============================================================================
@@ -586,6 +656,7 @@ async function runTests(): Promise<void> {
 
     console.log('\nCleanup:');
     await testCleanupOldThoughts();
+    await testPruneThoughts();
 
     console.log('\n✅ All SQLiteStore tests passed!\n');
   } catch (error) {

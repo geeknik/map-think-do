@@ -524,6 +524,9 @@ class CodeReasoningServer {
   private currentSessionId: string;
   private readonly sessionStartedAt: Date;
   private readonly thoughtMutex = new Mutex();
+  // Retention: run an outcome-weighted prune every N processed thoughts.
+  private static readonly PRUNE_CHECK_EVERY = 100;
+  private thoughtsSincePrune = 0;
 
   /**
    * Get the cognitive orchestrator instance for cleanup
@@ -610,6 +613,13 @@ class CodeReasoningServer {
       sessionId: this.currentSessionId,
       capabilities: 'MULTI_PERSONA + BIAS_DETECTION + EXTERNAL_TOOLS',
     });
+
+    // Bound durable memory growth across restarts: prune low-signal aged
+    // thoughts at startup (aggregates and high-signal thoughts are retained).
+    const prunedAtStartup = this.memoryStore.pruneThoughts();
+    if (prunedAtStartup > 0) {
+      console.error(`🧹 Pruned ${prunedAtStartup} low-signal thought(s) from durable memory`);
+    }
   }
 
   /**
@@ -823,6 +833,15 @@ class CodeReasoningServer {
       // Thought persistence is owned by the cognitive orchestrator, which writes
       // the enriched thought to the shared SQLiteStore (single source of truth)
       // under this.currentSessionId. See initialize().
+
+      // Periodically bound durable memory growth (outcome-weighted retention).
+      if (++this.thoughtsSincePrune >= CodeReasoningServer.PRUNE_CHECK_EVERY) {
+        this.thoughtsSincePrune = 0;
+        const pruned = this.memoryStore.pruneThoughts();
+        if (pruned > 0) {
+          console.error(`🧹 Pruned ${pruned} low-signal thought(s) from durable memory`);
+        }
+      }
 
       // Stats & storage -----------------------------------------------------
       // Use mutex to prevent race conditions in shared state mutations

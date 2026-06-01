@@ -61,6 +61,10 @@ export interface LearningPattern {
 
 export class SQLiteStore extends MemoryStore {
   private static readonly CURRENT_SCHEMA_VERSION = 1;
+  // Outcome-weighted retention defaults. Aggregates (patterns, calibration,
+  // outcomes) are never pruned; only low-signal raw thoughts beyond the cap.
+  private static readonly DEFAULT_MAX_RETAINED_THOUGHTS = 10000;
+  private static readonly MIN_EFFECTIVENESS_TO_RETAIN = 0.7;
   private static readonly LEGACY_THOUGHT_COLUMN_MIGRATIONS: Record<string, string> = {
     is_revision: 'INTEGER DEFAULT 0',
     revises_thought: 'INTEGER',
@@ -534,6 +538,52 @@ export class SQLiteStore extends MemoryStore {
     `
       )
       .run(olderThan.toISOString());
+
+    return result.changes;
+  }
+
+  /**
+   * Outcome-weighted retention. When the thoughts table exceeds `maxThoughts`,
+   * delete the oldest low-signal thoughts to bound growth. Never deletes:
+   *  - thoughts referenced by a recorded outcome (high signal; also FK-protected),
+   *  - successful or high-effectiveness thoughts,
+   *  - the most recent `maxThoughts` thoughts.
+   *
+   * Aggregates (learning_patterns, confidence_calibration, outcomes) are never
+   * touched, and the FTS index is kept in sync by the AFTER DELETE trigger.
+   * Protected thoughts take priority over the cap, so the table may stay above
+   * `maxThoughts` if most thoughts are high-signal. Returns the number pruned.
+   */
+  pruneThoughts(
+    maxThoughts: number = SQLiteStore.DEFAULT_MAX_RETAINED_THOUGHTS,
+    minEffectivenessToKeep: number = SQLiteStore.MIN_EFFECTIVENESS_TO_RETAIN
+  ): number {
+    const safeMax = Math.max(0, Math.floor(maxThoughts));
+    const total = (
+      this.db.prepare('SELECT COUNT(*) AS count FROM thoughts').get() as { count: number }
+    ).count;
+
+    const excess = total - safeMax;
+    if (excess <= 0) {
+      return 0;
+    }
+
+    const result = this.db
+      .prepare(
+        `
+      DELETE FROM thoughts
+      WHERE id IN (
+        SELECT id FROM thoughts
+        WHERE COALESCE(success, 0) = 0
+          AND COALESCE(effectiveness_score, 0) < ?
+          AND id NOT IN (SELECT thought_id FROM outcomes)
+          AND id NOT IN (SELECT id FROM thoughts ORDER BY timestamp DESC LIMIT ?)
+        ORDER BY timestamp ASC
+        LIMIT ?
+      )
+    `
+      )
+      .run(minEffectivenessToKeep, safeMax, excess);
 
     return result.changes;
   }
