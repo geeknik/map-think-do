@@ -120,6 +120,10 @@ export class StateManager extends EventEmitter {
   ) {
     super();
 
+    // Allow the expected fan-out of state subscribers (adapters, orchestrator,
+    // path subscribers) without spurious MaxListenersExceededWarning.
+    this.setMaxListeners(50);
+
     this.persistenceOptions = {
       autoSave: true,
       saveInterval: 30000, // 30 seconds

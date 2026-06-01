@@ -241,15 +241,20 @@ export class DynamicPluginLoader extends EventEmitter {
       throw new Error(`No manifest.json found in ${pluginPath}`);
     }
 
-    // Read and parse manifest
+    // Read and parse manifest (fail clearly on malformed JSON)
     const manifestContent = fs.readFileSync(manifestPath, 'utf-8');
-    const manifest: PluginManifest = JSON.parse(manifestContent);
+    let manifest: PluginManifest;
+    try {
+      manifest = JSON.parse(manifestContent) as PluginManifest;
+    } catch {
+      throw new Error(`Invalid JSON in manifest: ${manifestPath}`);
+    }
 
     // Validate manifest
     this.validateManifest(manifest);
 
     // Check if plugin is already loaded with same hash
-    const currentHash = this.calculatePluginHash(pluginPath);
+    const currentHash = this.calculatePluginHash(pluginPath, manifest);
     const existingPlugin = this.plugins.get(manifest.id);
     if (existingPlugin && existingPlugin.hash === currentHash) {
       return manifest.id; // No changes, skip reload
@@ -332,6 +337,10 @@ export class DynamicPluginLoader extends EventEmitter {
    * Validate plugin manifest
    */
   private validateManifest(manifest: PluginManifest): void {
+    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+      throw new Error('Manifest must be a JSON object');
+    }
+
     const required = ['id', 'name', 'version', 'main', 'capabilities'];
     for (const field of required) {
       if (!(field in manifest)) {
@@ -339,11 +348,11 @@ export class DynamicPluginLoader extends EventEmitter {
       }
     }
 
-    if (!/^[a-z0-9-]+$/.test(manifest.id)) {
+    if (typeof manifest.id !== 'string' || !/^[a-z0-9-]+$/.test(manifest.id)) {
       throw new Error('Plugin ID must contain only lowercase letters, numbers, and hyphens');
     }
 
-    if (!manifest.main.endsWith('.js')) {
+    if (typeof manifest.main !== 'string' || !manifest.main.endsWith('.js')) {
       throw new Error('Plugin main file must be a .js file');
     }
   }
@@ -351,7 +360,7 @@ export class DynamicPluginLoader extends EventEmitter {
   /**
    * Calculate hash of plugin directory for change detection
    */
-  private calculatePluginHash(pluginPath: string): string {
+  private calculatePluginHash(pluginPath: string, manifest: PluginManifest): string {
     const hash = crypto.createHash('md5');
 
     const addFile = (filePath: string) => {
@@ -361,9 +370,8 @@ export class DynamicPluginLoader extends EventEmitter {
       }
     };
 
-    // Hash manifest and main file
+    // Hash manifest and main file (manifest already parsed/validated by caller)
     addFile(path.join(pluginPath, 'manifest.json'));
-    const manifest = JSON.parse(fs.readFileSync(path.join(pluginPath, 'manifest.json'), 'utf-8'));
     addFile(path.join(pluginPath, manifest.main));
 
     return hash.digest('hex');

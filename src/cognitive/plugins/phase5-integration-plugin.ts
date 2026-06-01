@@ -359,7 +359,10 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
    * Process recursive prompts
    */
   private processRecursivePrompts(): void {
-    for (const prompt of this.recursivePrompts) {
+    // Snapshot first: generateRecursivePrompt() pushes to this.recursivePrompts,
+    // so iterating the live array would process newly-created prompts in the
+    // same tick and compound work unboundedly within one cycle.
+    for (const prompt of [...this.recursivePrompts]) {
       if (prompt.depth < 3 && Math.random() < 0.2) {
         // 20% chance to recurse
         const response = this.generateRecursiveResponse(prompt);
@@ -906,17 +909,21 @@ export class Phase5IntegrationPlugin extends CognitivePlugin {
   ): Promise<void> {
     // Update metrics based on feedback
     this.metrics.activation_count++;
+    const n = this.metrics.activation_count;
+    const successValue = outcome === 'success' ? 1 : outcome === 'partial' ? 0.5 : 0;
+
+    // Count-weighted running averages (each sample weighted equally over the
+    // plugin's lifetime), rather than a halving average that only reflected the
+    // last one or two feedbacks.
+    this.metrics.success_rate += (successValue - this.metrics.success_rate) / n;
+    this.metrics.average_impact_score += (impact_score - this.metrics.average_impact_score) / n;
 
     if (outcome === 'success') {
-      this.metrics.success_rate = (this.metrics.success_rate + 1) / 2;
       this.state.consciousness_level = Math.min(1.0, this.state.consciousness_level + 0.05);
       this.state.quantum_coherence = Math.min(1.0, this.state.quantum_coherence + 0.02);
     } else if (outcome === 'failure') {
-      this.metrics.success_rate = this.metrics.success_rate * 0.9;
       this.state.consciousness_level = Math.max(0.1, this.state.consciousness_level - 0.02);
     }
-
-    this.metrics.average_impact_score = (this.metrics.average_impact_score + impact_score) / 2;
 
     // Emit feedback event for learning
     this.emit('feedback_received', {

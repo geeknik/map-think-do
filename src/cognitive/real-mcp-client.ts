@@ -9,7 +9,6 @@
  */
 
 import { EventEmitter } from 'events';
-import { spawn, ChildProcess } from 'child_process';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
@@ -25,7 +24,6 @@ export interface ConnectedServer {
   config: MCPServerConfig;
   client: Client;
   transport: StdioClientTransport;
-  process: ChildProcess;
   capabilities: ServerCapabilities;
   tools: ToolDefinition[];
   resources: ResourceDefinition[];
@@ -84,6 +82,7 @@ export interface ToolCallResult {
 export class RealMCPClient extends EventEmitter {
   private servers: Map<string, ConnectedServer> = new Map();
   private healthCheckInterval: NodeJS.Timeout | null = null;
+  private healthCheckRunning = false;
 
   constructor() {
     super();
@@ -98,18 +97,14 @@ export class RealMCPClient extends EventEmitter {
     try {
       this.emit('server_connecting', { serverId, config });
 
-      // Spawn the server process
-      const serverProcess = spawn(config.command, config.args, {
-        env: { ...process.env, ...config.env },
-        cwd: config.cwd,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-
-      // Create transport and client
+      // Create transport and client. StdioClientTransport spawns and owns the
+      // child process; its close() terminates it, so no separate spawn is needed
+      // (a separate spawn would leak an orphaned process per connection).
       const transport = new StdioClientTransport({
         command: config.command,
         args: config.args,
         env: config.env,
+        cwd: config.cwd,
       });
 
       const client = new Client(
@@ -136,7 +131,6 @@ export class RealMCPClient extends EventEmitter {
         config,
         client,
         transport,
-        process: serverProcess,
         capabilities: {
           tools: !!serverInfo?.tools,
           resources: !!serverInfo?.resources,
@@ -454,7 +448,6 @@ export class RealMCPClient extends EventEmitter {
 
     try {
       await server.client.close();
-      server.process.kill();
       server.status = 'disconnected';
       this.emit('server_disconnected', { serverId });
     } catch (error) {
@@ -514,18 +507,26 @@ export class RealMCPClient extends EventEmitter {
     }
 
     this.healthCheckInterval = setInterval(async () => {
-      for (const [serverId, server] of this.servers) {
-        if (server.status === 'connected') {
-          try {
-            // Try a lightweight operation to check health
-            await server.client.listTools();
-            this.emit('health_check_passed', { serverId });
-          } catch {
-            server.status = 'error';
-            server.lastError = 'Health check failed';
-            this.emit('health_check_failed', { serverId });
+      // Skip if the previous pass is still running (a slow/hung server must not
+      // let overlapping passes accumulate pending listTools() calls).
+      if (this.healthCheckRunning) return;
+      this.healthCheckRunning = true;
+      try {
+        for (const [serverId, server] of this.servers) {
+          if (server.status === 'connected') {
+            try {
+              // Try a lightweight operation to check health
+              await server.client.listTools();
+              this.emit('health_check_passed', { serverId });
+            } catch {
+              server.status = 'error';
+              server.lastError = 'Health check failed';
+              this.emit('health_check_failed', { serverId });
+            }
           }
         }
+      } finally {
+        this.healthCheckRunning = false;
       }
     }, intervalMs);
   }

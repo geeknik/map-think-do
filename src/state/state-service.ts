@@ -368,7 +368,7 @@ export class StateService implements Disposable {
     if (cognitive.frustration_level > 0.8 || cognitive.self_doubt_level > 0.8) {
       return 'critical';
     } else if (
-      cognitive.confidence_trajectory.slice(-1)[0] < 0.3 ||
+      (cognitive.confidence_trajectory?.slice(-1)[0] ?? 0.5) < 0.3 ||
       cognitive.engagement_level < 0.3
     ) {
       return 'degraded';
