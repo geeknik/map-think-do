@@ -171,6 +171,30 @@ const THOUGHT_DATA_JSON_SCHEMA = Object.freeze(
   zodToJsonSchema(ThoughtDataSchema, { target: 'jsonSchema7' }) as Record<string, unknown>
 );
 
+/**
+ * Schema for outcome feedback on a prior reasoning session. Closes the learning
+ * loop: clients report how a session actually turned out so the server can
+ * calibrate confidence and learn from real outcomes.
+ */
+const FeedbackDataSchema = z
+  .object({
+    session_id: z.string().trim().min(1).max(200),
+    outcome: z.enum(['success', 'failure', 'partial']),
+    score: z.number().min(0).max(1),
+    comment: z.string().trim().max(2000).optional(),
+  })
+  .strict();
+
+export type ValidatedFeedbackData = z.infer<typeof FeedbackDataSchema>;
+
+export function validateFeedbackData(input: unknown): ValidatedFeedbackData {
+  return FeedbackDataSchema.parse(input);
+}
+
+const FEEDBACK_DATA_JSON_SCHEMA = Object.freeze(
+  zodToJsonSchema(FeedbackDataSchema, { target: 'jsonSchema7' }) as Record<string, unknown>
+);
+
 /* -------------------------------------------------------------------------- */
 /*                                  TOOL DEF                                  */
 /* -------------------------------------------------------------------------- */
@@ -239,6 +263,29 @@ structured reasoning with multiple cognitive perspectives, persisted state, and 
 
 // Deprecated export retained for compatibility with existing internal imports/tests.
 export const CODE_REASONING_TOOL = MAP_THINK_DO_TOOL;
+
+export const MAP_THINK_DO_FEEDBACK_TOOL_NAME = 'map-think-do-feedback';
+
+export const MAP_THINK_DO_FEEDBACK_TOOL: Tool = {
+  name: MAP_THINK_DO_FEEDBACK_TOOL_NAME,
+  description: `📈 Report the real-world outcome of a Map. Think. Do. reasoning session so the
+server can learn from it — confidence calibration, strategy selection, and pattern learning all
+depend on this signal.
+
+Call this once you know how a prior reasoning session actually turned out, using the session_id
+returned in that session's map-think-do responses.
+
+📋 PARAMETERS:
+- session_id: The session_id returned by a prior map-think-do response
+- outcome: 'success' | 'failure' | 'partial'
+- score: How well it turned out, 0.0 (worst) to 1.0 (best)
+- comment: Optional short note on what happened`,
+  inputSchema: FEEDBACK_DATA_JSON_SCHEMA as any, // SDK expects unknown JSON schema shape
+  annotations: {
+    title: 'Map. Think. Do. — Feedback',
+    readOnlyHint: false,
+  },
+};
 
 function isSupportedToolName(name: string): boolean {
   return name === MAP_THINK_DO_TOOL_NAME || name === LEGACY_TOOL_NAME;
@@ -632,6 +679,7 @@ class CodeReasoningServer {
 
     const payload = {
       status: 'processed',
+      session_id: this.currentSessionId,
       thought_number: t.thought_number,
       total_thoughts: t.total_thoughts,
       next_thought_needed: t.next_thought_needed,
@@ -866,6 +914,116 @@ class CodeReasoningServer {
       // Handle unknown errors with smart recovery guidance
       return this.buildToolError(GENERIC_PROCESSING_ERROR_MESSAGE);
     }
+  }
+
+  /**
+   * Record outcome feedback for a prior reasoning session, closing the learning
+   * loop (confidence calibration, state calibration, pattern learning).
+   */
+  public async processFeedback(input: unknown): Promise<ServerResult> {
+    try {
+      const data = validateFeedbackData(input);
+
+      // Persist the outcome to the durable SQLite store so it feeds confidence
+      // calibration (read back via getCalibratedConfidence) and learning patterns.
+      const outcomePersisted = await this.recordOutcomeForSession(data);
+
+      // Apply the feedback signal to the live cognitive state.
+      this.cognitiveOrchestrator.recordReasoningOutcome({
+        sessionId: data.session_id,
+        outcome: data.outcome,
+        outcomeScore: data.score,
+      });
+
+      const payload = {
+        status: 'feedback_recorded',
+        session_id: data.session_id,
+        outcome: data.outcome,
+        score: data.score,
+        outcome_persisted: outcomePersisted,
+      } as const;
+
+      return {
+        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+        isError: false,
+      };
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return this.buildToolError(this.buildValidationGuidance(err.errors));
+      }
+      if (err instanceof McpError) {
+        throw err;
+      }
+      return this.buildToolError(GENERIC_PROCESSING_ERROR_MESSAGE);
+    }
+  }
+
+  /**
+   * Persist an outcome against the most recent stored thought of the given
+   * session, driving confidence calibration and learning-pattern updates.
+   * Returns whether an outcome row was written. Best-effort: never throws.
+   */
+  private async recordOutcomeForSession(data: ValidatedFeedbackData): Promise<boolean> {
+    try {
+      const recent = await this.memoryStore.queryThoughts({
+        session_ids: [data.session_id],
+        limit: 1,
+        sort_by: 'timestamp',
+        sort_order: 'desc',
+      });
+      const latest = recent[0];
+      if (!latest) {
+        return false;
+      }
+
+      // The outcomes table references sessions(id), but the server persists
+      // thoughts without a session row — backfill it so the FK is satisfied.
+      await this.ensureSessionPersisted(data.session_id, latest);
+
+      this.memoryStore.recordOutcome({
+        id: randomUUID(),
+        thought_id: latest.id,
+        session_id: data.session_id,
+        prediction: latest.objective ?? '',
+        predicted_confidence: latest.confidence ?? 0.5,
+        actual_outcome: data.outcome,
+        outcome_score: data.score,
+        feedback: data.comment,
+        recorded_at: new Date(),
+        domain: latest.domain,
+      });
+      return true;
+    } catch (err) {
+      console.error('Failed to persist reasoning outcome', {
+        sessionId: data.session_id,
+        error: (err as Error).message,
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Ensure a session row exists for the given id (the outcomes table has a
+   * foreign key to sessions). Creates a minimal row from the latest thought if
+   * absent; never overwrites an existing session.
+   */
+  private async ensureSessionPersisted(sessionId: string, latest: StoredThought): Promise<void> {
+    const existing = await this.memoryStore.getSession(sessionId);
+    if (existing) {
+      return;
+    }
+
+    await this.memoryStore.storeSession({
+      id: sessionId,
+      start_time: latest.timestamp ?? new Date(),
+      objective: latest.objective ?? 'Reasoning session',
+      domain: latest.domain,
+      goal_achieved: false,
+      confidence_level: latest.confidence ?? 0.5,
+      total_thoughts: latest.total_thoughts ?? 0,
+      revision_count: 0,
+      branch_count: 0,
+    });
   }
 
   /**
@@ -1159,10 +1317,14 @@ export async function runServer(debugFlag = false): Promise<void> {
 
   // Existing handlers
   srv.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: [] }));
-  srv.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [MAP_THINK_DO_TOOL] }));
+  srv.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: [MAP_THINK_DO_TOOL, MAP_THINK_DO_FEEDBACK_TOOL],
+  }));
   srv.setRequestHandler(CallToolRequestSchema, async req => {
     if (isSupportedToolName(req.params.name)) {
       return logic.processThought(req.params.arguments);
+    } else if (req.params.name === MAP_THINK_DO_FEEDBACK_TOOL_NAME) {
+      return logic.processFeedback(req.params.arguments);
     } else {
       throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${req.params.name}`);
     }

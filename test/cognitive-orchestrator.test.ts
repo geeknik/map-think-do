@@ -744,6 +744,28 @@ async function testProvideFeedback(): Promise<void> {
   console.log('  ✓ Provide feedback works');
 }
 
+async function testRecordReasoningOutcome(): Promise<void> {
+  const orchestrator = await createTestCognitiveOrchestrator({
+    intervention_cooldown_ms: 0,
+  });
+
+  const thought = createMockThought();
+  await orchestrator.processThought(thought);
+  const sessionId = orchestrator.getCognitiveState().session_id;
+
+  // Applying the feedback signal should never throw, for any outcome value.
+  orchestrator.recordReasoningOutcome({ sessionId, outcome: 'success', outcomeScore: 0.9 });
+  orchestrator.recordReasoningOutcome({ sessionId, outcome: 'failure', outcomeScore: 0.1 });
+  orchestrator.recordReasoningOutcome({ sessionId, outcome: 'partial', outcomeScore: 0.5 });
+
+  // Cognitive state remains coherent after feedback.
+  const state = orchestrator.getCognitiveState();
+  assert.equal(state.session_id, sessionId, 'session id stays stable after feedback');
+
+  await orchestrator.dispose();
+  console.log('  ✓ Record reasoning outcome closes the feedback loop');
+}
+
 // ============================================================================
 // Error Handling Tests
 // ============================================================================
@@ -1278,6 +1300,7 @@ const tests = [
 
   // Feedback
   { name: 'Provide feedback', fn: testProvideFeedback },
+  { name: 'Record reasoning outcome', fn: testRecordReasoningOutcome },
 
   // Error Handling
   { name: 'Handle edge case input', fn: testProcessThoughtWithInvalidData },

@@ -462,6 +462,29 @@ export class CognitiveOrchestrator extends EventEmitter implements Disposable {
   }
 
   /**
+   * Apply an outcome feedback signal to the live cognitive state. Durable
+   * outcome persistence (confidence calibration, learning patterns) is handled
+   * by the server against its SQLiteStore — this method only updates the
+   * orchestrator's in-process cognitive state. Best-effort: never throws.
+   */
+  recordReasoningOutcome(params: {
+    sessionId: string;
+    outcome: 'success' | 'failure' | 'partial';
+    outcomeScore: number;
+  }): void {
+    const { sessionId, outcome, outcomeScore } = params;
+    try {
+      this.stateTracker.updateFromFeedback(outcome, outcomeScore);
+      this.emit('reasoning_outcome_recorded', { sessionId, outcome, outcomeScore });
+    } catch (error) {
+      handleError('CognitiveOrchestrator', 'recordReasoningOutcome', error, ErrorSeverity.WARNING, {
+        sessionId,
+        outcome,
+      });
+    }
+  }
+
+  /**
    * Get current cognitive state
    */
   getCognitiveState(): CognitiveState {
